@@ -4,6 +4,8 @@ from pygame.locals import *
 import pymunk
 import pymunk.pygame_util
 
+# Launch game, allow user controls
+
 def add_ball(space):
     """Add a ball to the given space at a random position"""
     mass = 1
