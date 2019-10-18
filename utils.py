@@ -1,10 +1,16 @@
 import pymunk
 
+collision_types = {
+    "ball": 1,
+    "goalpost": 2,
+    "robot": 3,
+}
+
 def friction_robot(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,1e-3,1e-2)
 
 def friction_ball(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,1.5e-0,1e-1,1e-2)
+    apply_friction(body,gravity,damping,dt,5e-2,2e-3,5e-2)
 
 def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0):
 

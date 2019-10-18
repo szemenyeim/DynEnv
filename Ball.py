@@ -1,7 +1,4 @@
-import pymunk
 from utils import *
-import random
-# move callback to detect goals and out of fields
 
 class Ball(object):
     def __init__(self,x,y):
@@ -12,9 +9,10 @@ class Ball(object):
         body.position = x, y
         body.velocity_func = friction_ball
         self.shape = pymunk.Circle(body, radius, (0, 0))
-        self.shape.color = (255, 0, 0)
+        self.shape.color = (0, 0, 255)
         self.shape.elasticity = 0.95
         self.shape.friction = 1.5
+        self.shape.collision_type = collision_types["ball"]
         self.lastKicked = 0
 
     def isOutOfField(self):
@@ -30,7 +28,7 @@ class Ball(object):
             x = 450
             y = 300
             if pos.y < outMin or pos.y > outMaxY:
-                x = pos.x - 50 if pos.x < 450 else pos.x + 50
+                x = pos.x - 50 if self.lastKicked else pos.x + 50
                 if pos.y < outMin:
                     y = outMin + self.shape.radius
                 else:
