@@ -18,8 +18,8 @@ class Robot(object):
 
         self.leftFoot = pymunk.Segment(body,a,b,radius)
         self.leftFoot.color = (255, int(255*(1-team)), int(255*team))
-        self.leftFoot.elasticity = 0.5
-        self.leftFoot.friction = 1.5
+        self.leftFoot.elasticity = 0.3
+        self.leftFoot.friction = 2.5
         self.leftFoot.collision_type = collision_types["robot"]
         inertia = pymunk.moment_for_segment(mass,c,d,radius)
         body = pymunk.Body(mass, inertia, pymunk.Body.DYNAMIC)
@@ -28,9 +28,11 @@ class Robot(object):
         body.velocity_func = friction_robot
         self.rightFoot = pymunk.Segment(body,c,d,radius)
         self.rightFoot.color = (255, int(255*(1-team)), int(255*team))
-        self.rightFoot.elasticity = 0.5
-        self.rightFoot.friction = 1.5
+        self.rightFoot.elasticity = 0.3
+        self.rightFoot.friction = 2.5
         self.rightFoot.collision_type = collision_types["robot"]
+
+        self.touchCntr = 0
 
         self.joint = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(x,y))
         self.joint.error_bias = 0.1
@@ -105,7 +107,7 @@ class Robot(object):
 
         pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
         filter = pymunk.shape_filter.ShapeFilter(categories=0b101)
-        shapes = space.point_query(pos,40,filter)
+        shapes = space.space.point_query(pos,40,filter)
 
         for query in shapes:
             if query.shape != self.leftFoot and query.shape != self.rightFoot:
@@ -178,7 +180,7 @@ class Robot(object):
                 if self.fallen:
                     r = random.random()
                     if r > 0.9:
-                        self.fall(space)
+                        self.fall(env)
                         return
                     print("Getup", self.team)
                     self.leftFoot.color = (255, int(255*(1-self.team)), int(255*self.team))

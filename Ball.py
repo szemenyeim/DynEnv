@@ -9,8 +9,8 @@ class Ball(object):
         body.velocity_func = friction_ball
         self.shape = pymunk.Circle(body, radius*2, (0, 0))
         self.shape.color = (0, 0, 255)
-        self.shape.elasticity = 0.9
-        self.shape.friction = 1.5
+        self.shape.elasticity = 0.98
+        self.shape.friction = 2.5
         self.shape.collision_type = collision_types["ball"]
         self.lastKicked = 0
 
