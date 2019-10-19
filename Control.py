@@ -16,21 +16,37 @@ from Robot import *
 class Environment(object):
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((900, 600))
-        pygame.display.set_caption("Joints. Just wait and the L will tip over")
+
+        self.W = 1040
+        self.H = 740
+        self.fieldW = 900
+        self.fieldH = 600
+        self.sideLength = 70
+        self.lineWidth = 5
+        self.penaltyRadius = 5
+        self.penaltyLength = 60
+        self.penaltyWidth = 110
+        self.penaltyDist = 130
+        self.centerCircleRadius = 75
+        self.goalWidth = 80
+        self.goalPostRadius = 5
+        self.ballRadius = 5
+
+        self.screen = pygame.display.set_mode((self.W, self.H))
+        pygame.display.set_caption("Robot Soccer")
         self.clock = pygame.time.Clock()
 
         self.space = pymunk.Space()
         self.space.gravity = (0.0, 0.0)
 
-        self.robots = [Robot(410,260,1),Robot(460,260,0)]
-        self.ball = Ball(450,300)
+        self.robots = [Robot(self.W/2-25,self.H/2-10,1),Robot(self.W/2+50,self.H/2,0)]
+        self.ball = Ball(self.W/2,self.H/2,self.ballRadius)
         self.space.add(self.ball.shape.body,self.ball.shape)
         self.goalposts = [
-            Goalpost(60,200),
-            Goalpost(60,400),
-            Goalpost(840,200),
-            Goalpost(840,400),
+            Goalpost(self.sideLength,self.H/2+self.goalWidth,self.goalPostRadius),
+            Goalpost(self.sideLength,self.H/2-self.goalWidth,self.goalPostRadius),
+            Goalpost(self.W-self.sideLength,self.H/2+self.goalWidth,self.goalPostRadius),
+            Goalpost(self.W-self.sideLength,self.H/2-self.goalWidth,self.goalPostRadius),
         ]
         for goal in self.goalposts:
             self.space.add(goal.shape.body,goal.shape)
@@ -76,6 +92,9 @@ class Environment(object):
         robot1 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
         robot2 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
+        if robot1 == robot2:
+            return
+
         if not robot1.touching or not robot2.touching:
 
             normalThresh = 0.8
@@ -91,10 +110,10 @@ class Environment(object):
 
             if robot1.mightPush and not robot2.mightPush and robot2.fallen:
                 print("Robot 1 Pushing")
-                robot1.penalize(5000)
+                robot1.penalize(5000,self)
             elif robot2.mightPush and not robot1.mightPush and robot1.fallen:
                 print("Robot 2 Pushing")
-                robot2.penalize(5000)
+                robot2.penalize(5000,self)
 
     def goalpostCollision(self,arbiter, space, data):
         robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
@@ -122,21 +141,31 @@ class Environment(object):
 
     def step(self,actions):
         self.screen.fill((0,255,0))
-        pygame.draw.line(self.screen,(255,255,255),(60,0),(60,600),2)
-        pygame.draw.line(self.screen,(255,255,255),(840,0),(840,600),2)
-        pygame.draw.line(self.screen,(255,255,255),(0,60),(900,60),2)
-        pygame.draw.line(self.screen,(255,255,255),(0,540),(900,540),2)
-        pygame.draw.line(self.screen,(255,255,255),(450,0),(450,600),2)
-        pygame.draw.line(self.screen,(255,255,255),(60,150),(160,150),2)
-        pygame.draw.line(self.screen,(255,255,255),(60,450),(160,450),2)
-        pygame.draw.line(self.screen,(255,255,255),(160,150),(160,450),2)
-        pygame.draw.line(self.screen,(255,255,255),(740,150),(840,150),2)
-        pygame.draw.line(self.screen,(255,255,255),(740,450),(840,450),2)
-        pygame.draw.line(self.screen,(255,255,255),(740,150),(740,450),2)
-        pygame.draw.circle(self.screen,(255,255,255),(450,300),150,2)
-        pygame.draw.circle(self.screen,(255,255,255),(450,300),5,0)
-        pygame.draw.circle(self.screen,(255,255,255),(200,300),5,0)
-        pygame.draw.circle(self.screen,(255,255,255),(700,300),5,0)
+        pygame.draw.line(self.screen,(255,255,255),(self.sideLength,self.sideLength),(self.sideLength,self.H-self.sideLength),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.W-self.sideLength,self.sideLength),(self.W-self.sideLength,self.H-self.sideLength),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.sideLength,self.sideLength),(self.W-self.sideLength,self.sideLength),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.sideLength,self.H-self.sideLength),(self.W-self.sideLength,self.H-self.sideLength),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.W/2,self.sideLength),(self.W/2,self.H-self.sideLength),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.sideLength,self.H/2-self.penaltyWidth),(self.sideLength+self.penaltyLength,self.H/2-self.penaltyWidth),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.sideLength,self.H/2+self.penaltyWidth),(self.sideLength+self.penaltyLength,self.H/2+self.penaltyWidth),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.sideLength+self.penaltyLength,self.H/2-self.penaltyWidth),(self.sideLength+self.penaltyLength,self.H/2+self.penaltyWidth),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.W-self.sideLength-self.penaltyLength,self.H/2-self.penaltyWidth),(self.W-self.sideLength,self.H/2-self.penaltyWidth),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.W-self.sideLength-self.penaltyLength,self.H/2+self.penaltyWidth),(self.W-self.sideLength,self.H/2+self.penaltyWidth),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.W-self.sideLength-self.penaltyLength,self.H/2-self.penaltyWidth),(self.W-self.sideLength-self.penaltyLength,self.H/2+self.penaltyWidth),self.lineWidth)
+        pygame.draw.circle(self.screen,(255,255,255),(self.W//2,self.H//2),self.centerCircleRadius*2,self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),(self.W//2-self.penaltyRadius,self.H//2),(self.W//2+self.penaltyRadius,self.H//2),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),
+                         (self.sideLength+self.penaltyDist-self.penaltyRadius,self.H//2),
+                         (self.sideLength+self.penaltyDist+self.penaltyRadius,self.H//2),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),
+                         (self.sideLength+self.penaltyDist,self.H//2-self.penaltyRadius),
+                         (self.sideLength+self.penaltyDist,self.H//2+self.penaltyRadius),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),
+                         (self.W-(self.sideLength+self.penaltyDist-self.penaltyRadius),self.H//2),
+                         (self.W-(self.sideLength+self.penaltyDist+self.penaltyRadius),self.H//2),self.lineWidth)
+        pygame.draw.line(self.screen,(255,255,255),
+                         (self.W-(self.sideLength+self.penaltyDist),self.H//2-self.penaltyRadius),
+                         (self.W-(self.sideLength+self.penaltyDist),self.H//2+self.penaltyRadius),self.lineWidth)
 
         self.space.debug_draw(self.draw_options)
 
@@ -146,10 +175,10 @@ class Environment(object):
         for action, robot in zip(actions,self.robots):
             self.processAction(action,robot)
 
-        finished, reward = self.ball.isOutOfField()
+        finished, reward = self.ball.isOutOfField(self)
 
-        [robot.tick(1000/100.0, self.ball.shape.body.position,self.space) for robot in self.robots]
-        [robot.isLeavingField() for robot in self.robots]
+        [robot.tick(1000/100.0, self.ball.shape.body.position,self.space,self) for robot in self.robots]
+        [robot.isLeavingField(self) for robot in self.robots]
 
         self.space.step(1 / 100.0)
 

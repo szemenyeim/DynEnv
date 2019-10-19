@@ -4,7 +4,7 @@ import random
 
 class Robot(object):
     def __init__(self,x,y,team):
-        mass = 5000
+        mass = 4000
         a = (-10,10)
         b = (10,10)
         c = (-10,-10)
@@ -105,11 +105,11 @@ class Robot(object):
 
         pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
         filter = pymunk.shape_filter.ShapeFilter(categories=0b101)
-        shapes = space.point_query(pos,30,filter)
+        shapes = space.point_query(pos,40,filter)
 
         for query in shapes:
             if query.shape != self.leftFoot and query.shape != self.rightFoot:
-                force = self.velocity*self.leftFoot.body.mass*query.shape.body.mass/100.0
+                force = self.velocity*self.leftFoot.body.mass*query.shape.body.mass/50.0
                 dp = pos - query.shape.body.position
                 dp = -dp*force/dp.length
                 query.shape.body.apply_force_at_world_point(dp,pos)
@@ -122,28 +122,32 @@ class Robot(object):
         self.moveTime = 3000
         if self.fallCntr > 2:
             print("Fallen robot", self.fallCntr, self.team)
-            self.penalize(5000)
+            self.penalize(5000,space)
 
-    def penalize(self,time):
+    def penalize(self,time,space):
         print("Penalized")
         self.penalized = True
         self.penalTime = time
         self.moving = False
         pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
-        x = 160 if self.team else 740
-        y = 60 if pos.y < 300 else 540
+        x = space.sideLength + space.penaltyLength if self.team else space.W - (space.sideLength + space.penaltyLength)
+        y = space.sideLength if pos.y < space.H/2 else space.H-space.sideLength
         self.leftFoot.body.position = pymunk.Vec2d(x-10, y)
         self.rightFoot.body.position = pymunk.Vec2d(x+10, y)
-        self.leftFoot.body.angle = math.pi / 2 if y < 300 else -math.pi / 2
+        self.leftFoot.body.angle = math.pi / 2 if y < space.H/2 else -math.pi / 2
         self.leftFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
         self.leftFoot.body.angular_velocity = 0.0
         self.leftFoot.color = (255, 0, 0)
-        self.rightFoot.body.angle = math.pi / 2 if y < 300 else -math.pi / 2
+        self.rightFoot.body.angle = math.pi / 2 if y < space.H/2 else -math.pi / 2
         self.rightFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
         self.rightFoot.body.angular_velocity = 0.0
         self.rightFoot.color = (255, 0, 0)
+        if self.kicking:
+            self.kicking = False
+            space.space.add(self.joint)
 
-    def tick(self,time,ballPos,space):
+
+    def tick(self,time,ballPos,space,env):
         if self.moving:
             self.moveTime -= time
             if self.kicking:
@@ -190,23 +194,23 @@ class Robot(object):
                 self.fallCntr = 0
                 self.fallen = False
                 pos = self.leftFoot.body.position
-                pos.y = 60 if ballPos.y > 300 else 540
-                self.leftFoot.body.angle = math.pi / 2 if ballPos.y > 300 else -math.pi / 2
+                pos.y = env.sideLength if ballPos.y > env.H/2 else env.H-env.sideLength
+                self.leftFoot.body.angle = math.pi / 2 if ballPos.y > env.H/2 else -math.pi / 2
                 self.leftFoot.body.position = pos
                 self.leftFoot.color = (255, int(255*(1-self.team)), int(255*self.team))
                 pos = self.rightFoot.body.position
-                pos.y = 60 if ballPos.y > 300 else 540
-                self.rightFoot.body.angle = math.pi / 2 if ballPos.y > 300 else -math.pi / 2
+                pos.y = env.sideLength if ballPos.y > env.H/2 else env.H-env.sideLength
+                self.rightFoot.body.angle = math.pi / 2 if ballPos.y > env.H/2 else -math.pi / 2
                 self.rightFoot.body.position = pos
                 self.rightFoot.color = (255, int(255*(1-self.team)), int(255*self.team))
 
-    def isLeavingField(self):
+    def isLeavingField(self,space):
         pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
 
         outMin = 5
-        outMaxX = 895
-        outMaxY = 595
+        outMaxX = space.W-5
+        outMaxY = space.H-5
 
         if pos.y < outMin or pos.x < outMin or pos.y > outMaxY or pos.x > outMaxX:
-            self.penalize(5000)
+            self.penalize(5000,space)
 
