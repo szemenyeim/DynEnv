@@ -6,6 +6,28 @@ collision_types = {
     "robot": 3,
 }
 
+game_types = {
+    "GetTheBall": 0,
+    "Full": 1,
+}
+
+noise_types = {
+    "RandomPos": 0,
+    "RandomPosAndFP_FN": 1,
+    "Realistic": 2,
+}
+
+observation = {
+    "Full": 0,
+    "Partial":1,
+    "2DImage":2,
+}
+
+state = {
+    "Meta": 0,
+    "Image":1,
+}
+
 def friction_robot(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,2e-3,1e-2)
 

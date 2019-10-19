@@ -3,7 +3,8 @@ from Control import *
 # Launch game, allow user controls
 
 if __name__ == '__main__':
-    env = Environment()
+    nPlayers = 6
+    env = Environment(nPlayers=nPlayers,render=False)
     action1 = 0
     action2 = 0
     while True:
@@ -49,7 +50,7 @@ if __name__ == '__main__':
                 action1 = 0
                 action2 = 0
 
-        action = [action1,action2]
+        action = [action1,action2]*nPlayers
         ret = env.step(action)
         if ret[1]:
             print("Goal: reward: ",ret[0])

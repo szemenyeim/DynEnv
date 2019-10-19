@@ -27,7 +27,7 @@ class Ball(object):
             x = space.W/2
             y = space.H/2
             if pos.y < outMin or pos.y > outMaxY:
-                x = pos.x - 50 if self.lastKicked else pos.x + 50
+                x = pos.x + 50 if self.lastKicked else pos.x - 50
                 if pos.y < outMin:
                     y = outMin + self.shape.radius
                 else:

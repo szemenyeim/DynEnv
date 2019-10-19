@@ -3,30 +3,37 @@ import math
 import random
 
 class Robot(object):
-    def __init__(self,x,y,team):
-        mass = 4000
-        a = (-10,10)
-        b = (10,10)
-        c = (-10,-10)
-        d = (10,-10)
-        radius = 7.5
-        inertia = pymunk.moment_for_segment(mass,a,b,radius)
-        body = pymunk.Body(mass, inertia, pymunk.Body.DYNAMIC)
-        body.position = x, y
-        body.angle = 0 if team else math.pi
+
+    length = 10
+    radius = 7.5
+    total = length+radius
+    fieldOfView = math.pi/4
+    velocity = 50
+    ang_velocity = 20
+    mass = 4000
+
+    def __init__(self,pos,team):
+        a = (-self.length,self.length)
+        b = (self.length,self.length)
+        c = (-self.length,-self.length)
+        d = (self.length,-self.length)
+        inertia = pymunk.moment_for_segment(self.mass,a,b,self.radius)
+        body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
+        body.position = pos
+        body.angle = 0 if not team else math.pi
         body.velocity_func = friction_robot
 
-        self.leftFoot = pymunk.Segment(body,a,b,radius)
+        self.leftFoot = pymunk.Segment(body,a,b,self.radius)
         self.leftFoot.color = (255, int(255*(1-team)), int(255*team))
         self.leftFoot.elasticity = 0.3
         self.leftFoot.friction = 2.5
         self.leftFoot.collision_type = collision_types["robot"]
-        inertia = pymunk.moment_for_segment(mass,c,d,radius)
-        body = pymunk.Body(mass, inertia, pymunk.Body.DYNAMIC)
-        body.position = x, y
-        body.angle = 0 if team else math.pi
+        inertia = pymunk.moment_for_segment(self.mass,c,d,self.radius)
+        body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
+        body.position = pos
+        body.angle = 0 if not team else math.pi
         body.velocity_func = friction_robot
-        self.rightFoot = pymunk.Segment(body,c,d,radius)
+        self.rightFoot = pymunk.Segment(body,c,d,self.radius)
         self.rightFoot.color = (255, int(255*(1-team)), int(255*team))
         self.rightFoot.elasticity = 0.3
         self.rightFoot.friction = 2.5
@@ -34,13 +41,13 @@ class Robot(object):
 
         self.touchCntr = 0
 
-        self.joint = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(x,y))
+        self.joint = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(pos[0],pos[1]))
         self.joint.error_bias = 0.1
         self.rotJoint = pymunk.constraint.RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
 
         self.team = team
-        self.velocity = 50
-        self.ang_velocity = 20
+        self.id = 0
+        self.headAngle = 0
         self.penalized = False
         self.penalTime = 0
         self.moving = False
@@ -52,6 +59,9 @@ class Robot(object):
         self.fallCntr = 0
         self.touching = False
         self.foot = None
+
+    def getPos(self):
+        return (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
 
     def step(self, dir, space):
         if not self.moving and not self.penalized:
@@ -105,7 +115,7 @@ class Robot(object):
     def fall(self,space):
         print("Fall", self.fallCntr, self.team)
 
-        pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
+        pos = self.getPos()
         filter = pymunk.shape_filter.ShapeFilter(categories=0b101)
         shapes = space.space.point_query(pos,40,filter)
 
@@ -131,7 +141,7 @@ class Robot(object):
         self.penalized = True
         self.penalTime = time
         self.moving = False
-        pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
+        pos = self.getPos()
         x = space.sideLength + space.penaltyLength if self.team else space.W - (space.sideLength + space.penaltyLength)
         y = space.sideLength if pos.y < space.H/2 else space.H-space.sideLength
         self.leftFoot.body.position = pymunk.Vec2d(x-10, y)
@@ -207,7 +217,7 @@ class Robot(object):
                 self.rightFoot.color = (255, int(255*(1-self.team)), int(255*self.team))
 
     def isLeavingField(self,space):
-        pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
+        pos = self.getPos()
 
         outMin = 5
         outMaxX = space.W-5
@@ -215,4 +225,8 @@ class Robot(object):
 
         if pos.y < outMin or pos.x < outMin or pos.y > outMaxY or pos.x > outMaxX:
             self.penalize(5000,space)
+
+    def turnHead(self,dir):
+        delta = math.pi/180
+        self.headAngle += delta if dir else -delta
 
