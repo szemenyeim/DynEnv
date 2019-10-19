@@ -27,6 +27,8 @@ if __name__ == '__main__':
                     action1 = 6
                 elif event.key == K_r:
                     action1 = 7
+                elif event.key == K_f:
+                    action1 = 8
                 elif event.key == K_UP:
                     action2 = 1
                 elif event.key == K_DOWN:
@@ -41,6 +43,8 @@ if __name__ == '__main__':
                     action2 = 6
                 elif event.key == K_END:
                     action2 = 7
+                elif event.key == K_HOME:
+                    action2 = 8
             elif event.type == KEYUP:
                 action1 = 0
                 action2 = 0

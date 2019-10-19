@@ -1,5 +1,6 @@
 from utils import *
 import math
+import random
 
 class Robot(object):
     def __init__(self,x,y,team):
@@ -31,13 +32,13 @@ class Robot(object):
         self.rightFoot.friction = 1.5
         self.rightFoot.collision_type = collision_types["robot"]
 
-        self.spring = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(x,y))
-        self.spring.error_bias = 0.1
-        self.rotSpring = pymunk.constraint.RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
-        self.spring.collide_bodies = False
+        self.joint = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(x,y))
+        self.joint.error_bias = 0.1
+        self.rotJoint = pymunk.constraint.RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
 
         self.team = team
         self.velocity = 50
+        self.ang_velocity = 20
         self.penalized = False
         self.penalTime = 0
         self.moving = False
@@ -48,20 +49,25 @@ class Robot(object):
         self.mightPush = False
         self.fallCntr = 0
         self.touching = False
+        self.foot = None
 
-    def step(self, dir):
+    def step(self, dir, space):
         if not self.moving and not self.penalized:
+            r = random.random()
+            if r > 0.995:
+                self.fall(space)
+                return
             self.moveTime = 500
             self.moving = True
             velocity = None
             if dir == 0:
-                velocity = pymunk.Vec2d(0,2*self.velocity)
+                velocity = pymunk.Vec2d(0,2.5*self.velocity)
             elif dir == 1:
-                velocity = pymunk.Vec2d(0,-2*self.velocity)
+                velocity = pymunk.Vec2d(0,-2.5*self.velocity)
             elif dir == 2:
-                velocity = pymunk.Vec2d(2*self.velocity,0)
+                velocity = pymunk.Vec2d(2.5*self.velocity,0)
             elif dir == 3:
-                velocity = pymunk.Vec2d(-self.velocity,0)
+                velocity = pymunk.Vec2d(-2*self.velocity,0)
             if velocity is not None:
                 shape = self.leftFoot
                 angle = shape.body.angle
@@ -69,24 +75,33 @@ class Robot(object):
                 shape.body.velocity = velocity
 
 
-    def turn(self, dir):
+    def turn(self, dir, space):
         if not self.moving and not self.penalized:
+            r = random.random()
+            if r > 0.995:
+                self.fall(space)
+                return
             self.moving = True
             self.moveTime = 500
             if dir == 0:
-                self.leftFoot.body.angular_velocity += 20
+                self.leftFoot.body.angular_velocity += self.ang_velocity
             elif dir == 1:
-                self.leftFoot.body.angular_velocity -= 20
+                self.leftFoot.body.angular_velocity -= self.ang_velocity
 
-    def kick(self):
+    def kick(self, foot, space):
         if not self.moving and not self.penalized:
-            self.initPos = self.leftFoot.body.position
+            r = random.random()
+            if r > 0.95:
+                self.fall(space)
+                return
+            self.foot = foot
+            self.initPos = self.rightFoot.body.position if foot else self.leftFoot.body.position
             self.moving = True
             self.kicking = True
             self.moveTime = 1000
 
     def fall(self,space):
-        print("Fall", self.team)
+        print("Fall", self.fallCntr, self.team)
 
         pos = (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
         filter = pymunk.shape_filter.ShapeFilter(categories=0b101)
@@ -103,11 +118,10 @@ class Robot(object):
         self.rightFoot.color = (255, int(100*(1-self.team)), int(100*self.team))
         self.fallen = True
         self.moving = True
-        self.touching = True
         self.fallCntr += 1
         self.moveTime = 3000
         if self.fallCntr > 2:
-            print("Fallen robot", self.team)
+            print("Fallen robot", self.fallCntr, self.team)
             self.penalize(5000)
 
     def penalize(self,time):
@@ -133,20 +147,23 @@ class Robot(object):
         if self.moving:
             self.moveTime -= time
             if self.kicking:
+                foot = self.rightFoot if self.foot else self.leftFoot
                 if self.moveTime + time > 500 and self.moveTime <= 500:
-                    velocity = pymunk.Vec2d(self.velocity * 4, 0)
-                    angle = self.leftFoot.body.angle
+                    space.remove(self.joint)
+                    velocity = pymunk.Vec2d(self.velocity * 2.5, 0)
+                    angle = foot.body.angle
                     velocity.rotate(angle)
-                    self.leftFoot.body.velocity = velocity
-                if self.moveTime + time > 450 and self.moveTime <= 450:
-                    velocity = pymunk.Vec2d(self.velocity*4,0)
-                    angle = self.leftFoot.body.angle
+                    foot.body.velocity = velocity
+                if self.moveTime + time > 400 and self.moveTime <= 400:
+                    velocity = pymunk.Vec2d(self.velocity * 2.5, 0)
+                    angle = foot.body.angle
                     velocity.rotate(angle)
-                    self.leftFoot.body.velocity = -velocity
-                elif self.moveTime <= 400:
-                    self.leftFoot.body.velocity = pymunk.Vec2d(0,0)
+                    foot.body.velocity = -velocity
+                elif self.moveTime <= 300:
+                    foot.body.velocity = pymunk.Vec2d(0,0)
                     self.kicking = False
-                    self.leftFoot.body.position = self.initPos
+                    foot.body.position = self.initPos
+                    space.add(self.joint)
             if self.moveTime <= 0:
                 self.moveTime = 0
                 self.moving = False
@@ -155,6 +172,10 @@ class Robot(object):
                 self.rightFoot.body.velocity = pymunk.Vec2d(0,0)
                 self.rightFoot.body.angular_velocity = 0.0
                 if self.fallen:
+                    r = random.random()
+                    if r > 0.9:
+                        self.fall(space)
+                        return
                     print("Getup", self.team)
                     self.leftFoot.color = (255, int(255*(1-self.team)), int(255*self.team))
                     self.rightFoot.color = (255, int(255*(1-self.team)), int(255*self.team))
@@ -166,6 +187,8 @@ class Robot(object):
                 print("Unpenalized")
                 self.penalTime = 0
                 self.penalized = False
+                self.fallCntr = 0
+                self.fallen = False
                 pos = self.leftFoot.body.position
                 pos.y = 60 if ballPos.y > 300 else 540
                 self.leftFoot.body.angle = math.pi / 2 if ballPos.y > 300 else -math.pi / 2

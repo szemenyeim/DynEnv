@@ -7,7 +7,7 @@ collision_types = {
 }
 
 def friction_robot(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,1e-3,1e-2)
+    apply_friction(body,gravity,damping,dt,2e-3,1e-2)
 
 def friction_ball(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,5e-2,2e-3,5e-2)

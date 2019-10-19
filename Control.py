@@ -23,7 +23,7 @@ class Environment(object):
         self.space = pymunk.Space()
         self.space.gravity = (0.0, 0.0)
 
-        self.robots = [Robot(400,300,1),Robot(600,200,0)]
+        self.robots = [Robot(410,260,1),Robot(460,260,0)]
         self.ball = Ball(450,300)
         self.space.add(self.ball.shape.body,self.ball.shape)
         self.goalposts = [
@@ -35,7 +35,7 @@ class Environment(object):
         for goal in self.goalposts:
             self.space.add(goal.shape.body,goal.shape)
         for robot in self.robots:
-            self.space.add(robot.leftFoot.body,robot.leftFoot,robot.rightFoot.body,robot.rightFoot,robot.spring,robot.rotSpring)
+            self.space.add(robot.leftFoot.body,robot.leftFoot,robot.rightFoot.body,robot.rightFoot,robot.joint,robot.rotJoint)
 
         h = self.space.add_collision_handler(
             collision_types["robot"],
@@ -45,7 +45,7 @@ class Environment(object):
         h = self.space.add_collision_handler(
             collision_types["robot"],
             collision_types["robot"])
-        h.pre_solve = self.robotPushingDet
+        h.begin = self.robotPushingDet
         h.post_solve = self.robotCollision
         h.separate = self.separate
         h = self.space.add_collision_handler(
@@ -60,7 +60,7 @@ class Environment(object):
         robot2 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
         if not robot1.touching or not robot2.touching:
-            print("Robot Pushing detection")
+            print("Robot Collision")
 
             v1 = arbiter.shapes[0].body.velocity
             v2 = arbiter.shapes[1].body.velocity
@@ -68,8 +68,8 @@ class Environment(object):
             p2 = (robot2.leftFoot.body.position + robot2.rightFoot.body.position)/2.0
             dp = p1-p2
 
-            robot1.mightPush =  v1.length > 1 and math.cos(dp.angle-v1.angle) < -0.4
-            robot2.mightPush =  v2.length > 1 and math.cos(dp.angle-v2.angle) > 0.4
+            robot1.mightPush = v1.length > 1 and math.cos(dp.angle-v1.angle) < -0.4
+            robot2.mightPush = v2.length > 1 and math.cos(dp.angle-v2.angle) > 0.4
         return True
 
     def robotCollision(self,arbiter, space, data):
@@ -77,26 +77,34 @@ class Environment(object):
         robot2 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
         if not robot1.touching or not robot2.touching:
-            print("Robot Collision")
 
-            robot1.fall(self.space)
-            robot2.fall(self.space)
+            normalThresh = 0.8
+            pushingThresh = 0.9
+            robot1.touching = True
+            robot2.touching = True
+            r = random.random()
+            if r > (pushingThresh if robot1.mightPush else normalThresh):
+                robot1.fall(self.space)
+            r = random.random()
+            if r > (pushingThresh if robot2.mightPush else normalThresh):
+                robot2.fall(self.space)
 
-            if robot1.mightPush and not robot2.mightPush:
+            if robot1.mightPush and not robot2.mightPush and robot2.fallen:
                 print("Robot 1 Pushing")
                 robot1.penalize(5000)
-            elif robot2.mightPush and not robot1.mightPush:
+            elif robot2.mightPush and not robot1.mightPush and robot1.fallen:
                 print("Robot 2 Pushing")
                 robot2.penalize(5000)
-
-            robot1.mishtPush = False
-            robot2.mishtPush = False
 
     def goalpostCollision(self,arbiter, space, data):
         robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
         if not robot.touching:
             print("Goalpost Collision")
-            robot.fall(self.space)
+            robot.touching = True
+            pushingThresh = 0.9
+            r = random.random()
+            if r > pushingThresh:
+                robot.fall(self.space)
 
     def ballCollision(self,arbiter, space, data):
         robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
@@ -110,6 +118,7 @@ class Environment(object):
         robots = [robot for robot in self.robots if (robot.leftFoot in arbiter.shapes or robot.rightFoot in arbiter.shapes)]
         for robot in robots:
             robot.touching = False
+            robot.mightPush = False
 
     def step(self,actions):
         self.screen.fill((0,255,0))
@@ -151,11 +160,11 @@ class Environment(object):
     def processAction(self, action, robot):
         if action > 0:
             if action < 5:
-                robot.step(action-1)
+                robot.step(action-1,self.space)
             elif action < 7:
-                robot.turn(action-5)
-            elif action == 7:
-                robot.kick()
+                robot.turn(action-5,self.space)
+            elif action >= 7:
+                robot.kick(action-7,self.space)
 
     def getRobotVision(self,robot):
         return robot
