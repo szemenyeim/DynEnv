@@ -37,6 +37,27 @@ sightingType = {
     "Normal":3,
 }
 
+interactionType = {
+    "None": 0,
+    "Nearby": 1,
+    "Occlude": 2,
+}
+
+def doesInteract(obj1,obj2,radius,canOcclude=True):
+    if obj2 is None or obj1 is None:
+        return 0
+
+    type = 0
+    if (obj1-obj2).length < radius:
+        type = 1
+
+    if canOcclude:
+        dist = obj1.cross(obj2)/obj1.length
+        if abs(dist) < radius and obj1.length < obj2.length:
+            type = 2
+
+    return type
+
 def isSeenInArea(point,dir1,dir2,maxDist,radius=0):
     seen = 0
     rotPt = None
@@ -61,7 +82,7 @@ def getLine(pt1,pt2,maxDistSqr):
     ySqr = pt2.y * pt2.y
     abx = pt2.x * pt1.x
     aby = pt2.y * pt1.y
-    a = pt1.x*pt1.x -2*abx + xSqr + pt1.y*pt1.y - 2*aby + ySqr #(pt1.x - pt2.x)**2 + (pt1.y - pt2.y)**2
+    a = pt1.x*pt1.x -2*abx + xSqr + pt1.y*pt1.y - 2*aby + ySqr
     b = 2 * ((abx - xSqr) + (aby - ySqr))
     c = xSqr + ySqr - maxDistSqr
     den = 1.0 / (2 * a)

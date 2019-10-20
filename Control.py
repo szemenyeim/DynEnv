@@ -287,10 +287,20 @@ class Environment(object):
 
         maxDistSqr = self.maxVisDist**2
 
-        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.length) for rob in self.robots]
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.length) for rob in self.robots if robot != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist,self.goalPostRadius) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist,self.penaltyRadius) for cross in self.fieldCrosses]
         lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist,maxDistSqr) for p1,p2 in self.lines]
 
+        robRobInter = [[doesInteract(rob1,rob2,Robot.length) for _,rob1 in robDets] for _,rob2 in robDets]
+        robBallInter = [doesInteract(rob,ballPosDet,Robot.length) for _,rob in robDets]
+        robPostInter = [[doesInteract(rob,post,Robot.length) for _,rob in robDets] for _,post in goalDets]
+        robCrossInter = [[doesInteract(rob,cross,Robot.length) for _,rob in robDets] for _,cross in crossDets]
+        ballPostInter = [doesInteract(ballPosDet,post,self.ballRadius,False) for _,post in goalDets]
+        ballCrossInter = [doesInteract(ballPosDet,cross,self.ballRadius,False)for _,cross in crossDets]
+
+        # Add position noise
+
+        # Add fp/fn, misclassification and merge noise
 
         return robot
