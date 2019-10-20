@@ -32,6 +32,9 @@ class Environment(object):
         self.goalPostRadius = 5
         self.ballRadius = 5
 
+        self.maxVisDist = self.W/2
+        self.maxVisAngle = math.pi/12
+
         self.maxPlayers = 6
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
@@ -42,28 +45,28 @@ class Environment(object):
 
         self.lines = [
             # Outer lines
-            ((self.sideLength,          self.sideLength),(self.sideLength,          self.H - self.sideLength)),
-            ((self.W - self.sideLength, self.sideLength),(self.W - self.sideLength, self.H - self.sideLength)),
-            ((self.sideLength,          self.sideLength),(self.W - self.sideLength, self.sideLength)),
-            ((self.sideLength, self.H - self.sideLength),(self.W - self.sideLength, self.H - self.sideLength)),
+            (pymunk.Vec2d(self.sideLength,          self.sideLength),pymunk.Vec2d(self.sideLength,          self.H - self.sideLength)),
+            (pymunk.Vec2d(self.W - self.sideLength, self.sideLength),pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength)),
+            (pymunk.Vec2d(self.sideLength,          self.sideLength),pymunk.Vec2d(self.W - self.sideLength, self.sideLength)),
+            (pymunk.Vec2d(self.sideLength, self.H - self.sideLength),pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength)),
             # Middle Line
-            ((self.W / 2, self.sideLength),(self.W / 2, self.H - self.sideLength)),
+            (pymunk.Vec2d(self.W / 2, self.sideLength),pymunk.Vec2d(self.W / 2, self.H - self.sideLength)),
             # Penalty Box #1
-            ((self.sideLength,                      self.H / 2 - self.penaltyWidth), (self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth)),
-            ((self.sideLength,                      self.H / 2 + self.penaltyWidth), (self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth)),
-            ((self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth), (self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth)),
+            (pymunk.Vec2d(self.sideLength,                      self.H / 2 - self.penaltyWidth), pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth)),
+            (pymunk.Vec2d(self.sideLength,                      self.H / 2 + self.penaltyWidth), pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth)),
+            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth), pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth)),
             # Penalty Box #2
-            ((self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), (self.W - self.sideLength,                      self.H / 2 - self.penaltyWidth)),
-            ((self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth), (self.W - self.sideLength,                      self.H / 2 + self.penaltyWidth)),
-            ((self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), (self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth))
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), pymunk.Vec2d(self.W - self.sideLength,                      self.H / 2 - self.penaltyWidth)),
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth), pymunk.Vec2d(self.W - self.sideLength,                      self.H / 2 + self.penaltyWidth)),
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth))
         ]
 
         self.centerCircle = [(self.W // 2, self.H // 2), self.centerCircleRadius]
 
         self.fieldCrosses = [
-            ((self.W // 2,                                   self.H // 2), self.penaltyRadius),
-            ((self.sideLength + self.penaltyDist,            self.H // 2), self.penaltyRadius),
-            ((self.W - (self.sideLength + self.penaltyDist), self.H // 2), self.penaltyRadius),
+            (pymunk.Vec2d(self.W // 2,                                   self.H // 2), self.penaltyRadius),
+            (pymunk.Vec2d(self.sideLength + self.penaltyDist,            self.H // 2), self.penaltyRadius),
+            (pymunk.Vec2d(self.W - (self.sideLength + self.penaltyDist), self.H // 2), self.penaltyRadius),
         ]
 
         centX = self.W/2
@@ -227,25 +230,30 @@ class Environment(object):
     def step(self,actions):
         t1 = time.clock()
 
-        if self.render:
-            self.drawStaticObjects()
+        for i in range(50):
+            if self.render:
+                self.drawStaticObjects()
 
-        if len(actions) != len(self.robots):
-            print("Error: There must be action s for every robot")
+            if len(actions) != len(self.robots):
+                print("Error: There must be action s for every robot")
 
-        for action, robot in zip(actions,self.robots):
-            self.processAction(action,robot)
-            robot.tick(1000 / self.timeStep, self.ball.shape.body.position, self.space, self)
-            robot.isLeavingField(self)
-            self.getRobotVision(robot)
+            for action, robot in zip(actions,self.robots):
+                if i == 0:
+                    self.processAction(action,robot)
+                robot.tick(1000 / self.timeStep, self.ball.shape.body.position, self.space, self)
+                robot.isLeavingField(self)
 
-        finished, reward = self.ball.isOutOfField(self)
+            finished, reward = self.ball.isOutOfField(self)
 
-        self.space.step(1 / self.timeStep)
+            self.space.step(1 / self.timeStep)
 
-        if self.render:
-            pygame.display.flip()
-            self.clock.tick(self.timeStep)
+            if i % 10 == 9:
+                for robot in self.robots:
+                    self.getRobotVision(robot)
+
+            if self.render:
+                pygame.display.flip()
+                self.clock.tick(self.timeStep)
         t2 = time.clock()
         print((t2-t1)*1000)
         return reward, finished
@@ -259,7 +267,6 @@ class Environment(object):
                 robot.turn(action-5,self)
             elif action >= 7:
                 robot.kick(action-7,self)
-
 
     def getRobotVision(self,robot):
         pos = robot.getPos()
@@ -276,34 +283,14 @@ class Environment(object):
 
         ballPos = self.ball.shape.body.position - pos
 
-        dist1 = vec1.cross(ballPos)
-        dist2 = vec2.cross(ballPos)
-        dist3 = ballPos.length
+        ball, ballPosDet = isSeenInArea(ballPos,vec1,vec2,self.maxVisDist,self.ballRadius)
 
-        for rob in self.robots:
-            robPos = rob.getPos() - pos
-            dist1 = vec1.cross(robPos)
-            dist2 = vec2.cross(robPos)
-            dist3 = robPos.length
-        for goal in self.goalposts:
-            goalPos = goal.shape.body.position - pos
-            dist1 = vec1.cross(goalPos)
-            dist2 = vec2.cross(goalPos)
-            dist3 = goalPos.length
-        for cross in self.fieldCrosses:
-            crossPos = pymunk.Vec2d(cross[0]) - pos
-            dist1 = vec1.cross(crossPos)
-            dist2 = vec2.cross(crossPos)
-            dist3 = crossPos.length
-        for p1,p2 in self.lines:
-            p1 = pymunk.Vec2d(p1) - pos
-            p2 = pymunk.Vec2d(p2) - pos
-            dist1 = vec1.cross(p1)
-            dist2 = vec2.cross(p1)
-            dist3 = p1.length
-            dist1 = vec1.cross(p2)
-            dist2 = vec2.cross(p2)
-            dist3 = p2.length
+        maxDistSqr = self.maxVisDist**2
+
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.length) for rob in self.robots]
+        goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist,self.goalPostRadius) for goal in self.goalposts]
+        crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist,self.penaltyRadius) for cross in self.fieldCrosses]
+        lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist,maxDistSqr) for p1,p2 in self.lines]
 
 
         return robot
