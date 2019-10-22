@@ -285,7 +285,7 @@ class Environment(object):
 
         ballPos = self.ball.shape.body.position - pos
 
-        ball, ballDet = isSeenInArea(ballPos,vec1,vec2,self.maxVisDist,self.ballRadius)
+        ballDets = [isSeenInArea(ballPos,vec1,vec2,self.maxVisDist,self.ballRadius)]
 
         maxDistSqr = self.maxVisDist**2
 
@@ -298,51 +298,60 @@ class Environment(object):
         circleDets = (isSeenInArea(circlePos,vec1,vec2,self.maxVisDist,self.centerCircleRadius),self.centerCircleRadius)
 
 
-        robRobInter = [[doesInteract(rob1,rob2,Robot.totalRadius) for _,rob1 in robDets] for _,rob2 in robDets]
-        robBallInter = [doesInteract(rob,ballDet,Robot.totalRadius) for _,rob in robDets]
-        robPostInter = [[doesInteract(rob,post,Robot.totalRadius) for _,rob in robDets] for _,post in goalDets]
-        robCrossInter = [[doesInteract(rob,cross,Robot.totalRadius) for _,rob in robDets] for _,cross in crossDets]
-        ballPostInter = [doesInteract(ballDet,post,self.ballRadius,False) for _,post in goalDets]
-        ballCrossInter = [doesInteract(ballDet,cross,self.ballRadius,False)for _,cross in crossDets]
-
-        # Remove occlusion
-        ballDets = [(ball,ballDet,self.ballRadius)] if ball != 0 and 2 not in robBallInter else []
-        robDets = [(dtype,robDet,Robot.totalRadius) for i,(dtype,robDet) in enumerate(robDets) if dtype != 0 and 2 not in robRobInter[i]]
-        crossDets = [(dtype,crossDet,self.penaltyRadius) for i,(dtype,crossDet)in enumerate(crossDets) if dtype != 0 and 2 not in robCrossInter[i]]
-        goalDets = [(dtype,postDet,self.goalPostRadius) for i,(dtype,postDet) in enumerate(goalDets) if dtype != 0 and 2 not in robPostInter[i]]
-        lineDets = [(dtype,pt1,pt2) for dtype,(pt1,pt2) in lineDets if dtype != 0]
+        robRobInter = [max([doesInteract(rob1,rob2,Robot.totalRadius) for _,rob1,_ in robDets if rob1 != rob2]) for _,rob2,_ in robDets]
+        robBallInter = max([doesInteract(rob,ballDets[0][1],Robot.totalRadius) for _,rob,_ in robDets])
+        robPostInter = [max([doesInteract(rob,post,Robot.totalRadius) for _,rob,_ in robDets]) for _,post,_ in goalDets]
+        robCrossInter = [max([doesInteract(rob,cross,Robot.totalRadius) for _,rob,_ in robDets]) for _,cross,_ in crossDets]
+        ballPostInter = max([doesInteract(ballDets[0][1],post,self.ballRadius,False) for _,post,_ in goalDets])
+        ballCrossInter = [doesInteract(ballDets[0][1],cross,self.ballRadius,False)for _,cross,_ in crossDets]
 
         noiseType = 2
-        if noiseType > 0:
 
-            rand = self.randBase if noiseType == 1 else self.randBase/2
+        rand = self.randBase if noiseType == 1 else self.randBase/2
 
-            # Random position noise and false negatives
-            ballDets = [addNoise(ball, noiseType) for ball in ballDets if random.random() > rand]
-            robDets = [addNoise(robot, noiseType) for robot in robDets if random.random() > rand]
-            crossDets = [addNoise(cross, noiseType) for cross in crossDets if random.random() > rand]
-            goalDets = [addNoise(goal, noiseType) for goal in goalDets if random.random() > rand]
-            lineDets = [addNoiseLine(line, noiseType) for line in lineDets if random.random() > rand]
+        # Random position noise and false negatives
+        ballDets = [addNoise(ball, noiseType, max(robBallInter,ballPostInter), rand, True) for ball in ballDets]
+        robDets = [addNoise(robot, noiseType, robRobInter[i], rand) for i,robot in enumerate(robDets)]
+        goalDets = [addNoise(goal, noiseType, robPostInter[i], rand) for i,goal in enumerate(goalDets)]
+        crossDets = [addNoise(cross, noiseType, max(robCrossInter[i], ballCrossInter[i]), rand, True) for i,cross in enumerate(crossDets)]
+        lineDets = [addNoiseLine(line, noiseType, rand) for i,line in enumerate(lineDets)]
 
-            # Random false positives
-            for i in range(10):
-                if random.random() < rand:
-                    c = random.randint(0,5)
-                    if c == 0:
-                        ballDets.insert(random.randint(0,len(ballDets)),
-                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.ballRadius*2*random.random()))
-                    elif c == 1:
-                        robDets.insert(random.randint(0,len(robDets)),
-                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),Robot.totalRadius*2*random.random()))
-                    elif c == 2:
-                        crossDets.insert(random.randint(0,len(crossDets)),
-                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.penaltyRadius*2*random.random()))
-                    elif c == 3:
-                        goalDets.insert(random.randint(0,len(goalDets)),
-                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.goalPostRadius*2*random.random()))
-                    elif c == 4:
-                        lineDets.insert(random.randint(0,len(lineDets)),
-                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),
-                                        pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5))))
+        for ball in ballDets:
+            if ball[0] == 4:
+                crossDets.append((3,ball[1],ball[2]))
+        for cross in crossDets:
+            if cross[0] == 4:
+                ballDets.append((3,cross[1],cross[2]))
 
-        return ballDet,robDets,goalDets,crossDets,lineDets,circleDets
+        # Random false positives
+        for i in range(10):
+            if random.random() < rand:
+                c = random.randint(0,5)
+                if c == 0:
+                    ballDets.insert(len(ballDets),
+                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.ballRadius*2*random.random()))
+                elif c == 1:
+                    robDets.insert(len(robDets),
+                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),Robot.totalRadius*2*random.random()))
+                elif c == 2:
+                    goalDets.insert(len(goalDets),
+                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.goalPostRadius*2*random.random()))
+                elif c == 3:
+                    crossDets.insert(len(crossDets),
+                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.penaltyRadius*2*random.random()))
+
+        if noiseType == 2:
+            for robot in robDets:
+                if robot[0] == 3 and random.random() < rand and robot[1].length < 150:
+                    ballDets.insert(len(ballDets),
+                                   (3,pymunk.Vec2d(robot[1].x-Robot.totalRadius/2,robot[1].y-Robot.totalRadius/2),self.ballRadius+2*random.random()))
+
+
+        # Remove occlusion
+        ballDets = [ball for i,ball in enumerate(ballDets) if ball[0] != 0]
+        robDets = [robot for i,robot in enumerate(robDets) if robot[0] != 0]
+        goalDets = [goal for i,goal in enumerate(goalDets) if goal[0] != 0]
+        crossDets = [cross for i,cross in enumerate(crossDets) if cross[0] != 0]
+        lineDets = [line for i,line in enumerate(lineDets) if line[0] != 0]
+
+        return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

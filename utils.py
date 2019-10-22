@@ -44,25 +44,32 @@ interactionType = {
     "Occlude": 2,
 }
 
-def addNoiseLine(obj,noiseType):
-    noiseVec1 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
-    noiseVec2 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
-    if noiseType == 1:
-        return (obj[0],obj[1]+noiseVec1,obj[2]+noiseVec2)
-    elif noiseType == 2:
-        multiplier = 1 if obj[0] == 3 else 2
-        return (obj[0],obj[1]+noiseVec1*multiplier,obj[2]+noiseVec2*multiplier)
+def addNoiseLine(obj,noiseType, rand):
+    if noiseType and obj[0]:
+        noiseVec1 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
+        noiseVec2 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
+        if noiseType == 1:
+            return (obj[0] if random.random() > rand else 0,obj[1]+noiseVec1,obj[2]+noiseVec2)
+        elif noiseType == 2:
+            multiplier = 1 if obj[0] == 3 else 2
+            return (obj[0],obj[1]+noiseVec1*multiplier,obj[2]+noiseVec2*multiplier)
+    return obj
 
 
-def addNoise(obj,noiseType):
-    noiseVec = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
-    if noiseType == 1:
-        return (obj[0],obj[1]+noiseVec,obj[2]+(random.random()-0.5)*2)
-    elif noiseType == 2:
-        multiplier = 1 if obj[0] == 3 else 2
-        newPos = obj[1]+noiseVec*multiplier
-        diff = +1 if newPos.length-obj[1].length > 0 else -1
-        return (obj[0],obj[1]+noiseVec*multiplier,obj[2]+random.random()*2*diff)
+def addNoise(obj,noiseType,interaction, rand, misClass = False):
+    if noiseType and obj[0]:
+        noiseVec = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
+        if noiseType == 1:
+            return (obj[0] if random.random() > rand else 0,obj[1]+noiseVec,obj[2]+(random.random()-0.5)*2)
+        elif noiseType == 2:
+            sightingType = obj[0]
+            multiplier = 1 if sightingType == 3 and interaction == 0 else 2
+            newPos = obj[1]+noiseVec*multiplier
+            diff = +1 if newPos.length-obj[1].length > 0 else -1
+            if misClass and random.random() < rand:
+                sightingType = 4
+            return (sightingType if random.random() > rand*multiplier else 0,obj[1]+noiseVec*multiplier,obj[2]+random.random()*2*diff)
+    return obj
 
 def doesInteract(obj1,obj2,radius,canOcclude=True):
     if obj2 is None or obj1 is None:
@@ -96,7 +103,7 @@ def isSeenInArea(point,dir1,dir2,maxDist,radius=0):
                 seen = 1
             rotPt = copy.copy(point)
             rotPt.rotate(angle)
-    return seen,rotPt
+    return seen,rotPt,radius
 
 def getLine(pt1,pt2,maxDistSqr):
     xSqr = pt2.x * pt2.x
@@ -154,7 +161,7 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,maxDistSqr):
             if pt1 and pt2:
                 pt1.rotate(angle)
                 pt2.rotate(angle)
-    return seen,(pt1,pt2)
+    return seen,pt1,pt2
 
 def friction_robot(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,2e-3,1e-2)
@@ -171,10 +178,10 @@ def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0
 
     x = body.velocity.x
     y = body.velocity.y
-    length = abs(x)+abs(y) + 1e-5
+    length = 1.0/(abs(x)+abs(y) + 1e-5)
     theta = body.angular_velocity
 
-    a = [x*factor/length, y*factor/length]
+    a = [x*factor*length, y*factor*length]
     a[0] += a[1]*spin*theta
     a[1] -= a[0]*spin*theta
 
