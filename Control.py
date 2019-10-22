@@ -32,6 +32,8 @@ class Environment(object):
         self.goalPostRadius = 5
         self.ballRadius = 5
 
+        self.randBase = 0.05
+
         self.maxVisDist = self.W/2
         self.maxVisAngle = math.pi/12
 
@@ -61,7 +63,7 @@ class Environment(object):
             (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth))
         ]
 
-        self.centerCircle = [(self.W // 2, self.H // 2), self.centerCircleRadius]
+        self.centerCircle = [pymunk.Vec2d((self.W // 2, self.H // 2)), self.centerCircleRadius]
 
         self.fieldCrosses = [
             (pymunk.Vec2d(self.W // 2,                                   self.H // 2), self.penaltyRadius),
@@ -72,15 +74,15 @@ class Environment(object):
         centX = self.W/2
 
         self.robotSpots = [
-            (centX-(self.ballRadius*2+Robot.total),self.H/2+10),
-            (centX-(Robot.total+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
-            (centX-(Robot.total+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
+            (centX-(self.ballRadius*2+Robot.totalRadius),self.H/2+10),
+            (centX-(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
+            (centX-(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
             ((self.sideLength), self.H/2),
-            (centX+(self.centerCircleRadius*2+Robot.total+self.lineWidth/2),self.H/2),
-            (centX+(Robot.total+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
-            (centX+(Robot.total+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
+            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2),self.H/2),
+            (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
+            (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
             (centX+(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
             (centX+(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
             (self.W - (self.sideLength), self.H/2),
@@ -283,24 +285,64 @@ class Environment(object):
 
         ballPos = self.ball.shape.body.position - pos
 
-        ball, ballPosDet = isSeenInArea(ballPos,vec1,vec2,self.maxVisDist,self.ballRadius)
+        ball, ballDet = isSeenInArea(ballPos,vec1,vec2,self.maxVisDist,self.ballRadius)
 
         maxDistSqr = self.maxVisDist**2
 
-        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.length) for rob in self.robots if robot != rob]
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.totalRadius) for rob in self.robots if robot != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist,self.goalPostRadius) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist,self.penaltyRadius) for cross in self.fieldCrosses]
         lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist,maxDistSqr) for p1,p2 in self.lines]
 
-        robRobInter = [[doesInteract(rob1,rob2,Robot.length) for _,rob1 in robDets] for _,rob2 in robDets]
-        robBallInter = [doesInteract(rob,ballPosDet,Robot.length) for _,rob in robDets]
-        robPostInter = [[doesInteract(rob,post,Robot.length) for _,rob in robDets] for _,post in goalDets]
-        robCrossInter = [[doesInteract(rob,cross,Robot.length) for _,rob in robDets] for _,cross in crossDets]
-        ballPostInter = [doesInteract(ballPosDet,post,self.ballRadius,False) for _,post in goalDets]
-        ballCrossInter = [doesInteract(ballPosDet,cross,self.ballRadius,False)for _,cross in crossDets]
+        circlePos = self.centerCircle[0] - pos
+        circleDets = (isSeenInArea(circlePos,vec1,vec2,self.maxVisDist,self.centerCircleRadius),self.centerCircleRadius)
 
-        # Add position noise
 
-        # Add fp/fn, misclassification and merge noise
+        robRobInter = [[doesInteract(rob1,rob2,Robot.totalRadius) for _,rob1 in robDets] for _,rob2 in robDets]
+        robBallInter = [doesInteract(rob,ballDet,Robot.totalRadius) for _,rob in robDets]
+        robPostInter = [[doesInteract(rob,post,Robot.totalRadius) for _,rob in robDets] for _,post in goalDets]
+        robCrossInter = [[doesInteract(rob,cross,Robot.totalRadius) for _,rob in robDets] for _,cross in crossDets]
+        ballPostInter = [doesInteract(ballDet,post,self.ballRadius,False) for _,post in goalDets]
+        ballCrossInter = [doesInteract(ballDet,cross,self.ballRadius,False)for _,cross in crossDets]
 
-        return robot
+        # Remove occlusion
+        ballDets = [(ball,ballDet,self.ballRadius)] if ball != 0 and 2 not in robBallInter else []
+        robDets = [(dtype,robDet,Robot.totalRadius) for i,(dtype,robDet) in enumerate(robDets) if dtype != 0 and 2 not in robRobInter[i]]
+        crossDets = [(dtype,crossDet,self.penaltyRadius) for i,(dtype,crossDet)in enumerate(crossDets) if dtype != 0 and 2 not in robCrossInter[i]]
+        goalDets = [(dtype,postDet,self.goalPostRadius) for i,(dtype,postDet) in enumerate(goalDets) if dtype != 0 and 2 not in robPostInter[i]]
+        lineDets = [(dtype,pt1,pt2) for dtype,(pt1,pt2) in lineDets if dtype != 0]
+
+        noiseType = 2
+        if noiseType > 0:
+
+            rand = self.randBase if noiseType == 1 else self.randBase/2
+
+            # Random position noise and false negatives
+            ballDets = [addNoise(ball, noiseType) for ball in ballDets if random.random() > rand]
+            robDets = [addNoise(robot, noiseType) for robot in robDets if random.random() > rand]
+            crossDets = [addNoise(cross, noiseType) for cross in crossDets if random.random() > rand]
+            goalDets = [addNoise(goal, noiseType) for goal in goalDets if random.random() > rand]
+            lineDets = [addNoiseLine(line, noiseType) for line in lineDets if random.random() > rand]
+
+            # Random false positives
+            for i in range(10):
+                if random.random() < rand:
+                    c = random.randint(0,5)
+                    if c == 0:
+                        ballDets.insert(random.randint(0,len(ballDets)),
+                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.ballRadius*2*random.random()))
+                    elif c == 1:
+                        robDets.insert(random.randint(0,len(robDets)),
+                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),Robot.totalRadius*2*random.random()))
+                    elif c == 2:
+                        crossDets.insert(random.randint(0,len(crossDets)),
+                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.penaltyRadius*2*random.random()))
+                    elif c == 3:
+                        goalDets.insert(random.randint(0,len(goalDets)),
+                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.goalPostRadius*2*random.random()))
+                    elif c == 4:
+                        lineDets.insert(random.randint(0,len(lineDets)),
+                                       (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),
+                                        pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5))))
+
+        return ballDet,robDets,goalDets,crossDets,lineDets,circleDets

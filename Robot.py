@@ -6,7 +6,7 @@ class Robot(object):
 
     length = 10
     radius = 7.5
-    total = length+radius
+    totalRadius = length+radius
     fieldOfView = math.pi/4
     velocity = 50
     ang_velocity = 20

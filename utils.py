@@ -1,6 +1,7 @@
 import pymunk
 import copy
 import math
+import random
 
 collision_types = {
     "ball": 1,
@@ -15,7 +16,7 @@ game_types = {
 
 noise_types = {
     "RandomPos": 0,
-    "RandomPosAndFP_FN": 1,
+    "Random": 1,
     "Realistic": 2,
 }
 
@@ -42,6 +43,26 @@ interactionType = {
     "Nearby": 1,
     "Occlude": 2,
 }
+
+def addNoiseLine(obj,noiseType):
+    noiseVec1 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
+    noiseVec2 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
+    if noiseType == 1:
+        return (obj[0],obj[1]+noiseVec1,obj[2]+noiseVec2)
+    elif noiseType == 2:
+        multiplier = 1 if obj[0] == 3 else 2
+        return (obj[0],obj[1]+noiseVec1*multiplier,obj[2]+noiseVec2*multiplier)
+
+
+def addNoise(obj,noiseType):
+    noiseVec = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
+    if noiseType == 1:
+        return (obj[0],obj[1]+noiseVec,obj[2]+(random.random()-0.5)*2)
+    elif noiseType == 2:
+        multiplier = 1 if obj[0] == 3 else 2
+        newPos = obj[1]+noiseVec*multiplier
+        diff = +1 if newPos.length-obj[1].length > 0 else -1
+        return (obj[0],obj[1]+noiseVec*multiplier,obj[2]+random.random()*2*diff)
 
 def doesInteract(obj1,obj2,radius,canOcclude=True):
     if obj2 is None or obj1 is None:
