@@ -1,8 +1,5 @@
-import pymunk
 import pygame
-from pygame.locals import *
 import pymunk.pygame_util
-import sys
 import time
 from Ball import *
 from Goalpost import *
@@ -14,8 +11,12 @@ from Robot import *
 # Render robot visions and truths
 
 class Environment(object):
-    def __init__(self,nPlayers = 1,render=False):
+    def __init__(self,nPlayers,render=False,gameType = GameType.Full,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic):
         pygame.init()
+
+        self.gameType = gameType
+        self.observationType = observationType
+        self.noiseType = noiseType
 
         self.W = 1040
         self.H = 740
@@ -106,21 +107,21 @@ class Environment(object):
             self.space.add(goal.shape.body,goal.shape)
 
         h = self.space.add_collision_handler(
-            collision_types["robot"],
-            collision_types["goalpost"])
+            CollisionType.Robot,
+            CollisionType.Goalpost)
         h.post_solve = self.goalpostCollision
         h.separate = self.separate
 
         h = self.space.add_collision_handler(
-            collision_types["robot"],
-            collision_types["robot"])
+            CollisionType.Robot,
+            CollisionType.Robot)
         h.begin = self.robotPushingDet
         h.post_solve = self.robotCollision
         h.separate = self.separate
 
         h = self.space.add_collision_handler(
-            collision_types["robot"],
-            collision_types["ball"])
+            CollisionType.Robot,
+            CollisionType.Ball)
         h.begin = self.ballCollision
 
         if self.render:
@@ -289,39 +290,38 @@ class Environment(object):
 
         maxDistSqr = self.maxVisDist**2
 
-        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.totalRadius) for rob in self.robots if robot != rob]
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.totalRadius)+(robot.team == rob.team,) for rob in self.robots if robot != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist,self.goalPostRadius) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist,self.penaltyRadius) for cross in self.fieldCrosses]
         lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist,maxDistSqr) for p1,p2 in self.lines]
 
         circlePos = self.centerCircle[0] - pos
-        circleDets = (isSeenInArea(circlePos,vec1,vec2,self.maxVisDist,self.centerCircleRadius),self.centerCircleRadius)
+        circleDets = isSeenInArea(circlePos,vec1,vec2,self.maxVisDist,self.centerCircleRadius)
 
 
-        robRobInter = [max([doesInteract(rob1,rob2,Robot.totalRadius) for _,rob1,_ in robDets if rob1 != rob2]) for _,rob2,_ in robDets]
-        robBallInter = max([doesInteract(rob,ballDets[0][1],Robot.totalRadius) for _,rob,_ in robDets])
-        robPostInter = [max([doesInteract(rob,post,Robot.totalRadius) for _,rob,_ in robDets]) for _,post,_ in goalDets]
-        robCrossInter = [max([doesInteract(rob,cross,Robot.totalRadius) for _,rob,_ in robDets]) for _,cross,_ in crossDets]
+        robRobInter = [max([doesInteract(rob1,rob2,Robot.totalRadius) for _,rob1,_,_ in robDets if rob1 != rob2]) for _,rob2,_,_ in robDets]
+        robBallInter = max([doesInteract(rob,ballDets[0][1],Robot.totalRadius) for _,rob,_,_ in robDets])
+        robPostInter = [max([doesInteract(rob,post,Robot.totalRadius) for _,rob,_,_ in robDets]) for _,post,_ in goalDets]
+        robCrossInter = [max([doesInteract(rob,cross,Robot.totalRadius) for _,rob,_,_ in robDets]) for _,cross,_ in crossDets]
         ballPostInter = max([doesInteract(ballDets[0][1],post,self.ballRadius,False) for _,post,_ in goalDets])
         ballCrossInter = [doesInteract(ballDets[0][1],cross,self.ballRadius,False)for _,cross,_ in crossDets]
 
-        noiseType = 2
-
-        rand = self.randBase if noiseType == 1 else self.randBase/2
+        rand = self.randBase if self.noiseType == 1 else self.randBase/2
 
         # Random position noise and false negatives
-        ballDets = [addNoise(ball, noiseType, max(robBallInter,ballPostInter), rand, True) for ball in ballDets]
-        robDets = [addNoise(robot, noiseType, robRobInter[i], rand) for i,robot in enumerate(robDets)]
-        goalDets = [addNoise(goal, noiseType, robPostInter[i], rand) for i,goal in enumerate(goalDets)]
-        crossDets = [addNoise(cross, noiseType, max(robCrossInter[i], ballCrossInter[i]), rand, True) for i,cross in enumerate(crossDets)]
-        lineDets = [addNoiseLine(line, noiseType, rand) for i,line in enumerate(lineDets)]
+        ballDets = [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), rand, True) for ball in ballDets]
+        robDets = [addNoise(robot, self.noiseType, robRobInter[i], rand) for i,robot in enumerate(robDets)]
+        goalDets = [addNoise(goal, self.noiseType, robPostInter[i], rand) for i,goal in enumerate(goalDets)]
+        crossDets = [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), rand, True) for i,cross in enumerate(crossDets)]
+        lineDets = [addNoiseLine(line, self.noiseType, rand) for i,line in enumerate(lineDets)]
+        circleDets = addNoise(circleDets, self.noiseType, 0, rand)
 
         for ball in ballDets:
-            if ball[0] == 4:
-                crossDets.append((3,ball[1],ball[2]))
+            if ball[0] == SightingType.Misclassified:
+                crossDets.append((SightingType.Normal,ball[1],ball[2]))
         for cross in crossDets:
-            if cross[0] == 4:
-                ballDets.append((3,cross[1],cross[2]))
+            if cross[0] == SightingType.Misclassified:
+                ballDets.append((SightingType.Normal,cross[1],cross[2]))
 
         # Random false positives
         for i in range(10):
@@ -329,29 +329,29 @@ class Environment(object):
                 c = random.randint(0,5)
                 if c == 0:
                     ballDets.insert(len(ballDets),
-                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.ballRadius*2*random.random()))
+                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.ballRadius*2*random.random()))
                 elif c == 1:
                     robDets.insert(len(robDets),
-                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),Robot.totalRadius*2*random.random()))
+                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),Robot.totalRadius*2*random.random(),random.random() > 0.5))
                 elif c == 2:
                     goalDets.insert(len(goalDets),
-                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.goalPostRadius*2*random.random()))
+                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.goalPostRadius*2*random.random()))
                 elif c == 3:
                     crossDets.insert(len(crossDets),
-                                   (3,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.penaltyRadius*2*random.random()))
+                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.penaltyRadius*2*random.random()))
 
-        if noiseType == 2:
+        if self.noiseType == 2:
             for robot in robDets:
-                if robot[0] == 3 and random.random() < rand and robot[1].length < 150:
+                if robot[0] == SightingType.Normal and random.random() < rand and robot[1].length < 150:
                     ballDets.insert(len(ballDets),
-                                   (3,pymunk.Vec2d(robot[1].x-Robot.totalRadius/2,robot[1].y-Robot.totalRadius/2),self.ballRadius+2*random.random()))
+                                   (SightingType.Normal,pymunk.Vec2d(robot[1].x-Robot.totalRadius/2,robot[1].y-Robot.totalRadius/2),self.ballRadius+2*random.random()))
 
 
         # Remove occlusion
-        ballDets = [ball for i,ball in enumerate(ballDets) if ball[0] != 0]
-        robDets = [robot for i,robot in enumerate(robDets) if robot[0] != 0]
-        goalDets = [goal for i,goal in enumerate(goalDets) if goal[0] != 0]
-        crossDets = [cross for i,cross in enumerate(crossDets) if cross[0] != 0]
-        lineDets = [line for i,line in enumerate(lineDets) if line[0] != 0]
+        ballDets = [ball for i,ball in enumerate(ballDets) if ball[0] != SightingType.NoSighting or ball[0] != SightingType.Misclassified]
+        robDets = [robot for i,robot in enumerate(robDets) if robot[0] != SightingType.NoSighting]
+        goalDets = [goal for i,goal in enumerate(goalDets) if goal[0] != SightingType.NoSighting]
+        crossDets = [cross for i,cross in enumerate(crossDets) if cross[0] != SightingType.NoSighting or cross[0] != SightingType.Misclassified]
+        lineDets = [line for i,line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
 
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

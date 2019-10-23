@@ -7,4 +7,4 @@ class Goalpost(object):
         self.shape = pymunk.Circle(body, radius*2, (0, 0))
         self.shape.color = (0, 0, 0)
         self.shape.elasticity = 0.95
-        self.shape.collision_type = collision_types["goalpost"]
+        self.shape.collision_type = CollisionType.Goalpost

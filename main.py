@@ -1,10 +1,13 @@
-from Control import *
+from __init__ import *
+import pygame
+from pygame.locals import *
+import sys
 
 # Launch game, allow user controls
 
 if __name__ == '__main__':
     nPlayers = 6
-    env = Environment(nPlayers=nPlayers,render=False)
+    env = Env(nPlayers=nPlayers,render=False)
     action1 = 0
     action2 = 0
     while True:

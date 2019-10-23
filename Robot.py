@@ -27,7 +27,7 @@ class Robot(object):
         self.leftFoot.color = (255, int(255*(1-team)), int(255*team))
         self.leftFoot.elasticity = 0.3
         self.leftFoot.friction = 2.5
-        self.leftFoot.collision_type = collision_types["robot"]
+        self.leftFoot.collision_type = CollisionType.Robot
         inertia = pymunk.moment_for_segment(self.mass,c,d,self.radius)
         body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
         body.position = pos
@@ -37,7 +37,7 @@ class Robot(object):
         self.rightFoot.color = (255, int(255*(1-team)), int(255*team))
         self.rightFoot.elasticity = 0.3
         self.rightFoot.friction = 2.5
-        self.rightFoot.collision_type = collision_types["robot"]
+        self.rightFoot.collision_type = CollisionType.Robot
 
         self.touchCntr = 0
 

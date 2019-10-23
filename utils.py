@@ -2,57 +2,48 @@ import pymunk
 import copy
 import math
 import random
+from enum import IntEnum
 
-collision_types = {
-    "ball": 1,
-    "goalpost": 2,
-    "robot": 3,
-}
+class GameType(IntEnum):
+    GetBall = 0
+    Full = 1
 
-game_types = {
-    "GetTheBall": 0,
-    "Full": 1,
-}
+class NoiseType(IntEnum):
+    Noiseless = 0
+    Random = 1
+    Realistic = 2
 
-noise_types = {
-    "RandomPos": 0,
-    "Random": 1,
-    "Realistic": 2,
-}
+class ObservationType(IntEnum):
+    Full = 0
+    Partial = 1
+    Image = 2
 
-observation = {
-    "Full": 0,
-    "Partial":1,
-    "2DImage":2,
-}
+class CollisionType(IntEnum):
+    Ball = 0
+    Goalpost = 1
+    Robot = 2
 
-state = {
-    "Meta": 0,
-    "Image":1,
-}
+class SightingType(IntEnum):
+    NoSighting = 0
+    Partial = 1
+    Distant = 2
+    Normal = 3
+    Misclassified = 4
 
-sightingType = {
-    "None": 0,
-    "Partial":1,
-    "Distant":2,
-    "Normal":3,
-}
-
-interactionType = {
-    "None": 0,
-    "Nearby": 1,
-    "Occlude": 2,
-}
+class InteractionType(IntEnum):
+    NoInter = 0
+    Nearby = 1
+    Occlude = 2
 
 def addNoiseLine(obj,noiseType, rand):
     if noiseType and obj[0]:
         noiseVec1 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
         noiseVec2 = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
         if noiseType == 1:
-            return (obj[0] if random.random() > rand else 0,obj[1]+noiseVec1,obj[2]+noiseVec2)
+            return (obj[0] if random.random() > rand else SightingType.NoSighting,obj[1]+noiseVec1,obj[2]+noiseVec2)
         elif noiseType == 2:
-            multiplier = 1 if obj[0] == 3 else 2
-            return (obj[0],obj[1]+noiseVec1*multiplier,obj[2]+noiseVec2*multiplier)
+            multiplier = 1 if obj[0] == SightingType.Normal else 2
+            return (obj[0] if random.random() > rand else SightingType.NoSighting,obj[1]+noiseVec1*multiplier,obj[2]+noiseVec2*multiplier)
     return obj
 
 
@@ -60,34 +51,40 @@ def addNoise(obj,noiseType,interaction, rand, misClass = False):
     if noiseType and obj[0]:
         noiseVec = pymunk.Vec2d(10*(random.random()-0.5),10*(random.random()-0.5))
         if noiseType == 1:
-            return (obj[0] if random.random() > rand else 0,obj[1]+noiseVec,obj[2]+(random.random()-0.5)*2)
+            newObj = (obj[0] if random.random() > rand else SightingType.NoSighting,obj[1]+noiseVec,obj[2]+(random.random()-0.5)*2)
+            if len(obj) == 4:
+                newObj = newObj + (obj[3],)
+            return newObj
         elif noiseType == 2:
             sightingType = obj[0]
-            multiplier = 1 if sightingType == 3 and interaction == 0 else 2
+            multiplier = 1 if sightingType == SightingType.Normal and interaction == InteractionType.NoInter else 2
             newPos = obj[1]+noiseVec*multiplier
             diff = +1 if newPos.length-obj[1].length > 0 else -1
             if misClass and random.random() < rand:
-                sightingType = 4
-            return (sightingType if random.random() > rand*multiplier else 0,obj[1]+noiseVec*multiplier,obj[2]+random.random()*2*diff)
+                sightingType = SightingType.Misclassified
+            newObj =  (sightingType if random.random() > rand*multiplier else SightingType.NoSighting,obj[1]+noiseVec*multiplier,obj[2]+random.random()*2*diff)
+            if len(obj) == 4:
+                newObj = newObj + (obj[3],)
+            return newObj
     return obj
 
 def doesInteract(obj1,obj2,radius,canOcclude=True):
     if obj2 is None or obj1 is None:
-        return 0
+        return InteractionType.NoInter
 
-    type = 0
+    type = InteractionType.NoInter
     if (obj1-obj2).length < radius:
-        type = 1
+        type = InteractionType.Nearby
 
     if canOcclude:
         dist = obj1.cross(obj2)/obj1.length
         if abs(dist) < radius and obj1.length < obj2.length:
-            type = 2
+            type = InteractionType.Occlude
 
     return type
 
 def isSeenInArea(point,dir1,dir2,maxDist,radius=0):
-    seen = 0
+    seen = SightingType.NoSighting
     rotPt = None
     if point.length < maxDist:
         dist1 = dir1.cross(point)
@@ -96,11 +93,11 @@ def isSeenInArea(point,dir1,dir2,maxDist,radius=0):
             angle = (dir1.angle + dir2.angle)*0.5
             if dist1 < -radius and dist2 > radius:
                 if point.length < maxDist*0.75:
-                    seen = 3
+                    seen = SightingType.Normal
                 else:
-                    seen = 2
+                    seen = SightingType.Distant
             else:
-                seen = 1
+                seen = SightingType.Partial
             rotPt = copy.copy(point)
             rotPt.rotate(angle)
     return seen,rotPt,radius
@@ -120,7 +117,7 @@ def getLine(pt1,pt2,maxDistSqr):
     return pt2 + max(k1, k2) * (pt1 - pt2)
 
 def isLineInArea(p1,p2,dir1,dir2,maxDist,maxDistSqr):
-    seen = 0
+    seen = SightingType.NoSighting
     pt1 = None
     pt2 = None
     dist11 = dir1.cross(p1)
@@ -130,7 +127,7 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,maxDistSqr):
         dist22 = dir2.cross(p2)
         if not (dist21 < 0 and dist22 < 0):
             angle = (dir1.angle + dir2.angle)*0.5
-            seen = 3
+            seen = SightingType.Normal
             if dist11 <= 0 and dist21 >= 0:
                 pt1 = copy.copy(p1)
             else:
@@ -138,7 +135,7 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,maxDistSqr):
                 inter2 = p1.cross(dir2)/dir2.cross(p2-p1)
                 inter = inter1 if abs(inter1) > abs(inter2) else inter2
                 pt1 = p1+inter*(p2-p1)
-                seen = 1
+                seen = SightingType.Partial
             if dist12 <= 0 and dist22 >= 0:
                 pt2 = copy.copy(p2)
             else:
@@ -146,18 +143,18 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,maxDistSqr):
                 inter2 = p2.cross(dir2)/dir2.cross(p1-p2)
                 inter = inter1 if abs(inter1) > abs(inter2) else inter2
                 pt2 = p2+inter*(p1-p2)
-                seen = 1
+                seen = SightingType.Partial
             if pt1.length > maxDist:
                 if pt2.length > maxDist:
-                    seen = 0
+                    seen = SightingType.NoSighting
                     pt1 = None
                     pt2 = None
                 else:
                     pt1 = getLine(pt1,pt2,maxDistSqr)
-                    seen = 2
+                    seen = SightingType.Distant
             elif pt2.length > maxDist:
                 pt2 = getLine(pt2, pt1, maxDistSqr)
-                seen = 2
+                seen = SightingType.Distant
             if pt1 and pt2:
                 pt1.rotate(angle)
                 pt2.rotate(angle)
