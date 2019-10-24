@@ -12,7 +12,7 @@ class Robot(object):
     ang_velocity = 20
     mass = 4000
 
-    def __init__(self,pos,team):
+    def __init__(self,pos,team,id):
         a = (-self.length,self.length)
         b = (self.length,self.length)
         c = (-self.length,-self.length)
@@ -46,7 +46,7 @@ class Robot(object):
         self.rotJoint = pymunk.constraint.RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
 
         self.team = team
-        self.id = 0
+        self.id = id
         self.headAngle = 0
         self.penalized = False
         self.penalTime = 0

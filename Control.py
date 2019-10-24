@@ -33,6 +33,8 @@ class Environment(object):
         self.goalPostRadius = 5
         self.ballRadius = 5
 
+        self.kickDiscount = 0.5
+
         self.randBase = 0.05
 
         self.maxVisDist = self.W/2
@@ -42,6 +44,9 @@ class Environment(object):
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
         self.timeStep = 100.0
+
+        self.teamRewards = [0,0]
+        self.RobotRewards = [0,0]*self.nPlayers
 
         self.space = pymunk.Space()
         self.space.gravity = (0.0, 0.0)
@@ -89,8 +94,8 @@ class Environment(object):
             (self.W - (self.sideLength), self.H/2),
         ]
 
-        self.robots = [Robot(spot,0) for i,spot in enumerate(self.robotSpots[:self.maxPlayers]) if i < self.nPlayers] \
-                      + [Robot(spot,1) for i,spot in enumerate(self.robotSpots[self.maxPlayers:]) if i < self.nPlayers]
+        self.robots = [Robot(spot,0,i) for i,spot in enumerate(self.robotSpots[:self.maxPlayers]) if i < self.nPlayers] \
+                      + [Robot(spot,1,self.nPlayers+i) for i,spot in enumerate(self.robotSpots[self.maxPlayers:]) if i < self.nPlayers]
         for robot in self.robots:
             self.space.add(robot.leftFoot.body,robot.leftFoot,robot.rightFoot.body,robot.rightFoot,robot.joint,robot.rotJoint)
 
@@ -211,9 +216,10 @@ class Environment(object):
 
     def ballCollision(self,arbiter, space, data):
         robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
-        team = robot.team
         #print("Ball Kick", team)
-        self.ball.lastKicked = team
+        self.ball.lastKicked = [robot.id] + self.ball.lastKicked
+        if len(self.ball.lastKicked) > 4:
+            self.ball.lastKicked = self.ball.lastKicked[:4]
         return True
 
     def drawStaticObjects(self):
@@ -230,8 +236,91 @@ class Environment(object):
         self.space.debug_draw(self.draw_options)
 
 
+    def isBallOutOfField(self):
+        finished = False
+        pos = self.ball.shape.body.position
+
+        currReward = [0,0]
+
+        outMin = self.sideLength - self.ballRadius
+        outMaxX = self.W - self.sideLength + self.ballRadius
+        outMaxY = self.H -self.sideLength + self.ballRadius
+
+        # If ball is out
+        if pos.y < outMin or pos.x < outMin or pos.y > outMaxY or pos.x > outMaxX:
+            x = self.W/2
+            y = self.H/2
+
+            # If out on the sides
+            if pos.y < outMin or pos.y > outMaxY:
+                x = pos.x + 50 if self.ball.lastKicked[0] else pos.x - 50
+                if pos.y < outMin:
+                    y = outMin + self.ballRadius
+                else:
+                    y = outMaxY - self.ballRadius
+            # If out on the ends
+            else:
+                # If goal
+                if pos.y < self.H/2 + self.goalWidth and pos.y > self.H/2 - self.goalWidth:
+                    finished = True
+                    if pos.x < outMin:
+                        currReward[0] += -1000
+                        currReward[1] += 1000
+                    else:
+                        currReward[0] += 1000
+                        currReward[1] += -1000
+                # If simply out
+                else:
+                    # Handle two ends differently
+                    if pos.x < outMin:
+                        # Kick out
+                        if self.ball.lastKicked[0]:
+                            x = self.sideLength + self.penaltyLength
+                        # Corner
+                        else:
+                            x = self.sideLength
+                            y = self.sideLength if pos.y < self.H/2 else self.H-self.sideLength
+                    else:
+                        # Kick out
+                        if not self.ball.lastKicked[0]:
+                            x = self.W - (self.sideLength + self.penaltyLength)
+                        # Corner
+                        else:
+                            x = self.W - self.sideLength
+                            y = self.sideLength if pos.y < self.H/2 else self.H-self.sideLength
+            # Move ball to middle and stop it
+            self.ball.shape.body.position = pymunk.Vec2d(x,y)
+            self.ball.shape.body.velocity = pymunk.Vec2d(0.0,0.0)
+            self.ball.shape.body.angular_velocity = 0.0
+
+        # Add ball movement to the reward
+        if not finished:
+            currReward[0] += self.ball.shape.body.position.x - pos.x
+            currReward[1] -= self.ball.shape.body.position.x - pos.x
+
+        # Create discounted personal rewards for the robots involved
+        for i, id in enumerate(self.ball.lastKicked):
+            self.robotRewards[id] += currReward[0] * (self.kickDiscount ** i) if id < self.nPlayers else currReward[1] * (self.kickDiscount ** i)
+
+        # Create personal rewards for nearby robots not touching the ball, but only negative rewards
+        for robot in self.robots:
+            if robot.id not in self.ball.lastKicked and (robot.getPos() - pos).length < 150:
+                self.robotRewards[robot.id] += min(0, currReward[0] * self.kickDiscount if robot.id < self.nPlayers else
+                currReward[1] * self.kickDiscount)
+
+        # Update team rewards
+        self.teamRewards[0] += currReward[0]
+        self.teamRewards[1] += currReward[1]
+        
+        return finished,reward
+
     def step(self,actions):
         t1 = time.clock()
+
+        self.teamRewards = [0,0]
+        self.robotRewards = [0,0]*self.nPlayers
+        observations = []
+        finished = False
 
         for i in range(50):
             if self.render:
@@ -246,20 +335,19 @@ class Environment(object):
                 robot.tick(1000 / self.timeStep, self.ball.shape.body.position, self.space, self)
                 robot.isLeavingField(self)
 
-            finished, reward = self.ball.isOutOfField(self)
+            finished, reward = self.isBallOutOfField()
 
             self.space.step(1 / self.timeStep)
 
             if i % 10 == 9:
-                for robot in self.robots:
-                    self.getRobotVision(robot)
+                observations.append([self.getRobotVision(robot) for robot in self.robots])
 
             if self.render:
                 pygame.display.flip()
                 self.clock.tick(self.timeStep)
         t2 = time.clock()
         print((t2-t1)*1000)
-        return reward, finished
+        return observations,self.teamRewards,self.robotRewards,finished
 
 
     def processAction(self, action, robot):
