@@ -624,7 +624,7 @@ class Environment(object):
         t2 = time.clock()
         print((t2-t1)*1000)
 
-        return observations,self.teamRewards,self.robotRewards,finished
+        return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
 
     # Action handler
     def processAction(self, action, robot):
@@ -656,6 +656,10 @@ class Environment(object):
             if r > 0.95:
                 self.fall(robot)
             robot.kick(kick-1)
+
+    # Get true object states
+    def getFullState(self):
+        return [self.ball.shape.body.position,] + [(rob.getPos(),rob.team,rob.fallen or robot.penalized) for rob in self.robots]
 
     # Getting vision
     def getRobotVision(self,robot):
