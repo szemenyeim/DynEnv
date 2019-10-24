@@ -48,6 +48,8 @@ class Environment(object):
         self.teamRewards = [0,0]
         self.RobotRewards = [0,0]*self.nPlayers
 
+        self.penalTimes = [10000,10000]
+
         self.space = pymunk.Space()
         self.space.gravity = (0.0, 0.0)
 
@@ -170,22 +172,23 @@ class Environment(object):
         robot2.touchCntr += 1
         normalThresh = 0.99995 ** robot1.touchCntr
         pushingThresh = 0.99998 ** robot1.touchCntr
+
         r = random.random()
         if r > (pushingThresh if robot1.mightPush else normalThresh) and not robot1.fallen:
-            robot1.fall(self)
+            self.fall(robot1)
             robot1.touchCntr = 0
         r = random.random()
         if r > (pushingThresh if robot2.mightPush else normalThresh) and not robot2.fallen:
-            robot2.fall(self)
+            robot2.self(robot2)
             robot2.touchCntr = 0
 
         if robot1.mightPush and not robot2.mightPush and robot2.fallen:
             print("Robot 1 Pushing")
-            robot1.penalize(5000,self)
+            self.penalize(robot1)
             robot1.touchCntr = 0
         elif robot2.mightPush and not robot1.mightPush and robot1.fallen:
             print("Robot 2 Pushing")
-            robot2.penalize(5000,self)
+            self.penalize(robot2)
             robot2.touchCntr = 0
 
 
@@ -211,7 +214,7 @@ class Environment(object):
         pushingThresh = 0.9999 ** robot.touchCntr
         r = random.random()
         if r > pushingThresh:
-            robot.fall(self)
+            self.fall(robot)
 
 
     def ballCollision(self,arbiter, space, data):
@@ -311,8 +314,130 @@ class Environment(object):
         # Update team rewards
         self.teamRewards[0] += currReward[0]
         self.teamRewards[1] += currReward[1]
-        
+
         return finished,reward
+
+    def fall(self,robot):
+        print("Fall", robot.fallCntr, robot.team)
+
+        pos = robot.getPos()
+        filter = pymunk.shape_filter.ShapeFilter(categories=0b101)
+        shapes = self.space.point_query(pos,40,filter)
+
+        self.robotRewards[robot.id] -= 100
+
+        for query in shapes:
+            if query.shape != robot.leftFoot and query.shape != robot.rightFoot:
+                force = robot.velocity*robot.leftFoot.body.mass*query.shape.body.mass/50.0
+                dp = pos - query.shape.body.position
+                dp = -dp*force/dp.length
+                query.shape.body.apply_force_at_world_point(dp,pos)
+                if query.shape == self.ball.shape:
+                    self.ball.lastKicked = [robot.id] + self.ball.lastKicked
+                    if len(self.ball.lastKicked) > 4:
+                        self.ball.lastKicked = self.ball.lastKicked[:4]
+
+
+        robot.leftFoot.color = (255, int(100*(1-robot.team)), int(100*robot.team))
+        robot.rightFoot.color = (255, int(100*(1-robot.team)), int(100*robot.team))
+        robot.fallen = True
+        robot.moving = True
+        robot.fallCntr += 1
+        robot.moveTime = 3000
+        if robot.fallCntr > 2:
+            print("Fallen robot", robot.fallCntr, robot.team)
+            self.penalize(robot)
+
+    def penalize(self,robot):
+        print("Penalized")
+        robot.penalized = True
+        robot.penalTime = self.penalTimes[robot.team]
+        self.robotRewards[robot.id] -= self.penalTimes[robot.team]/100
+        self.penalTimes[robot.team] += 5000
+        robot.moving = False
+        pos = robot.getPos()
+        x = self.sideLength + self.penaltyLength if robot.team else self.W - (self.sideLength + self.penaltyLength)
+        y = self.sideLength if pos.y < self.H/2 else self.H-self.sideLength
+        robot.leftFoot.body.position = pymunk.Vec2d(x-10, y)
+        robot.rightFoot.body.position = pymunk.Vec2d(x+10, y)
+        robot.leftFoot.body.angle = math.pi / 2 if y < self.H/2 else -math.pi / 2
+        robot.leftFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
+        robot.leftFoot.body.angular_velocity = 0.0
+        robot.leftFoot.color = (255, 0, 0)
+        robot.rightFoot.body.angle = math.pi / 2 if y < self.H/2 else -math.pi / 2
+        robot.rightFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
+        robot.rightFoot.body.angular_velocity = 0.0
+        robot.rightFoot.color = (255, 0, 0)
+        if robot.kicking:
+            robot.kicking = False
+            self.space.add(robot.joint)
+
+
+    def tick(self,robot):
+        if robot.moveTime > 0:
+            robot.moveTime -= time
+            if robot.kicking:
+                foot = robot.rightFoot if robot.foot else robot.leftFoot
+                if robot.moveTime + time > 500 and robot.moveTime <= 500:
+                    space.remove(robot.joint)
+                    velocity = pymunk.Vec2d(robot.velocity * 2.5, 0)
+                    angle = foot.body.angle
+                    velocity.rotate(angle)
+                    foot.body.velocity = velocity
+                if robot.moveTime + time > 400 and robot.moveTime <= 400:
+                    velocity = pymunk.Vec2d(robot.velocity * 2.5, 0)
+                    angle = foot.body.angle
+                    velocity.rotate(angle)
+                    foot.body.velocity = -velocity
+                elif robot.moveTime <= 300:
+                    foot.body.velocity = pymunk.Vec2d(0,0)
+                    robot.kicking = False
+                    foot.body.position = robot.initPos
+                    self.space.add(robot.joint)
+            if robot.moveTime <= 0:
+                robot.moveTime = 0
+                robot.leftFoot.body.velocity = pymunk.Vec2d(0,0)
+                robot.leftFoot.body.angular_velocity = 0.0
+                robot.rightFoot.body.velocity = pymunk.Vec2d(0,0)
+                robot.rightFoot.body.angular_velocity = 0.0
+                if robot.fallen:
+                    r = random.random()
+                    if r > 0.9:
+                        self.fall(robot)
+                        return
+                    print("Getup", robot.team)
+                    robot.leftFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+                    robot.rightFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+                    robot.fallen = False
+                    robot.fallCntr = 0
+        if robot.penalized:
+            robot.penalTime -= time
+            if robot.penalTime <= 0:
+                print("Unpenalized")
+                robot.penalTime = 0
+                robot.penalized = False
+                robot.fallCntr = 0
+                robot.fallen = False
+                pos = robot.leftFoot.body.position
+                pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
+                robot.leftFoot.body.angle = math.pi / 2 if ballPos.y > self.H/2 else -math.pi / 2
+                robot.leftFoot.body.position = pos
+                robot.leftFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+                pos = robot.rightFoot.body.position
+                pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
+                robot.rightFoot.body.angle = math.pi / 2 if ballPos.y > self.H/2 else -math.pi / 2
+                robot.rightFoot.body.position = pos
+                robot.rightFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+
+    def isLeavingField(self,robot):
+        pos = robot.getPos()
+
+        outMin = 5
+        outMaxX = self.W-5
+        outMaxY = self.H-5
+
+        if pos.y < outMin or pos.x < outMin or pos.y > outMaxY or pos.x > outMaxX:
+            self.penalize(robot)
 
     def step(self,actions):
         t1 = time.clock()
@@ -351,13 +476,26 @@ class Environment(object):
 
 
     def processAction(self, action, robot):
-        if action > 0:
-            if action < 5:
-                robot.step(action-1,self)
-            elif action < 7:
-                robot.turn(action-5,self)
-            elif action >= 7:
-                robot.kick(action-7,self)
+
+        move,turn,head,kick = action
+
+        if move > 0:
+            r = random.random()
+            if r > 0.995:
+                self.fall(robot)
+            robot.step(move-1)
+        if turn > 0:
+            r = random.random()
+            if r > 0.995:
+                self.fall(robot)
+            robot.turn(turn-1)
+        if head > 0:
+            robot.turnHead(head-1)
+        if kick > 0 and move == 0 and turn == 0:
+            r = random.random()
+            if r > 0.95:
+                self.fall(robot)
+            robot.kick(kick-1)
 
     def getRobotVision(self,robot):
         pos = robot.getPos()
