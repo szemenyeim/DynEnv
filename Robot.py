@@ -4,6 +4,7 @@ import random
 
 class Robot(object):
 
+    # Properties
     length = 10
     radius = 7.5
     totalRadius = length+radius
@@ -13,21 +14,26 @@ class Robot(object):
     mass = 4000
 
     def __init__(self,pos,team,id):
+
+        # Foot positions
         a = (-self.length,self.length)
         b = (self.length,self.length)
         c = (-self.length,-self.length)
         d = (self.length,-self.length)
+
+        # Setup left foot
         inertia = pymunk.moment_for_segment(self.mass,a,b,self.radius)
         body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
         body.position = pos
         body.angle = 0 if not team else math.pi
         body.velocity_func = friction_robot
-
         self.leftFoot = pymunk.Segment(body,a,b,self.radius)
         self.leftFoot.color = (255, int(255*(1-team)), int(255*team))
         self.leftFoot.elasticity = 0.3
         self.leftFoot.friction = 2.5
         self.leftFoot.collision_type = CollisionType.Robot
+
+        # Setup right foot
         inertia = pymunk.moment_for_segment(self.mass,c,d,self.radius)
         body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
         body.position = pos
@@ -39,29 +45,38 @@ class Robot(object):
         self.rightFoot.friction = 2.5
         self.rightFoot.collision_type = CollisionType.Robot
 
-        self.touchCntr = 0
-
+        # setup joint
         self.joint = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(pos[0],pos[1]))
         self.joint.error_bias = 0.1
         self.rotJoint = pymunk.constraint.RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
 
+        # Basic properties
         self.team = team
         self.id = id
         self.headAngle = 0
+
+        # Penalty and pushing parametes
         self.penalized = False
         self.penalTime = 0
+        self.touching = False
+        self.touchCntr = 0
+        self.mightPush = False
+        self.fallen = False
+        self.fallCntr = 0
+
+        # Movement parameters
         self.moveTime = 0
+        self.headMoving = 0
+
+        # Kick parameters
         self.kicking = False
         self.initPos = None
-        self.fallen = False
-        self.mightPush = False
-        self.fallCntr = 0
-        self.touching = False
         self.foot = None
 
     def getPos(self):
         return (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
 
+    # Move in certain direction (relative to the robot
     def step(self, dir):
         if not self.kicking and not self.penalized and not self.fallen:
             self.moveTime = 500
@@ -80,12 +95,13 @@ class Robot(object):
                 velocity.rotate(angle)
                 shape.body.velocity = velocity
 
-
+    # Turn
     def turn(self, dir):
         if not self.kicking and not self.penalized and not self.fallen:
             self.moveTime = 500
             self.leftFoot.body.angular_velocity += self.ang_velocity if dir else -self.ang_velocity
 
+    # Kick
     def kick(self, foot):
         if not self.kicking and not self.penalized and not self.fallen:
             self.foot = foot
@@ -93,7 +109,8 @@ class Robot(object):
             self.kicking = True
             self.moveTime = 1000
 
+    # Turn the head
     def turnHead(self,dir):
-        delta = math.pi/180
-        self.headAngle += delta if dir else -delta
+        self.headMoving = dir
+        self.moveTime = 500
 
