@@ -4,10 +4,6 @@ import math
 import random
 from enum import IntEnum
 
-class GameType(IntEnum):
-    GetBall = 0
-    Full = 1
-
 class NoiseType(IntEnum):
     Noiseless = 0
     Random = 1

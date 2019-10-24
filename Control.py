@@ -11,10 +11,9 @@ from Robot import *
 # Render robot visions and truths
 
 class Environment(object):
-    def __init__(self,nPlayers,render=False,gameType = GameType.Full,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic):
+    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic):
         pygame.init()
 
-        self.gameType = gameType
         self.observationType = observationType
         self.noiseType = noiseType
 
