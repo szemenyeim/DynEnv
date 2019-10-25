@@ -4,6 +4,9 @@ import time
 from Ball import *
 from Goalpost import *
 from Robot import *
+from cutils import *
+import cv2
+import numpy as np
 
 class Environment(object):
     def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic):
@@ -14,6 +17,9 @@ class Environment(object):
         self.maxPlayers = 6
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
+
+        # Which robot's observation to visualize
+        self.visId = random.randint(0,self.nPlayers*2)
 
         # Field setup
         self.W = 1040
@@ -33,8 +39,7 @@ class Environment(object):
 
         # Vision settings
         self.randBase = 0.05
-        self.maxVisDist = self.W/2
-        self.maxVisAngle = math.pi/12
+        self.maxVisDist = [self.W*0.4,self.W*0.8]
 
         # Reward settings
         self.kickDiscount = 0.5
@@ -345,8 +350,11 @@ class Environment(object):
 
         # Add ball movement to the reward
         if not finished:
-            currReward[0] += self.ball.shape.body.position.x - pos.x
-            currReward[1] -= self.ball.shape.body.position.x - pos.x
+            currReward[0] += self.ball.shape.body.position.x - self.ball.prevPos.x
+            currReward[1] -= self.ball.shape.body.position.x - self.ball.prevPos.x
+
+        # Update previous position
+        self.ball.prevPos = self.ball.shape.body.position
 
         # Create discounted personal rewards for the robots involved
         for i, id in enumerate(self.ball.lastKicked):
@@ -362,7 +370,7 @@ class Environment(object):
         self.teamRewards[0] += currReward[0]
         self.teamRewards[1] += currReward[1]
 
-        return finished,reward
+        return finished
 
     # Robot falling
     def fall(self,robot):
@@ -468,9 +476,9 @@ class Environment(object):
             robot.moveTime -= time
 
             # Move head
-            if robot.headMoving > 0:
-                delta = math.pi / 180
-                self.headAngle += delta if robot.headMoving == 1 else -delta
+            if robot.headMoving != 0:
+                robot.headAngle += robot.headMoving
+                robot.headAngle = max(-robot.headMaxAngle,min(robot.headMaxAngle,robot.headAngle))
 
             # Update kicking
             if robot.kicking:
@@ -480,7 +488,7 @@ class Environment(object):
                 # 500 ms into the kick the actual movement starts
                 if robot.moveTime + time > 500 and robot.moveTime <= 500:
                     # Remove joint between legs to allow the leg to move independently
-                    space.remove(robot.joint)
+                    self.space.remove(robot.joint)
 
                     # Set velocity
                     velocity = pymunk.Vec2d(robot.velocity * 2.5, 0)
@@ -548,6 +556,8 @@ class Environment(object):
                 robot.fallCntr = 0
                 robot.fallen = False
 
+                ballPos = self.ball.shape.body.position
+
                 # Put the robot on the right side of the field
                 pos = robot.leftFoot.body.position
                 pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
@@ -607,7 +617,7 @@ class Environment(object):
                 self.isLeavingField(robot)
 
             # Process ball position
-            finished, reward = self.isBallOutOfField()
+            finished = self.isBallOutOfField()
 
             # Run simulation
             self.space.step(1 / self.timeStep)
@@ -620,6 +630,7 @@ class Environment(object):
             if self.render:
                 pygame.display.flip()
                 self.clock.tick(self.timeStep)
+                cv2.waitKey(1)
 
         t2 = time.clock()
         print((t2-t1)*1000)
@@ -647,8 +658,8 @@ class Environment(object):
             robot.turn(turn-1)
 
         # Head movements have no chance of falling
-        if head > 0:
-            robot.turnHead(head-1)
+        if head:
+            robot.turnHead(head)
 
         # Kick has a higher chance of falling. Also, kick cannot be performed together with any other motion
         if kick > 0 and move == 0 and turn == 0:
@@ -659,7 +670,7 @@ class Environment(object):
 
     # Get true object states
     def getFullState(self):
-        return [self.ball.shape.body.position,] + [(rob.getPos(),rob.team,rob.fallen or robot.penalized) for rob in self.robots]
+        return [self.ball.shape.body.position,] + [[rob.getPos(),rob.team,rob.fallen or rob.penalized] for rob in self.robots]
 
     # Getting vision
     def getRobotVision(self,robot):
@@ -667,47 +678,46 @@ class Environment(object):
         #Get position and orientation
         pos = robot.getPos()
         angle = robot.leftFoot.body.angle
-        headAngle = robot.headAngle
+        headAngle = angle+robot.headAngle
+
+        # FoV
+        angle1 = headAngle+robot.fieldOfView
+        angle2 = headAngle-robot.fieldOfView
 
         # Edge of field of view
-        angle1 = angle+headAngle+robot.fieldOfView
         vec1 = pymunk.Vec2d(1,0)
         vec1.rotate(angle1)
 
         # Other edge of field of view
-        angle2 = angle+headAngle-robot.fieldOfView
         vec2 = pymunk.Vec2d(1,0)
         vec2.rotate(angle2)
 
-        # Precompute this
-        maxDistSqr = self.maxVisDist**2
-
         # Check if objects are seen
-        ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist,self.ballRadius)]
-        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist,Robot.totalRadius)+(robot.team == rob.team,robot.fallen or robot.penalized) for rob in self.robots if robot != rob]
-        goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist,self.goalPostRadius) for goal in self.goalposts]
-        crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist,self.penaltyRadius) for cross in self.fieldCrosses]
-        lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist,maxDistSqr) for p1,p2 in self.lines]
-        circleDets = isSeenInArea(self.centerCircle[0] - pos,vec1,vec2,self.maxVisDist,self.centerCircleRadius)
+        ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.ballRadius*2)]
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist[1],headAngle,Robot.totalRadius)+[robot.team == rob.team,robot.fallen or robot.penalized] for rob in self.robots if robot != rob]
+        goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.goalPostRadius*2) for goal in self.goalposts]
+        crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.penaltyRadius*2) for cross in self.fieldCrosses]
+        lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist[1],headAngle) for p1,p2 in self.lines]
+        circleDets = isSeenInArea(self.centerCircle[0] - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.centerCircleRadius*2)
 
         # Get interactions between certain object classes
-        robRobInter = [max([doesInteract(rob1,rob2,Robot.totalRadius) for _,rob1,_,_ in robDets if rob1 != rob2]) for _,rob2,_,_ in robDets]
-        robBallInter = max([doesInteract(rob,ballDets[0][1],Robot.totalRadius) for _,rob,_,_ in robDets])
-        robPostInter = [max([doesInteract(rob,post,Robot.totalRadius) for _,rob,_,_ in robDets]) for _,post,_ in goalDets]
-        robCrossInter = [max([doesInteract(rob,cross,Robot.totalRadius) for _,rob,_,_ in robDets]) for _,cross,_ in crossDets]
-        ballPostInter = max([doesInteract(ballDets[0][1],post,self.ballRadius,False) for _,post,_ in goalDets])
-        ballCrossInter = [doesInteract(ballDets[0][1],cross,self.ballRadius,False)for _,cross,_ in crossDets]
+        robRobInter = [max([doesInteract(rob1[1],rob2[1],Robot.totalRadius*2) for rob1 in robDets if rob1 != rob2]) for rob2 in robDets] if self.nPlayers > 1 else [0]
+        robBallInter = max([doesInteract(rob[1],ballDets[0][1],Robot.totalRadius*2) for rob in robDets])
+        robPostInter = [max([doesInteract(rob[1],post[1],Robot.totalRadius*2) for rob in robDets]) for post in goalDets]
+        robCrossInter = [max([doesInteract(rob[1],cross[1],Robot.totalRadius*2) for rob in robDets]) for cross in crossDets]
+        ballPostInter = max([doesInteract(ballDets[0][1],post[1],self.ballRadius*8,False) for post in goalDets])
+        ballCrossInter = [doesInteract(ballDets[0][1],cross[1],self.ballRadius*4,False)for cross in crossDets]
 
         # Random error probability threshold
         rand = self.randBase if self.noiseType == 1 else self.randBase/2
 
         # Random position noise and false negatives
-        ballDets = [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), rand, True) for ball in ballDets]
-        robDets = [addNoise(robot, self.noiseType, robRobInter[i], rand) for i,robot in enumerate(robDets)]
-        goalDets = [addNoise(goal, self.noiseType, robPostInter[i], rand) for i,goal in enumerate(goalDets)]
-        crossDets = [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), rand, True) for i,cross in enumerate(crossDets)]
+        ballDets = [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), rand, self.maxVisDist[0], True) for ball in ballDets]
+        robDets = [addNoise(rob, self.noiseType, robRobInter[i], rand, self.maxVisDist[1]) for i,rob in enumerate(robDets)]
+        goalDets = [addNoise(goal, self.noiseType, robPostInter[i], rand, self.maxVisDist[1]) for i,goal in enumerate(goalDets)]
+        crossDets = [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), rand, self.maxVisDist[0], True) for i,cross in enumerate(crossDets)]
         lineDets = [addNoiseLine(line, self.noiseType, rand) for i,line in enumerate(lineDets)]
-        circleDets = addNoise(circleDets, self.noiseType, 0, rand)
+        circleDets = addNoise(circleDets, self.noiseType, 0, rand, self.maxVisDist[1])
 
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
@@ -718,35 +728,72 @@ class Environment(object):
                 ballDets.append((SightingType.Normal,cross[1],cross[2]))
 
         # Random false positives
-        for i in range(10):
-            if random.random() < rand:
-                c = random.randint(0,5)
-                if c == 0:
-                    ballDets.insert(len(ballDets),
-                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.ballRadius*2*random.random()))
-                elif c == 1:
-                    robDets.insert(len(robDets),
-                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),Robot.totalRadius*2*random.random(),random.random() > 0.5))
-                elif c == 2:
-                    goalDets.insert(len(goalDets),
-                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.goalPostRadius*2*random.random()))
-                elif c == 3:
-                    crossDets.insert(len(crossDets),
-                                   (SightingType.Normal,pymunk.Vec2d(self.maxVisDist*random.random(),self.maxVisDist*(random.random()-0.5)),self.penaltyRadius*2*random.random()))
+        if self.noiseType != NoiseType.Noiseless:
+            for i in range(10):
+                if random.random() < rand:
+                    c = random.randint(0,5)
+                    d = random.random()*self.maxVisDist[1]
+                    a = random.random()*2*robot.fieldOfView - robot.fieldOfView
+                    pos = pymunk.Vec2d(d,0)
+                    pos.rotate(a)
+                    if c == 0:
+                        ballDets.insert(len(ballDets),
+                                       [SightingType.Normal,pos,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
+                    elif c == 1:
+                        robDets.insert(len(robDets),
+                                       [SightingType.Normal,pos,Robot.totalRadius**(1-0.4*(random.random()-0.5)),random.random() > 0.5,random.random() > 0.75])
+                    elif c == 2:
+                        goalDets.insert(len(goalDets),
+                                       [SightingType.Normal,pos,self.goalPostRadius*2*(1-0.4*(random.random()-0.5))])
+                    elif c == 3:
+                        crossDets.insert(len(crossDets),
+                                       [SightingType.Normal,pos,self.penaltyRadius*2*(1-0.4*(random.random()-0.5))])
 
         # FP Balls near robots
         if self.noiseType == 2:
-            for robot in robDets:
-                if robot[0] == SightingType.Normal and random.random() < rand and robot[1].length < 150:
+            for rob in robDets:
+                if rob[0] == SightingType.Normal and random.random() < rand*10 and rob[1].length < 200:
+                    if random.random() < rand*2:
+                        rob[0] = SightingType.NoSighting
+                    offset = pymunk.Vec2d(random.random()-0.5,random.random()-0.5)*Robot.totalRadius
                     ballDets.insert(len(ballDets),
-                                   (SightingType.Normal,pymunk.Vec2d(robot[1].x-Robot.totalRadius/2,robot[1].y-Robot.totalRadius/2),self.ballRadius+2*random.random()))
+                                   [SightingType.Normal,rob[1]+offset,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
 
 
         # Remove occlusion and misclassified originals
-        ballDets = [ball for i,ball in enumerate(ballDets) if ball[0] != SightingType.NoSighting or ball[0] != SightingType.Misclassified]
-        robDets = [robot for i,robot in enumerate(robDets) if robot[0] != SightingType.NoSighting]
+        ballDets = [ball for i,ball in enumerate(ballDets) if ball[0] != SightingType.NoSighting and ball[0] != SightingType.Misclassified]
+        robDets = [rob for i,rob in enumerate(robDets) if rob[0] != SightingType.NoSighting]
         goalDets = [goal for i,goal in enumerate(goalDets) if goal[0] != SightingType.NoSighting]
-        crossDets = [cross for i,cross in enumerate(crossDets) if cross[0] != SightingType.NoSighting or cross[0] != SightingType.Misclassified]
+        crossDets = [cross for i,cross in enumerate(crossDets) if cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
         lineDets = [line for i,line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
+
+        if self.render and robot.id == self.visId:
+            H = 540
+            W = 960
+            vec1.rotate(-headAngle)
+            vec2.rotate(-headAngle)
+            img = np.zeros((H*2,W*2,3)).astype('uint8')
+            cv2.line(img,(W,H),(int(W+vec1.x*1000),int(H-vec1.y*1000)),(255,255,0))
+            cv2.line(img,(W,H),(int(W+vec2.x*1000),int(H-vec2.y*1000)),(255,255,0))
+            for line in lineDets:
+                color = (255,255,255) if line[0] == SightingType.Normal else (127,127,127)
+                cv2.line(img,(int(line[1].x+W),int(-line[1].y+H)),(int(line[2].x+W),int(-line[2].y+H)),color,self.lineWidth)
+            if circleDets[0] != SightingType.NoSighting:
+                color = (255,0,255) if circleDets[0] == SightingType.Normal else (127,0,127)
+                cv2.circle(img,(int(circleDets[1].x+W),int(-circleDets[1].y+H)),int(circleDets[2]),color,self.lineWidth)
+            for cross in crossDets:
+                color = (255,255,255) if cross[0] == SightingType.Normal else (127,127,127)
+                cv2.circle(img,(int(cross[1].x+W),int(-cross[1].y+H)),int(cross[2]),color,-1)
+            for goal in goalDets:
+                color = (255,0,0) if goal[0] == SightingType.Normal else (127,0,0)
+                cv2.circle(img,(int(goal[1].x+W),int(-goal[1].y+H)),int(goal[2]),color,-1)
+            for i,rob in enumerate(robDets):
+                color = (0,255,0) if rob[0] == SightingType.Normal else (0,127,0)
+                cv2.circle(img,(int(rob[1].x+W),int(-rob[1].y+H)),int(rob[2]),color,-1)
+            for ball in ballDets:
+                color = (0,0,255) if ball[0] == SightingType.Normal else (0,0,127)
+                cv2.circle(img,(int(ball[1].x+W),int(-ball[1].y+H)),int(ball[2]),color,-1)
+
+            cv2.imshow(("Robot %d" % robot.id),img)
 
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

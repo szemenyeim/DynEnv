@@ -1,6 +1,5 @@
 from utils import *
 import math
-import random
 
 class Robot(object):
 
@@ -67,6 +66,7 @@ class Robot(object):
         # Movement parameters
         self.moveTime = 0
         self.headMoving = 0
+        self.headMaxAngle = 2*math.pi/3
 
         # Kick parameters
         self.kicking = False
@@ -111,6 +111,6 @@ class Robot(object):
 
     # Turn the head
     def turnHead(self,dir):
-        self.headMoving = dir
+        self.headMoving = dir*math.pi/720
         self.moveTime = 500
 
