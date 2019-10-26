@@ -24,10 +24,10 @@ class Robot(object):
         inertia = pymunk.moment_for_segment(self.mass,a,b,self.radius)
         body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
         body.position = pos
-        body.angle = 0 if not team else math.pi
+        body.angle = 0 if team > 0 else math.pi
         body.velocity_func = friction_robot
         self.leftFoot = pymunk.Segment(body,a,b,self.radius)
-        self.leftFoot.color = (255, int(255*(1-team)), int(255*team))
+        self.leftFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
         self.leftFoot.elasticity = 0.3
         self.leftFoot.friction = 2.5
         self.leftFoot.collision_type = CollisionType.Robot
@@ -36,10 +36,10 @@ class Robot(object):
         inertia = pymunk.moment_for_segment(self.mass,c,d,self.radius)
         body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
         body.position = pos
-        body.angle = 0 if not team else math.pi
+        body.angle = 0 if team > 0 else math.pi
         body.velocity_func = friction_robot
         self.rightFoot = pymunk.Segment(body,c,d,self.radius)
-        self.rightFoot.color = (255, int(255*(1-team)), int(255*team))
+        self.rightFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
         self.rightFoot.elasticity = 0.3
         self.rightFoot.friction = 2.5
         self.rightFoot.collision_type = CollisionType.Robot
@@ -88,7 +88,7 @@ class Robot(object):
             elif dir == 2:
                 velocity = pymunk.Vec2d(2.5*self.velocity,0)
             elif dir == 3:
-                velocity = pymunk.Vec2d(-2*self.velocity,0)
+                velocity = pymunk.Vec2d(-2.5*self.velocity,0)
             if velocity is not None:
                 shape = self.leftFoot
                 angle = shape.body.angle

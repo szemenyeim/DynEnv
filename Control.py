@@ -45,6 +45,14 @@ class Environment(object):
         self.noiseMagnitude = noiseMagnitude
         self.maxVisDist = [self.W*0.4,self.W*0.8]
 
+        # Free kick status
+        self.ballOwned = 1
+        self.ballFreeCntr = 9999
+        self.gracePeriod = 0
+
+        # Bookkeeping for robots inside penalty area for illegal defender
+        self.defenders = [[],[]]
+
         # Reward settings
         self.kickDiscount = 0.5
         self.teamRewards = [0,0]
@@ -100,8 +108,8 @@ class Environment(object):
         ]
 
         # Add robots
-        self.robots = [Robot(spot,0,i) for i,spot in enumerate(self.robotSpots[:self.maxPlayers]) if i < self.nPlayers] \
-                      + [Robot(spot,1,self.nPlayers+i) for i,spot in enumerate(self.robotSpots[self.maxPlayers:]) if i < self.nPlayers]
+        self.robots = [Robot(spot,1,i) for i,spot in enumerate(self.robotSpots[:self.maxPlayers]) if i < self.nPlayers] \
+                      + [Robot(spot,-1,self.nPlayers+i) for i,spot in enumerate(self.robotSpots[self.maxPlayers:]) if i < self.nPlayers]
         for robot in self.robots:
             self.space.add(robot.leftFoot.body,robot.leftFoot,robot.rightFoot.body,robot.rightFoot,robot.joint,robot.rotJoint)
 
@@ -147,7 +155,6 @@ class Environment(object):
             pygame.display.set_caption("Robot Soccer")
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
-
 
     # Called when robots begin touching
     def robotPushingDet(self,arbiter, space, data):
@@ -265,6 +272,15 @@ class Environment(object):
         # Get robot
         robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
 
+        if self.ballOwned != 0:
+            if robot.team != self.ballOwned and not robot.penalized:
+                self.penalize(robot)
+            else:
+                print("Ball Free")
+                self.ballOwned = -1
+                self.gracePeriod = 0
+                self.ballFreeCntr = 0
+
         # Shift lastKicked array
         self.ball.lastKicked = [robot.id] + self.ball.lastKicked
         if len(self.ball.lastKicked) > 4:
@@ -288,6 +304,29 @@ class Environment(object):
 
         self.space.debug_draw(self.draw_options)
 
+    # Ball free kick
+    def ballFreeKickProcess(self,team):
+        if team == 0:
+            time = 1000 / self.timeStep
+            if self.gracePeriod > 0:
+                self.gracePeriod -= time
+                if self.gracePeriod < 0:
+                    print("Grace period over")
+                    self.gracePeriod = 0
+                    self.ballFreeCntr = 9999
+            elif self.ballFreeCntr > 0:
+                self.ballFreeCntr -= time
+                if self.ballFreeCntr < 0:
+                    print("Ball Free")
+                    self.ballFreeCntr = 0
+                    self.ballOwned = 0
+        else:
+            print("Free kick", team)
+            self.ballOwned = team
+            self.gracePeriod = 14999
+            self.ballFreeCntr = 0
+
+
     # Detect ball movements
     def isBallOutOfField(self):
 
@@ -303,14 +342,18 @@ class Environment(object):
         outMaxX = self.W - self.sideLength + self.ballRadius
         outMaxY = self.H -self.sideLength + self.ballRadius
 
+        # Team to award free kick
+        team = 0
+
         # If ball is out
         if pos.y < outMin or pos.x < outMin or pos.y > outMaxY or pos.x > outMaxX:
             x = self.W/2
             y = self.H/2
 
             # If out on the sides
+            team = self.robots[self.ball.lastKicked[0]].team
             if pos.y < outMin or pos.y > outMaxY:
-                x = pos.x + 50 if self.ball.lastKicked[0] else pos.x - 50
+                x = pos.x + 50 if team < 0 else pos.x - 50
                 if pos.y < outMin:
                     y = outMin + self.ballRadius
                 else:
@@ -331,7 +374,7 @@ class Environment(object):
                     # Handle two ends differently
                     if pos.x < outMin:
                         # Kick out
-                        if self.ball.lastKicked[0]:
+                        if team < 0:
                             x = self.sideLength + self.penaltyLength
                         # Corner
                         else:
@@ -339,16 +382,20 @@ class Environment(object):
                             y = self.sideLength if pos.y < self.H/2 else self.H-self.sideLength
                     else:
                         # Kick out
-                        if not self.ball.lastKicked[0]:
+                        if team > 0:
                             x = self.W - (self.sideLength + self.penaltyLength)
                         # Corner
                         else:
                             x = self.W - self.sideLength
                             y = self.sideLength if pos.y < self.H/2 else self.H-self.sideLength
+
             # Move ball to middle and stop it
             self.ball.shape.body.position = pymunk.Vec2d(x,y)
             self.ball.shape.body.velocity = pymunk.Vec2d(0.0,0.0)
             self.ball.shape.body.angular_velocity = 0.0
+
+        # Update free kick status
+        self.ballFreeKickProcess(-team)
 
         # Add ball movement to the reward
         if not finished:
@@ -364,9 +411,13 @@ class Environment(object):
 
         # Create personal rewards for nearby robots not touching the ball, but only negative rewards
         for robot in self.robots:
-            if robot.id not in self.ball.lastKicked and (robot.getPos() - pos).length < 150:
-                self.robotRewards[robot.id] += min(0, currReward[0] * self.kickDiscount if robot.id < self.nPlayers else
-                currReward[1] * self.kickDiscount)
+            if (robot.getPos() - pos).length < 150:
+                if not robot.penalized and self.ballOwned != robot.team and self.ballFreeCntr > 0:
+                    print("Illegal position", robot.id, robot.team)
+                    self.penalize(robot)
+                if robot.id not in self.ball.lastKicked:
+                    self.robotRewards[int(robot.id)] += min(0, currReward[0] * self.kickDiscount if robot.id < self.nPlayers else
+                    currReward[1] * self.kickDiscount)
 
         # Update team rewards
         self.teamRewards[0] += currReward[0]
@@ -409,10 +460,15 @@ class Environment(object):
                     self.ball.lastKicked = [robot.id] + self.ball.lastKicked
                     if len(self.ball.lastKicked) > 4:
                         self.ball.lastKicked = self.ball.lastKicked[:4]
+                    if self.ballOwned != 0:
+                        print("Ball Free")
+                        self.gracePeriod = 0
+                        self.ballFreeCntr = 0
+                        self.ballOwned = 0
 
         # Update the color of the fallen robot
-        robot.leftFoot.color = (255, int(100*(1-robot.team)), int(100*robot.team))
-        robot.rightFoot.color = (255, int(100*(1-robot.team)), int(100*robot.team))
+        robot.leftFoot.color = (255, int(75*(1+robot.team)), int(75*(1-robot.team)))
+        robot.rightFoot.color = (255, int(75*(1+robot.team)), int(75*(1-robot.team)))
 
         # Set variables
         robot.fallen = True
@@ -428,26 +484,28 @@ class Environment(object):
 
     # Penlize robot
     def penalize(self,robot):
-        print("Penalized")
 
         # Update penalized status
         robot.penalized = True
-        robot.penalTime = self.penalTimes[robot.team]
+        teamIdx = 0 if robot.team > 0 else 1
+        robot.penalTime = self.penalTimes[teamIdx]
 
         # Punish the robot
-        self.robotRewards[robot.id] -= self.penalTimes[robot.team]/100
+        self.robotRewards[robot.id] -= self.penalTimes[teamIdx]/100
 
         # Increase penalty time for team
-        self.penalTimes[robot.team] += 5000
+        self.penalTimes[teamIdx] += 5000
 
         # Compute robot position
         pos = robot.getPos()
-        x = self.sideLength + self.penaltyLength if robot.team else self.W - (self.sideLength + self.penaltyLength)
-        y = self.sideLength if pos.y < self.H/2 else self.H-self.sideLength
+        xOffs = (robot.id - teamIdx*self.nPlayers) * 40
+        x = self.W - (self.sideLength + self.penaltyLength + xOffs) if robot.team < 0 else self.sideLength + self.penaltyLength + xOffs
+        print(robot.id,xOffs,x)
+        y = self.sideLength if self.ball.shape.body.position.y < self.H/2 else self.H-self.sideLength
 
         # Move feet
-        robot.leftFoot.body.position = pymunk.Vec2d(x-10, y)
-        robot.rightFoot.body.position = pymunk.Vec2d(x+10, y)
+        robot.leftFoot.body.position = pymunk.Vec2d(x, y)
+        robot.rightFoot.body.position = pymunk.Vec2d(x, y)
 
         # Stop feet, and change color
         robot.leftFoot.body.angle = math.pi / 2 if y < self.H/2 else -math.pi / 2
@@ -537,8 +595,8 @@ class Environment(object):
                     print("Getup", robot.team)
 
                     # Reset color and variables
-                    robot.leftFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
-                    robot.rightFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+                    robot.leftFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
+                    robot.rightFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
                     robot.fallen = False
                     robot.fallCntr = 0
 
@@ -563,12 +621,34 @@ class Environment(object):
                 pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
                 robot.leftFoot.body.angle = math.pi / 2 if ballPos.y > self.H/2 else -math.pi / 2
                 robot.leftFoot.body.position = pos
-                robot.leftFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+                robot.leftFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
                 pos = robot.rightFoot.body.position
                 pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
                 robot.rightFoot.body.angle = math.pi / 2 if ballPos.y > self.H/2 else -math.pi / 2
                 robot.rightFoot.body.position = pos
-                robot.rightFoot.color = (255, int(255*(1-robot.team)), int(255*robot.team))
+                robot.rightFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
+        else:
+            teamIdx = 0 if robot.team > 0 else 1
+
+            #Get robot and penalty positions
+            pos = robot.getPos()
+            robX = self.W-pos.x if teamIdx else pos.x
+            penX = self.sideLength + self.penaltyLength + self.lineWidth/2
+
+            # If robot is in the penalty box
+            if robX < penX and pos.y > (self.H/2-self.penaltyWidth) and pos.y < (self.H/2+self.penaltyWidth):
+
+                # If not in the defenders, add it or penalize if limit is reached
+                if robot.id not in self.defenders[teamIdx]:
+                    if len(self.defenders[teamIdx]) >= 2:
+                        print("Illegal defender")
+                        self.penalize(robot)
+                    else:
+                        self.defenders[teamIdx].append(robot.id)
+
+            # If the robot is not in the box anymore, remove it from the defender list
+            elif robot.id in self.defenders[teamIdx]:
+                self.defenders[teamIdx].remove(robot.id)
 
     # Robo leaving field detection
     def isLeavingField(self,robot):
@@ -634,7 +714,7 @@ class Environment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        print((t2-t1)*1000)
+        #print((t2-t1)*1000)
 
         return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
 
@@ -644,18 +724,23 @@ class Environment(object):
         # Get 4 action types
         move,turn,head,kick = action
 
+        # Don't allow movement or falling unless no action is being performed
+        canMove = not(robot.penalized or robot.kicking or robot.fallen)
+
         # Moving has a small chance of falling
-        if move > 0:
+        if move > 0 and canMove:
             r = random.random()
             if r > 0.995:
                 self.fall(robot)
+                return
             robot.step(move-1)
 
         # Turning has a small chance of falling
-        if turn > 0:
+        if turn > 0 and canMove:
             r = random.random()
             if r > 0.995:
                 self.fall(robot)
+                return
             robot.turn(turn-1)
 
         # Head movements have no chance of falling
@@ -663,10 +748,11 @@ class Environment(object):
             robot.turnHead(head)
 
         # Kick has a higher chance of falling. Also, kick cannot be performed together with any other motion
-        if kick > 0 and move == 0 and turn == 0:
+        if kick > 0 and move == 0 and turn == 0 and canMove:
             r = random.random()
             if r > 0.95:
                 self.fall(robot)
+                return
             robot.kick(kick-1)
 
     # Get true object states
@@ -694,7 +780,7 @@ class Environment(object):
         vec2.rotate(angle2)
 
         # Check if objects are seen
-        ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.ballRadius*2)]
+        ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.ballRadius*2)+ [self.ballOwned*robot.team]]
         robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist[1],headAngle,Robot.totalRadius)+[robot.team == rob.team,robot.fallen or robot.penalized] for rob in self.robots if robot != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.goalPostRadius*2) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.penaltyRadius*2) for cross in self.fieldCrosses]
@@ -764,7 +850,7 @@ class Environment(object):
         crossDets = [cross for i,cross in enumerate(crossDets) if cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
         lineDets = [line for i,line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
 
-        if self.render and robot.id == self.visId:
+        if False and self.render and robot.id == self.visId:
             H = 540
             W = 960
             vec1.rotate(-headAngle)
