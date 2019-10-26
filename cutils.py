@@ -2,7 +2,7 @@ from pymunk import Vec2d
 import math, random, copy
 from enum import IntEnum
 from utils import *
-
+import numpy as np
 
 # Type of observation
 class SightingType(IntEnum):
@@ -17,6 +17,90 @@ class InteractionType(IntEnum):
     NoInter = 0
     Nearby = 1
     Occlude = 2
+
+def rotX(angle):
+    return np.array([
+        [1, 0, 0],
+        [0, np.cos(angle), -np.sin(angle)],
+        [0, np.sin(angle), np.cos(angle)]
+    ])
+
+def rotY(angle):
+    return np.array([
+        [np.cos(angle), 0, np.sin(angle)],
+        [0, 1, 0],
+        [-np.sin(angle), 0, np.cos(angle)]
+    ])
+
+def rotZ(angle):
+    return np.array([
+        [np.cos(angle), -np.sin(angle), 0],
+        [np.sin(angle), np.cos(angle), 0],
+        [0, 0, 1]
+    ])
+
+def rotFast(rot,ang):
+    return np.matmul(rot,rotY(ang))
+
+def rotMtx(xAng,yAng,zAng):
+    return np.matmul(rotZ(zAng),np.matmul(rotY(yAng),rotX(xAng)))
+
+# Camera parameters
+A = np.array([
+    [543.6, 0, 319.5],
+    [0, 543.6, 239.5],
+    [0,0,1]
+])
+
+# Camera orientation and rotation
+bottomAng = (0.6929+0.15)
+bottomRot = rotX(bottomAng)
+bottomTr = np.concatenate((np.concatenate((bottomRot, np.array([[0,], [49.774,], [5.071,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
+bottomTr = np.matmul(A,np.linalg.inv(bottomTr)[:3])
+
+topAng = (0.0209+0.15)
+topRot = rotX(topAng)
+topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [54.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
+topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
+
+def projectPoints(points,compRadius = True,allRadius=False):
+    topProj = np.matmul(topTr, points)
+    topProj = topProj[0:2] / topProj[2]
+    bottomProj = np.matmul(bottomTr, points)
+    bottomProj = bottomProj[0:2] / bottomProj[2]
+    if compRadius:
+        if allRadius:
+            tRad = np.sqrt(np.sum(np.square(topProj[:, 0:1] - topProj[:, 1:]),axis=0))
+            bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0:1] - bottomProj[:, 1:]),axis=0))
+        else:
+            tRad = np.sqrt(np.sum(np.square(topProj[:, 0] - topProj[:, 1])))
+            bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0] - bottomProj[:, 1])))
+    else:
+        tRad = 0
+        bRad = 0
+
+
+    return topProj,tRad,bottomProj,bRad
+
+Y = np.array([1,1,1])
+
+def getEllipse(center,points):
+    points = (points-center).transpose()/640.0
+    X = np.array([
+        [points[0,0]**2,points[0,1]**2,points[0,0]*points[0,1]*2],
+        [points[1,0]**2,points[1,1]**2,points[1,0]*points[1,1]*2],
+        [points[2,0]**2,points[2,1]**2,points[2,0]*points[2,1]*2]
+    ])
+    coeffs = np.linalg.solve(X,Y)
+    theta = 0.5*math.atan2(2*coeffs[2],coeffs[1]-coeffs[0])
+    nu = coeffs[0]+coeffs[1]
+    zeta = (coeffs[1]-coeffs[0])/math.cos(2*theta)
+    if zeta < nu:
+        a = 0
+    else:
+        a = math.sqrt(2/(zeta-nu))
+    b = math.sqrt(2/(nu+zeta))
+    return theta,a,b
 
 # Add noise to a line sighting
 def addNoiseLine(obj,noiseType, magn, rand, maxDist):
