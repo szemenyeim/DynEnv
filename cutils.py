@@ -1,6 +1,7 @@
 from pymunk import Vec2d
 import math, random, copy
 from enum import IntEnum
+from utils import *
 
 
 # Type of observation
@@ -18,56 +19,58 @@ class InteractionType(IntEnum):
     Occlude = 2
 
 # Add noise to a line sighting
-def addNoiseLine(obj,noiseType, rand):
+def addNoiseLine(obj,noiseType, magn, rand, maxDist):
 
-    if noiseType and obj[0]:
+    if obj[0]:
 
         # Create random position noise
-        noiseVec1 = Vec2d(5*(random.random()-0.5),5*(random.random()-0.5))
-        noiseVec2 = Vec2d(5*(random.random()-0.5),5*(random.random()-0.5))
+        noiseVec1 = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
+        noiseVec2 = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
 
         # Add random noise if simple noise and random FN
-        if noiseType == 1:
+        if noiseType == NoiseType.Random:
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] += noiseVec1
             obj[2] += noiseVec2
 
         # Else add bigger noise to distant lines (also bigger probability of FN)
-        elif noiseType == 2:
-            multiplier = 1
-            if obj[0] == SightingType.Distant:
-                multiplier = 4
-            elif obj[0] == SightingType.Partial:
-                multiplier = 2
+        elif noiseType == NoiseType.Realistic:
+
+            # Get distances of points and average dist
+            multiplier1 = 0.25 + 3.75*obj[1].length/maxDist
+            multiplier2 = 0.25 + 3.75*obj[2].length/maxDist
+            multiplier = (multiplier1+multiplier2)*0.5
+
             if random.random() < rand*multiplier:
                 obj[0] = SightingType.NoSighting
-            obj[1] += noiseVec1*multiplier/2
-            obj[2] += noiseVec2*multiplier/2
+
+            obj[1] += noiseVec1*multiplier1/2
+            obj[2] += noiseVec2*multiplier2/2
 
     return obj
 
 # Add random noise to other sightings
-def addNoise(obj,noiseType,interaction, rand, maxDist, misClass = False):
+def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
 
     if interaction == InteractionType.Occlude:
         obj[0] = SightingType.NoSighting
         return obj
 
-    if noiseType and obj[0]:
+    if obj[0]:
 
         # Random position noise
-        noiseVec = Vec2d(5*(random.random()-0.5),5*(random.random()-0.5))
+        noiseVec = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
 
         # Add random noise to position and size and FN
-        if noiseType == 1:
+        if noiseType == NoiseType.Random:
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] += noiseVec
             obj[2] *= (1-(random.random()-0.5)*0.2)
 
         # Realistic noise
-        elif noiseType == 2:
+        elif noiseType == NoiseType.Realistic:
 
             # Add larger noise to distant objetcs
             sightingType = obj[0]
@@ -93,7 +96,7 @@ def addNoise(obj,noiseType,interaction, rand, maxDist, misClass = False):
             # The sign of the noise on the object size is determined by whether it moved closer due to position noise
             obj[0] = sightingType
             obj[1] = newPos
-            obj[2] *= 1+(random.random() * 0.05 * diff)
+            obj[2] *= 1+(random.random() * 0.1 * diff)
 
     return obj
 

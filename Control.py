@@ -9,17 +9,17 @@ import cv2
 import numpy as np
 
 class Environment(object):
-    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic):
+    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2):
 
         # Basic settings
         self.observationType = observationType
         self.noiseType = noiseType
-        self.maxPlayers = 6
+        self.maxPlayers = 5
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
 
         # Which robot's observation to visualize
-        self.visId = random.randint(0,self.nPlayers*2)
+        self.visId = random.randint(0,self.nPlayers*2-1)
 
         # Field setup
         self.W = 1040
@@ -38,7 +38,11 @@ class Environment(object):
         self.ballRadius = 5
 
         # Vision settings
-        self.randBase = 0.05
+        if noiseMagnitude < 0 or noiseMagnitude > 5:
+            print("Error: The noise magnitude must be between 0 and 5!")
+            exit(0)
+        self.randBase = 0.01 * noiseMagnitude
+        self.noiseMagnitude = noiseMagnitude
         self.maxVisDist = [self.W*0.4,self.W*0.8]
 
         # Reward settings
@@ -82,9 +86,8 @@ class Environment(object):
 
         self.robotSpots = [
             # Kickoff team
-            (centX-(self.ballRadius*2+Robot.totalRadius),self.H/2+10),
-            (centX-(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
-            (centX-(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
+            (centX-(self.ballRadius*2+Robot.totalRadius),self.H/2+(10 if random.random() > 0.5 else -10)),
+            (centX-(Robot.totalRadius+self.lineWidth/2),self.sideLength + (self.fieldH/4-20 if random.random() > 0.5 else 3*self.fieldH/4+20)),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
             ((self.sideLength), self.H/2),
@@ -92,8 +95,7 @@ class Environment(object):
             (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2),self.H/2),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
-            (centX+(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
-            (centX+(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
+            (centX+(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/2 + self.fieldH/4*random.random()),
             (self.W - (self.sideLength), self.H/2),
         ]
 
@@ -201,7 +203,7 @@ class Environment(object):
             robot1.touchCntr = 0
         r = random.random()
         if r > (pushingThresh if robot2.mightPush else normalThresh) and not robot2.fallen:
-            robot2.self(robot2)
+            self.fall(robot2)
             robot2.touchCntr = 0
 
         # Penalize robots for pushing
@@ -414,7 +416,6 @@ class Environment(object):
 
         # Set variables
         robot.fallen = True
-        robot.moving = True
 
         # Set number of falls and getup time
         robot.fallCntr += 1
@@ -459,7 +460,6 @@ class Environment(object):
         robot.rightFoot.color = (255, 0, 0)
 
         # Set moving variables
-        robot.moving = False
         if robot.kicking:
             robot.kicking = False
             # If the robot was kicking, the joint between its legs was removed. It needs to be added back
@@ -605,6 +605,7 @@ class Environment(object):
             # Sanity check
             if len(actions) != len(self.robots):
                 print("Error: There must be action s for every robot")
+                exit(0)
 
             # Robot loop
             for action, robot in zip(actions,self.robots):
@@ -708,16 +709,13 @@ class Environment(object):
         ballPostInter = max([doesInteract(ballDets[0][1],post[1],self.ballRadius*8,False) for post in goalDets])
         ballCrossInter = [doesInteract(ballDets[0][1],cross[1],self.ballRadius*4,False)for cross in crossDets]
 
-        # Random error probability threshold
-        rand = self.randBase if self.noiseType == 1 else self.randBase/2
-
         # Random position noise and false negatives
-        ballDets = [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), rand, self.maxVisDist[0], True) for ball in ballDets]
-        robDets = [addNoise(rob, self.noiseType, robRobInter[i], rand, self.maxVisDist[1]) for i,rob in enumerate(robDets)]
-        goalDets = [addNoise(goal, self.noiseType, robPostInter[i], rand, self.maxVisDist[1]) for i,goal in enumerate(goalDets)]
-        crossDets = [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), rand, self.maxVisDist[0], True) for i,cross in enumerate(crossDets)]
-        lineDets = [addNoiseLine(line, self.noiseType, rand) for i,line in enumerate(lineDets)]
-        circleDets = addNoise(circleDets, self.noiseType, 0, rand, self.maxVisDist[1])
+        ballDets = [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for ball in ballDets]
+        robDets = [addNoise(rob, self.noiseType, robRobInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,rob in enumerate(robDets)]
+        goalDets = [addNoise(goal, self.noiseType, robPostInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,goal in enumerate(goalDets)]
+        crossDets = [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,cross in enumerate(crossDets)]
+        lineDets = [addNoiseLine(line, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,line in enumerate(lineDets)]
+        circleDets = addNoise(circleDets, self.noiseType, 0, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
 
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
@@ -728,34 +726,33 @@ class Environment(object):
                 ballDets.append((SightingType.Normal,cross[1],cross[2]))
 
         # Random false positives
-        if self.noiseType != NoiseType.Noiseless:
-            for i in range(10):
-                if random.random() < rand:
-                    c = random.randint(0,5)
-                    d = random.random()*self.maxVisDist[1]
-                    a = random.random()*2*robot.fieldOfView - robot.fieldOfView
-                    pos = pymunk.Vec2d(d,0)
-                    pos.rotate(a)
-                    if c == 0:
-                        ballDets.insert(len(ballDets),
-                                       [SightingType.Normal,pos,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
-                    elif c == 1:
-                        robDets.insert(len(robDets),
-                                       [SightingType.Normal,pos,Robot.totalRadius**(1-0.4*(random.random()-0.5)),random.random() > 0.5,random.random() > 0.75])
-                    elif c == 2:
-                        goalDets.insert(len(goalDets),
-                                       [SightingType.Normal,pos,self.goalPostRadius*2*(1-0.4*(random.random()-0.5))])
-                    elif c == 3:
-                        crossDets.insert(len(crossDets),
-                                       [SightingType.Normal,pos,self.penaltyRadius*2*(1-0.4*(random.random()-0.5))])
+        for i in range(10):
+            if random.random() < self.randBase:
+                c = random.randint(0,5)
+                d = random.random()*self.maxVisDist[1]
+                a = random.random()*2*robot.fieldOfView - robot.fieldOfView
+                pos = pymunk.Vec2d(d,0)
+                pos.rotate(a)
+                if c == 0:
+                    ballDets.insert(len(ballDets),
+                                   [SightingType.Normal,pos,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
+                elif c == 1:
+                    robDets.insert(len(robDets),
+                                   [SightingType.Normal,pos,Robot.totalRadius**(1-0.4*(random.random()-0.5)),random.random() > 0.5,random.random() > 0.75])
+                elif c == 2:
+                    goalDets.insert(len(goalDets),
+                                   [SightingType.Normal,pos,self.goalPostRadius*2*(1-0.4*(random.random()-0.5))])
+                elif c == 3:
+                    crossDets.insert(len(crossDets),
+                                   [SightingType.Normal,pos,self.penaltyRadius*2*(1-0.4*(random.random()-0.5))])
 
         # FP Balls near robots
-        if self.noiseType == 2:
+        if self.noiseType == NoiseType.Realistic:
             for rob in robDets:
-                if rob[0] == SightingType.Normal and random.random() < rand*10 and rob[1].length < 200:
-                    if random.random() < rand*2:
+                if rob[0] == SightingType.Normal and random.random() < self.randBase*10 and rob[1].length < 250:
+                    if random.random() < self.randBase*8:
                         rob[0] = SightingType.NoSighting
-                    offset = pymunk.Vec2d(random.random()-0.5,random.random()-0.5)*Robot.totalRadius
+                    offset = pymunk.Vec2d(2*random.random()-1.0,2*random.random()-1.0)*Robot.totalRadius
                     ballDets.insert(len(ballDets),
                                    [SightingType.Normal,rob[1]+offset,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
 

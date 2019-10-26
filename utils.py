@@ -3,9 +3,8 @@ from enum import IntEnum
 
 # Type of noise to be added
 class NoiseType(IntEnum):
-    Noiseless = 0
-    Random = 1
-    Realistic = 2
+    Random = 0
+    Realistic = 1
 
 # Observation types
 class ObservationType(IntEnum):
