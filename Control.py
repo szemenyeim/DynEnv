@@ -19,7 +19,7 @@ class Environment(object):
         self.render = render
 
         # Which robot's observation to visualize
-        self.visId = 1#random.randint(0,self.nPlayers*2-1)
+        self.visId = 0#random.randint(0,self.nPlayers*2-1)
 
         # Field setup
         self.W = 1040
@@ -96,13 +96,13 @@ class Environment(object):
 
         self.robotSpots = [
             # Kickoff team
-            (centX-(self.ballRadius*2+Robot.totalRadius),self.H/2+(10 if random.random() > 0.5 else -10)),
+            (centX-(self.ballRadius*2+Robot.totalRadius+250),self.H/2+(0 if random.random() > 0.5 else -0)),
             (centX-(Robot.totalRadius+self.lineWidth/2),self.sideLength + (self.fieldH/4-20 if random.random() > 0.5 else 3*self.fieldH/4+20)),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
             ((self.sideLength), self.H/2),
             # Opposing team
-            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2+100),self.H/2),
+            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2),self.H/2),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
             (centX+(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/2 + self.fieldH/4*random.random()),
@@ -721,7 +721,7 @@ class Environment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        #print((t2-t1)*1000)
+        print((t2-t1)*1000)
 
         return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
 
@@ -876,30 +876,38 @@ class Environment(object):
             for line in lineDets:
 
                 # Points to transform: [start, start+thickness, end]
-                linevec = np.array([[-line[1].y,0,line[1].x,1],[-line[1].y+self.lineWidth/2,0,line[1].x,1],[-line[2].y,0,line[2].x,1]]).transpose()
+                linevec = np.array([
+                    [(-line[1].y-line[2].y)/2,                  0,  (line[1].x+line[2].x)/2,  1],
+                    [(-line[1].y-line[2].y)/2+self.lineWidth/2, 0,  (line[1].x+line[2].x)/2,  1],
+                    [-line[1].y,                                0,  line[1].x,                1],
+                    [-line[2].y,                                0,  line[2].x,                1]
+                ]).transpose()
 
                 # Project points and estimate radius (projected size of line thickness)
                 tProj,tRad,bProj,bRad = projectPoints(linevec)
 
                 # Draw
-                cv2.line(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),(int(tProj[0,2]),int(tProj[1,2])),4,tRad)
-                cv2.line(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(bProj[0,2]),int(bProj[1,2])),4,bRad)
+                cv2.line(topCamImg,     (int(tProj[0,2]),int(tProj[1,2])),  (int(tProj[0,3]),int(tProj[1,3])), 4, tRad)
+                cv2.line(bottomCamImg,  (int(bProj[0,2]),int(bProj[1,2])),  (int(bProj[0,3]),int(bProj[1,3])), 4, bRad)
 
             if circleDets[0] != SightingType.NoSighting:
 
                 # Rotated directional vector
                 ellipseOffs = pymunk.Vec2d(circleDets[2],0)
-                ellipseOffs.rotate(math.pi/3)
+                ellipseOffs.rotate(math.pi/4)
 
                 # Points to transform: [center, 6 more points on the circle]
-                circlevec = np.array([[-circleDets[1].y, 0, circleDets[1].x, 1],
-                                      [-circleDets[1].y,0,circleDets[1].x-circleDets[2],1],
-                                      [-circleDets[1].y,0,circleDets[1].x+circleDets[2],1],
-                                      [-circleDets[1].y-circleDets[2],0,circleDets[1].x,1],
-                                      [-circleDets[1].y+circleDets[2],0,circleDets[1].x,1],
-                                      [-circleDets[1].y-ellipseOffs.y,0,circleDets[1].x+ellipseOffs.x,1],
-                                      [-circleDets[1].y+ellipseOffs.x,0,circleDets[1].x+ellipseOffs.y,1],
-                                      ]).transpose()
+                circlevec = np.array([
+                    [-circleDets[1].y,                0,    circleDets[1].x,                1],
+                    [-circleDets[1].y,                0,    circleDets[1].x-circleDets[2],  1],
+                    [-circleDets[1].y,                0,    circleDets[1].x+circleDets[2],  1],
+                    [-circleDets[1].y-circleDets[2],  0,    circleDets[1].x,                1],
+                    [-circleDets[1].y+circleDets[2],  0,    circleDets[1].x,                1],
+                    [-circleDets[1].y-ellipseOffs.y,  0,    circleDets[1].x+ellipseOffs.x,  1],
+                    [-circleDets[1].y+ellipseOffs.x,  0,    circleDets[1].x-ellipseOffs.y,  1],
+                    [-circleDets[1].y+ellipseOffs.y,  0,    circleDets[1].x+ellipseOffs.x,  1],
+                    [-circleDets[1].y-ellipseOffs.x,  0,    circleDets[1].x-ellipseOffs.y,  1],
+                ]).transpose()
 
                 # Project points and estimate radius (projected size of line thickness)
                 tProj,tRad,bProj,bRad = projectPoints(circlevec,False)
@@ -909,13 +917,13 @@ class Environment(object):
                 bThickness = 30-max(0,min(29,int(circleDets[1].length/20)))
 
                 # Estimate conic parameters
-                tParams = estimateConic(tProj[:,1:-1]-tProj[:,-1:])
-                bParams = estimateConic(bProj[:,1:-1]-bProj[:,-1:])
+                tParams = estimateConic(tProj[:,1:]-tProj[:,0:1])
+                bParams = estimateConic(bProj[:,1:]-bProj[:,0:1])
 
                 # Get [x,y] coordinates of the conic for y in [0,480)
                 # x1 and x2 are the two curves that make up the conic (they might be separate due to field of vision)
-                tx1, tx2 = getConicPoints(480, tProj[:,-1], tParams)
-                bx1, bx2 = getConicPoints(480, bProj[:,-1], bParams)
+                tx1, tx2 = getConicPoints(480, tProj[:,0], tParams)
+                bx1, bx2 = getConicPoints(480, bProj[:,0], bParams)
 
                 # Draw polygon on points
                 cv2.polylines(topCamImg, [tx1], False, 4, tThickness)
@@ -938,50 +946,63 @@ class Environment(object):
             for rob in robDets:
 
                 # Points to transform: [bottom left, bottom right, top left, top right]
-                robvec = np.array([[-rob[1].y-rob[2],0,rob[1].x,1],[-rob[1].y+rob[2],58,rob[1].x,1]]).transpose()
+                robvec = np.array([
+                    [-rob[1].y-rob[2],  0,  rob[1].x,   1],
+                    [-rob[1].y+rob[2],  58, rob[1].x,   1]
+                ]).transpose()
 
                 # Project points (without radius estimation)
                 tProj,tRad,bProj,bRad = projectPoints(robvec,False)
 
                 # Draw
-                cv2.rectangle(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),(int(tProj[0,1]),int(tProj[1,1])),2,-1)
-                cv2.rectangle(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(bProj[0,1]),int(bProj[1,1])),2,-1)
+                cv2.rectangle(topCamImg,    (int(tProj[0,0]),int(tProj[1,0])),  (int(tProj[0,1]),int(tProj[1,1])), 2, -1)
+                cv2.rectangle(bottomCamImg, (int(bProj[0,0]),int(bProj[1,0])),  (int(bProj[0,1]),int(bProj[1,1])), 2, -1)
 
             for goal in goalDets:
 
                 # Points to transform: [bottom, bottom+thickness, top]
-                goalvec = np.array([[-goal[1].y,0,goal[1].x,1],[-goal[1].y+goal[2]/2,0,goal[1].x,1],[-goal[1].y,80,goal[1].x,1]]).transpose()
+                goalvec = np.array([
+                    [-goal[1].y,            0,  goal[1].x,  1],
+                    [-goal[1].y+goal[2]/2,  0,  goal[1].x,  1],
+                    [-goal[1].y,            80, goal[1].x,  1]
+                ]).transpose()
 
                 # Project points and estimate radius (projected size of goal thickness)
                 tProj,tRad,bProj,bRad = projectPoints(goalvec)
 
                 # Draw
-                cv2.line(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),(int(tProj[0,2]),int(tProj[1,2])),3,tRad)
-                cv2.line(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(bProj[0,2]),int(bProj[1,2])),3,bRad)
+                cv2.line(topCamImg,     (int(tProj[0,0]),int(tProj[1,0])),  (int(tProj[0,2]),int(tProj[1,2])), 3, tRad)
+                cv2.line(bottomCamImg,  (int(bProj[0,0]),int(bProj[1,0])),  (int(bProj[0,2]),int(bProj[1,2])), 3, bRad)
 
             for cross in crossDets:
 
                 # Points to transform: [center, center+thickness]
-                crossvec = np.array([[-cross[1].y,0,cross[1].x,1],[-cross[1].y+cross[2]/2,0,cross[1].x,1]]).transpose()
+                crossvec = np.array([
+                    [-cross[1].y,               0,  cross[1].x, 1],
+                    [-cross[1].y+cross[2]/2,    0,  cross[1].x, 1]
+                ]).transpose()
 
                 # Project points and estimate radius (projected size of cross radius)
                 tProj,tRad,bProj,bRad = projectPoints(crossvec)
 
                 # Draw
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),tRad, 4,-1)
-                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),bRad, 4,-1)
+                cv2.circle(topCamImg,       (int(tProj[0,0]),int(tProj[1,0])), tRad, 4, -1)
+                cv2.circle(bottomCamImg,    (int(bProj[0,0]),int(bProj[1,0])), bRad, 4, -1)
 
             for ball in ballDets:
 
                 # Points to transform: [center, center+thickness]
-                ballvec = np.array([[-ball[1].y,ball[2]/2,ball[1].x,1],[-ball[1].y+ball[2]/2,ball[2]/2,ball[1].x,1]]).transpose()
+                ballvec = np.array([
+                    [-ball[1].y,            ball[2]/2,  ball[1].x,  1],
+                    [-ball[1].y+ball[2]/2,  ball[2]/2,  ball[1].x,  1]
+                ]).transpose()
 
                 # Project points and estimate radius (projected size of ball radius)
                 tProj,tRad,bProj,bRad = projectPoints(ballvec)
 
                 # Draw
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),tRad, 1,-1)
-                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),bRad, 1,-1)
+                cv2.circle(topCamImg,       (int(tProj[0,0]),int(tProj[1,0])),  tRad, 1, -1)
+                cv2.circle(bottomCamImg,    (int(bProj[0,0]),int(bProj[1,0])),  bRad, 1, -1)
 
         if self.render and robot.id == self.visId:
 

@@ -28,23 +28,25 @@ A = np.array([
 ])
 
 # Camera orientation and rotation
-bottomAng = (0.6929+0.15)
+bottomAng = (0.6929+0.25)
 bottomRot = np.array([
         [1, 0, 0],
         [0, np.cos(bottomAng), -np.sin(bottomAng)],
         [0, np.sin(bottomAng), np.cos(bottomAng)]
     ])
-bottomTr = np.concatenate((np.concatenate((bottomRot, np.array([[0,], [49.774,], [5.071,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
+
+bottomTr = np.concatenate((np.concatenate((bottomRot, np.array([[0,], [53.774,], [5.071,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 bottomTr = np.matmul(A,np.linalg.inv(bottomTr)[:3])
 
 # Top camera
-topAng = (0.0209+0.15)
+topAng = (0.0209+0.25)
 topRot = np.array([
         [1, 0, 0],
         [0, np.cos(topAng), -np.sin(topAng)],
         [0, np.sin(topAng), np.cos(topAng)]
     ])
-topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [54.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
+
+topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [58.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
 
 def projectPoints(points,compRadius = True):
@@ -79,7 +81,7 @@ def getConicPoints(yRange,center,params):
 
     # Create b and c coefficients for every y
     b = yCoord*params[2] + params[3]
-    c = yCoord*(yCoord*params[1] + params[4])-1
+    c = yCoord*(yCoord*params[1] + params[4])+params[5]
 
     # Compute determinants
     sqr = b*b-a4*c
@@ -87,11 +89,11 @@ def getConicPoints(yRange,center,params):
 
     # Solve equations for nonnegative determinants
     sqrt = np.sqrt(sqr[ind])
-    x1 = (-b[ind] + sqrt)*overa+center[0]
-    x2 = (-b[ind] - sqrt)*overa+center[0]
+    x1 = np.round((-b[ind] + sqrt)*overa+center[0])
+    x2 = np.round((-b[ind] - sqrt)*overa+center[0])
 
     # Create image coorinates
-    yCoord += center[1]
+    yCoord = np.round(yCoord + center[1])
     c1 = np.vstack( (x1, yCoord[ind]) ).astype('int32').transpose()
     c2 = np.vstack( (x2, yCoord[ind]) ).astype('int32').transpose()
 
@@ -102,17 +104,22 @@ def estimateConic(points):
     # Tranpose points
     points = points.transpose()
 
-    # Setup parameter matrix: Every row is [x^2, y^2, xy, x, y]
+    # Setup parameter matrix: Every row is [x^2, y^2, xy, x, y, 1]
     X = np.array([
-        [points[0,0]*points[0,0],points[0,1]*points[0,1],points[0,0]*points[0,1]*2,points[0,0],points[0,1]],
-        [points[1,0]*points[1,0],points[1,1]*points[1,1],points[1,0]*points[1,1]*2,points[1,0],points[1,1]],
-        [points[2,0]*points[2,0],points[2,1]*points[2,1],points[2,0]*points[2,1]*2,points[2,0],points[2,1]],
-        [points[3,0]*points[3,0],points[3,1]*points[3,1],points[3,0]*points[3,1]*2,points[3,0],points[3,1]],
-        [points[4,0]*points[4,0],points[4,1]*points[4,1],points[4,0]*points[4,1]*2,points[4,0],points[4,1]]
+        [points[0,0]*points[0,0],points[0,1]*points[0,1],points[0,0]*points[0,1],points[0,0],points[0,1],1],
+        [points[1,0]*points[1,0],points[1,1]*points[1,1],points[1,0]*points[1,1],points[1,0],points[1,1],1],
+        [points[2,0]*points[2,0],points[2,1]*points[2,1],points[2,0]*points[2,1],points[2,0],points[2,1],1],
+        [points[3,0]*points[3,0],points[3,1]*points[3,1],points[3,0]*points[3,1],points[3,0],points[3,1],1],
+        [points[4,0]*points[4,0],points[4,1]*points[4,1],points[4,0]*points[4,1],points[4,0],points[4,1],1],
+        [points[5,0]*points[5,0],points[5,1]*points[5,1],points[5,0]*points[5,1],points[5,0],points[5,1],1],
+        [points[6,0]*points[6,0],points[6,1]*points[6,1],points[6,0]*points[6,1],points[6,0],points[6,1],1],
+        [points[7,0]*points[7,0],points[7,1]*points[7,1],points[7,0]*points[7,1],points[7,0],points[7,1],1]
     ])
 
     # Solve equation
-    return np.matmul(np.linalg.inv(X),np.ones(5))
+    u,s,vt = np.linalg.svd(X)
+    a = -vt[-1]
+    return a
 
 # Class color scheme for visualization
 classColors = [
@@ -254,21 +261,27 @@ def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0,allowPartial=True):
                 seen = SightingType.Distant
         elif allowPartial:
             seen = SightingType.Partial
+        # Compute circle line segment intersection
         else:
-            a1 = dir1.dot(dir1)
-            a2 = dir2.dot(dir2)
+            # Setup b and c of the quadratic equation (a=1 in this case)
             b1 = -2 * (dir1.x * point.x - dir1.y * point.y)
             b2 = -2 * (dir2.x * point.x - dir2.y * point.y)
             c = point.dot(point) - radius * radius
-            sqr1 = b1 * b1 - 4 * a1 * c
-            sqr2 = b2 * b2 - 4 * a2 * c
+
+            # Compute determinants
+            sqr1 = b1 * b1 - 4 * c
+            sqr2 = b2 * b2 - 4 * c
+
+            # If the intersection is on the positive part of the line, we have a partial sigting
+            found = False
             if sqr1 >= 0:
                 sqrt = math.sqrt(sqr1)
-                if (-b1 + sqrt) / (2 * a1) > 0 or (-b1 - sqrt) / (2 * a1) > 0:
+                if (-b1 + sqrt) > 0 or (-b1 - sqrt) > 0:
                     seen = SightingType.Partial
-            elif sqr2 >= 0:
+                    found = True
+            if not found and sqr2 >= 0:
                 sqrt = math.sqrt(sqr2)
-                if (-b2 + sqrt) / (2 * a2) > 0 or (-b2 - sqrt) / (2 * a2) > 0:
+                if (-b2 + sqrt) > 0 or (-b2 - sqrt) > 0:
                     seen = SightingType.Partial
 
         # Rotate sighting in the robot's coordinate system
