@@ -41,6 +41,8 @@ class Environment(object):
         if noiseMagnitude < 0 or noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
             exit(0)
+        if observationType == ObservationType.Full and noiseMagnitude > 0:
+            print("Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
         self.randBase = 0.01 * noiseMagnitude
         self.noiseMagnitude = noiseMagnitude
         self.maxVisDist = [self.W*0.4,self.W*0.8]
@@ -196,29 +198,31 @@ class Environment(object):
             return
 
         # Increment touching
-        robot1.touchCntr += 1
-        robot2.touchCntr += 1
+        if not (robot1.fallen or robot1.penalized):
+            robot1.touchCntr += 1
+        if not (robot2.fallen or robot2.penalized):
+            robot2.touchCntr += 1
 
         # Compute fall probability thresholds - the longer the robots are touching the more likely they will fall
-        normalThresh = 0.99995 ** robot1.touchCntr
-        pushingThresh = 0.99998 ** robot1.touchCntr
+        normalThresh = 0.99995
+        pushingThresh = 0.99998
 
         # Determine if robots fall
         r = random.random()
-        if r > (pushingThresh if robot1.mightPush else normalThresh) and not robot1.fallen:
+        if r > (pushingThresh if robot1.mightPush else normalThresh)**robot1.touchCntr and not robot1.fallen:
             self.fall(robot1)
             robot1.touchCntr = 0
         r = random.random()
-        if r > (pushingThresh if robot2.mightPush else normalThresh) and not robot2.fallen:
+        if r > (pushingThresh if robot2.mightPush else normalThresh)**robot2.touchCntr and not robot2.fallen:
             self.fall(robot2)
             robot2.touchCntr = 0
 
         # Penalize robots for pushing
-        if robot1.mightPush and not robot2.mightPush and robot2.fallen:
+        if robot1.mightPush and not robot2.mightPush and robot2.fallen and robot1.team!=robot2.team:
             print("Robot 1 Pushing")
             self.penalize(robot1)
             robot1.touchCntr = 0
-        elif robot2.mightPush and not robot1.mightPush and robot1.fallen:
+        elif robot2.mightPush and not robot1.mightPush and robot1.fallen and robot1.team!=robot2.team:
             print("Robot 2 Pushing")
             self.penalize(robot2)
             robot2.touchCntr = 0
@@ -705,7 +709,10 @@ class Environment(object):
 
             # Get observations every 100 ms
             if i % 10 == 9:
-                observations.append([self.getRobotVision(robot) for robot in self.robots])
+                if self.observationType == ObservationType.Full:
+                    observations.append([self.getFullState(robot) for robot in self.robots])
+                else:
+                    observations.append([self.getRobotVision(robot) for robot in self.robots])
 
             # Render
             if self.render:
@@ -755,9 +762,19 @@ class Environment(object):
                 return
             robot.kick(kick-1)
 
-    # Get true object states
-    def getFullState(self):
-        return [self.ball.shape.body.position,] + [[rob.getPos(),rob.team,rob.fallen or rob.penalized] for rob in self.robots]
+    # Get true object state for a robot
+    def getFullState(self,robot=None):
+        if robot is None:
+            state = [[self.ball.shape.body.position,self.ballOwned]] + [[rob.getPos(),rob.team,rob.fallen or rob.penalized] for rob in self.robots]
+        else:
+            state = [[self.ball.shape.body.position,self.ballOwned*robot.team]] + \
+                   [[robot.getPos(),1,robot.fallen or robot.penalized]] +\
+                   [[rob.getPos(),rob.team*robot.team,rob.fallen or rob.penalized] for rob in self.robots if rob != robot]
+
+            for elem in state:
+                elem[0].x *= robot.team
+
+        return state
 
     # Getting vision
     def getRobotVision(self,robot):
@@ -852,81 +869,161 @@ class Environment(object):
 
         if self.observationType == ObservationType.Image:
 
+            # Initialize images
             bottomCamImg = np.zeros((480,640))
             topCamImg = np.zeros((480,640))
 
             for line in lineDets:
+
+                # Points to transform: [start, start+thickness, end]
                 linevec = np.array([[-line[1].y,0,line[1].x,1],[-line[1].y+self.lineWidth/2,0,line[1].x,1],[-line[2].y,0,line[2].x,1]]).transpose()
+
+                # Project points and estimate radius (projected size of line thickness)
                 tProj,tRad,bProj,bRad = projectPoints(linevec)
-                cv2.line(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,2]),int(480-tProj[1,2])),4,int(tRad))
-                cv2.line(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,2]),int(480-bProj[1,2])),4,int(bRad))
+
+                # Draw
+                cv2.line(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),(int(tProj[0,2]),int(tProj[1,2])),4,tRad)
+                cv2.line(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(bProj[0,2]),int(bProj[1,2])),4,bRad)
+
             if circleDets[0] != SightingType.NoSighting:
 
+                # Rotated directional vector
                 ellipseOffs = pymunk.Vec2d(circleDets[2],0)
                 ellipseOffs.rotate(math.pi/3)
-                circlevec = np.array([[-circleDets[1].y,0,circleDets[1].x,1],
-                                      [-circleDets[1].y+self.lineWidth/2,0,circleDets[1].x,1],
+
+                # Points to transform: [center, 6 more points on the circle]
+                circlevec = np.array([[-circleDets[1].y, 0, circleDets[1].x, 1],
+                                      [-circleDets[1].y,0,circleDets[1].x-circleDets[2],1],
+                                      [-circleDets[1].y,0,circleDets[1].x+circleDets[2],1],
                                       [-circleDets[1].y-circleDets[2],0,circleDets[1].x,1],
                                       [-circleDets[1].y+circleDets[2],0,circleDets[1].x,1],
                                       [-circleDets[1].y-ellipseOffs.y,0,circleDets[1].x+ellipseOffs.x,1],
-                                      [-circleDets[1].y,0,circleDets[1].x-circleDets[2],1],
-                                      [-circleDets[1].y,0,circleDets[1].x+circleDets[2],1],
                                       [-circleDets[1].y+ellipseOffs.x,0,circleDets[1].x+ellipseOffs.y,1],
                                       ]).transpose()
-                tProj,tRad,bProj,bRad = projectPoints(circlevec,True)
-                tProj[1] = 480-tProj[1]
-                params = getEllipse(tProj[:,2:]-tProj[:,0:1])
-                drawConic(topCamImg,tProj[:,0:1],params,4,int(tRad))
-                bProj[1] = 480-bProj[1]
-                params = getEllipse(bProj[:,2:]-bProj[:,0:1])
-                drawConic(bottomCamImg,bProj[:,0:1],params,4,int(bRad))
+
+                # Project points and estimate radius (projected size of line thickness)
+                tProj,tRad,bProj,bRad = projectPoints(circlevec,False)
+
+                # estimate line thickness from center distance
+                tThickness = 15-max(0,min(14,int(circleDets[1].length/40)))
+                bThickness = 30-max(0,min(29,int(circleDets[1].length/20)))
+
+                # Estimate conic parameters
+                tParams = estimateConic(tProj[:,1:-1]-tProj[:,-1:])
+                bParams = estimateConic(bProj[:,1:-1]-bProj[:,-1:])
+
+                # Get [x,y] coordinates of the conic for y in [0,480)
+                # x1 and x2 are the two curves that make up the conic (they might be separate due to field of vision)
+                tx1, tx2 = getConicPoints(480, tProj[:,-1], tParams)
+                bx1, bx2 = getConicPoints(480, bProj[:,-1], bParams)
+
+                # Draw polygon on points
+                cv2.polylines(topCamImg, [tx1], False, 4, tThickness)
+                cv2.polylines(topCamImg, [tx2], False, 4, tThickness)
+                cv2.polylines(bottomCamImg, [bx1], False, 4, bThickness)
+                cv2.polylines(bottomCamImg, [bx2], False, 4, bThickness)
+
+                # Connect the first and last elements of the two curves, unless they are at the edges of the images
+                if tx1.shape[0]:
+                    if tx1[0, 1]:
+                        cv2.line(topCamImg, tuple(tx1[0]), tuple(tx2[0]), 4, tThickness)
+                    if tx1[-1, 1] < 480 - 1:
+                        cv2.line(topCamImg, tuple(tx1[-1]), tuple(tx2[-1]), 4, tThickness)
+                if bx1.shape[0]:
+                    if bx1[0, 1]:
+                        cv2.line(bottomCamImg, tuple(bx1[0]), tuple(bx2[0]), 4, bThickness)
+                    if bx1[-1, 1] < 480 - 1:
+                        cv2.line(bottomCamImg, tuple(bx1[-1]), tuple(bx2[-1]), 4, bThickness)
+
             for rob in robDets:
+
+                # Points to transform: [bottom left, bottom right, top left, top right]
                 robvec = np.array([[-rob[1].y-rob[2],0,rob[1].x,1],[-rob[1].y+rob[2],58,rob[1].x,1]]).transpose()
+
+                # Project points (without radius estimation)
                 tProj,tRad,bProj,bRad = projectPoints(robvec,False)
-                cv2.rectangle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,1]),int(480-tProj[1,1])),2,-1)
-                cv2.rectangle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,1]),int(480-bProj[1,1])),2,-1)
+
+                # Draw
+                cv2.rectangle(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),(int(tProj[0,1]),int(tProj[1,1])),2,-1)
+                cv2.rectangle(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(bProj[0,1]),int(bProj[1,1])),2,-1)
+
             for goal in goalDets:
+
+                # Points to transform: [bottom, bottom+thickness, top]
                 goalvec = np.array([[-goal[1].y,0,goal[1].x,1],[-goal[1].y+goal[2]/2,0,goal[1].x,1],[-goal[1].y,80,goal[1].x,1]]).transpose()
+
+                # Project points and estimate radius (projected size of goal thickness)
                 tProj,tRad,bProj,bRad = projectPoints(goalvec)
-                cv2.line(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,2]),int(480-tProj[1,2])),3,int(tRad))
-                cv2.line(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,2]),int(480-bProj[1,2])),3,int(bRad))
+
+                # Draw
+                cv2.line(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),(int(tProj[0,2]),int(tProj[1,2])),3,tRad)
+                cv2.line(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(bProj[0,2]),int(bProj[1,2])),3,bRad)
+
             for cross in crossDets:
+
+                # Points to transform: [center, center+thickness]
                 crossvec = np.array([[-cross[1].y,0,cross[1].x,1],[-cross[1].y+cross[2]/2,0,cross[1].x,1]]).transpose()
+
+                # Project points and estimate radius (projected size of cross radius)
                 tProj,tRad,bProj,bRad = projectPoints(crossvec)
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),int(tRad), 4,-1)
-                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),int(bRad), 4,-1)
+
+                # Draw
+                cv2.circle(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),tRad, 4,-1)
+                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),bRad, 4,-1)
+
             for ball in ballDets:
+
+                # Points to transform: [center, center+thickness]
                 ballvec = np.array([[-ball[1].y,ball[2]/2,ball[1].x,1],[-ball[1].y+ball[2]/2,ball[2]/2,ball[1].x,1]]).transpose()
+
+                # Project points and estimate radius (projected size of ball radius)
                 tProj,tRad,bProj,bRad = projectPoints(ballvec)
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),int(tRad), 1,-1)
-                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),int(bRad), 1,-1)
+
+                # Draw
+                cv2.circle(topCamImg,(int(tProj[0,0]),int(tProj[1,0])),tRad, 1,-1)
+                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),bRad, 1,-1)
 
         if self.render and robot.id == self.visId:
-            H = 540
-            W = 960
+
+            # Visualization image size
+            H = self.W//2-50
+            W = self.W//2
+            img = np.zeros((H*2,W*2,3)).astype('uint8')
+
+            # Rotate FoV back for visualization
             vec1.rotate(-headAngle)
             vec2.rotate(-headAngle)
-            img = np.zeros((H*2,W*2,3)).astype('uint8')
-            cv2.line(img,(W,H),(int(W+vec1.x*1000),int(H-vec1.y*1000)),(255,255,0))
-            cv2.line(img,(W,H),(int(W+vec2.x*1000),int(H-vec2.y*1000)),(255,255,0))
+
+            # Draw
+            cv2.line(img,(0,H),(int(vec1.x*1000),int(H-vec1.y*1000)),(255,255,0))
+            cv2.line(img,(0,H),(int(vec2.x*1000),int(H-vec2.y*1000)),(255,255,0))
+
+            # Draw all objects
+            # Partially seen and distant objects are dim
+            # Objects are drawn from the robot center
             for line in lineDets:
                 color = (255,255,255) if line[0] == SightingType.Normal else (127,127,127)
-                cv2.line(img,(int(line[1].x+W),int(-line[1].y+H)),(int(line[2].x+W),int(-line[2].y+H)),color,self.lineWidth)
+                cv2.line(img,(int(line[1].x),int(-line[1].y+H)),(int(line[2].x),int(-line[2].y+H)),color,self.lineWidth)
+
             if circleDets[0] != SightingType.NoSighting:
                 color = (255,0,255) if circleDets[0] == SightingType.Normal else (127,0,127)
-                cv2.circle(img,(int(circleDets[1].x+W),int(-circleDets[1].y+H)),int(circleDets[2]),color,self.lineWidth)
+                cv2.circle(img,(int(circleDets[1].x),int(-circleDets[1].y+H)),int(circleDets[2]),color,self.lineWidth)
+
             for cross in crossDets:
                 color = (255,255,255) if cross[0] == SightingType.Normal else (127,127,127)
-                cv2.circle(img,(int(cross[1].x+W),int(-cross[1].y+H)),int(cross[2]),color,-1)
+                cv2.circle(img,(int(cross[1].x),int(-cross[1].y+H)),int(cross[2]),color,-1)
+
             for goal in goalDets:
                 color = (255,0,0) if goal[0] == SightingType.Normal else (127,0,0)
-                cv2.circle(img,(int(goal[1].x+W),int(-goal[1].y+H)),int(goal[2]),color,-1)
+                cv2.circle(img,(int(goal[1].x),int(-goal[1].y+H)),int(goal[2]),color,-1)
+
             for i,rob in enumerate(robDets):
                 color = (0,255,0) if rob[0] == SightingType.Normal else (0,127,0)
-                cv2.circle(img,(int(rob[1].x+W),int(-rob[1].y+H)),int(rob[2]),color,-1)
+                cv2.circle(img,(int(rob[1].x),int(-rob[1].y+H)),int(rob[2]),color,-1)
+
             for ball in ballDets:
                 color = (0,0,255) if ball[0] == SightingType.Normal else (0,0,127)
-                cv2.circle(img,(int(ball[1].x+W),int(-ball[1].y+H)),int(ball[2]),color,-1)
+                cv2.circle(img,(int(ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
 
             cv2.imshow(("Robot %d" % robot.id),img)
             if self.observationType == ObservationType.Image:

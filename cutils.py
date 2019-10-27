@@ -19,96 +19,90 @@ class InteractionType(IntEnum):
     Nearby = 1
     Occlude = 2
 
-def rotX(angle):
-    return np.array([
-        [1, 0, 0],
-        [0, np.cos(angle), -np.sin(angle)],
-        [0, np.sin(angle), np.cos(angle)]
-    ])
-
-def rotY(angle):
-    return np.array([
-        [np.cos(angle), 0, np.sin(angle)],
-        [0, 1, 0],
-        [-np.sin(angle), 0, np.cos(angle)]
-    ])
-
-def rotZ(angle):
-    return np.array([
-        [np.cos(angle), -np.sin(angle), 0],
-        [np.sin(angle), np.cos(angle), 0],
-        [0, 0, 1]
-    ])
-
-def rotFast(rot,ang):
-    return np.matmul(rot,rotY(ang))
-
-def rotMtx(xAng,yAng,zAng):
-    return np.matmul(rotZ(zAng),np.matmul(rotY(yAng),rotX(xAng)))
-
 # Camera parameters
+focal = 543.6
 A = np.array([
-    [543.6, 0, 319.5],
-    [0, 543.6, 239.5],
+    [focal, 0, 319.5],
+    [0, -focal, 239.5],
     [0,0,1]
 ])
 
 # Camera orientation and rotation
 bottomAng = (0.6929+0.15)
-bottomRot = rotX(bottomAng)
+bottomRot = np.array([
+        [1, 0, 0],
+        [0, np.cos(bottomAng), -np.sin(bottomAng)],
+        [0, np.sin(bottomAng), np.cos(bottomAng)]
+    ])
 bottomTr = np.concatenate((np.concatenate((bottomRot, np.array([[0,], [49.774,], [5.071,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 bottomTr = np.matmul(A,np.linalg.inv(bottomTr)[:3])
 
+# Top camera
 topAng = (0.0209+0.15)
-topRot = rotX(topAng)
+topRot = np.array([
+        [1, 0, 0],
+        [0, np.cos(topAng), -np.sin(topAng)],
+        [0, np.sin(topAng), np.cos(topAng)]
+    ])
 topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [54.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
 
 def projectPoints(points,compRadius = True):
+
+    # Project points
     topProj = np.matmul(topTr, points)
-    topProj = topProj[0:2] / topProj[2]
     bottomProj = np.matmul(bottomTr, points)
+
+    # Return from homogeneous
+    topProj = topProj[0:2] / topProj[2]
     bottomProj = bottomProj[0:2] / bottomProj[2]
+
+    # Compute radius between first and second vectors
+    tRad = 0
+    bRad = 0
     if compRadius:
         tRad = np.sqrt(np.sum(np.square(topProj[:, 0] - topProj[:, 1])))
         bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0] - bottomProj[:, 1])))
-    else:
-        tRad = 0
-        bRad = 0
 
+    return topProj,math.ceil(tRad),bottomProj,math.ceil(bRad)
 
-    return topProj,tRad,bottomProj,bRad
+# Get x coordinates on a conic defined by params for y values in a range between [0-yRange)
+def getConicPoints(yRange,center,params):
 
-def getConic(yRange,center,params):
+    # y Coordinates of the image (transform to 0 center conic)
     yCoord = np.arange(0,yRange)-center[1]
+
+    # Precompute 4*a and 1/2a
     a = params[0]
     a4 = 4*a
     overa = 1.0/(2*a)
-    b = yCoord*params[1] + params[3]
-    c = yCoord*(yCoord*params[2] + params[4])-1
-    yCoord += center[1]
+
+    # Create b and c coefficients for every y
+    b = yCoord*params[2] + params[3]
+    c = yCoord*(yCoord*params[1] + params[4])-1
+
+    # Compute determinants
     sqr = b*b-a4*c
     ind = sqr >= 0
+
+    # Solve equations for nonnegative determinants
     sqrt = np.sqrt(sqr[ind])
-    x1 = np.vstack( ((-b[ind] + sqrt)*overa+center[0], yCoord[ind]) ).astype('int32').transpose()
-    x2 = np.vstack( ((-b[ind] - sqrt)*overa+center[0], yCoord[ind]) ).astype('int32').transpose()
-    return x1,x2
+    x1 = (-b[ind] + sqrt)*overa+center[0]
+    x2 = (-b[ind] - sqrt)*overa+center[0]
 
-def drawConic(img,center,params,color,thickness):
+    # Create image coorinates
+    yCoord += center[1]
+    c1 = np.vstack( (x1, yCoord[ind]) ).astype('int32').transpose()
+    c2 = np.vstack( (x2, yCoord[ind]) ).astype('int32').transpose()
 
-    x1,x2 = getConic(img.shape[0],center,params)
-    cv2.polylines(img,[x1],False,color,thickness)
-    cv2.polylines(img,[x2],False,color,thickness)
-    if x1.shape[0]:
-        if x1[0,1]:
-            cv2.line(img,tuple(x1[0]),tuple(x2[0]),color,thickness)
-        if x1[-1,1] < img.shape[0]-1:
-            cv2.line(img,tuple(x1[-1]),tuple(x1[-1]),color,thickness)
+    return c1,c2
 
-Y = np.ones(5)
+# Estimate conic parameters from five points
+def estimateConic(points):
+    # Tranpose points
+    points = points.transpose()
 
-def getEllipse(points):
-    points = (points).transpose()
+    # Setup parameter matrix: Every row is [x^2, y^2, xy, x, y]
     X = np.array([
         [points[0,0]*points[0,0],points[0,1]*points[0,1],points[0,0]*points[0,1]*2,points[0,0],points[0,1]],
         [points[1,0]*points[1,0],points[1,1]*points[1,1],points[1,0]*points[1,1]*2,points[1,0],points[1,1]],
@@ -116,10 +110,11 @@ def getEllipse(points):
         [points[3,0]*points[3,0],points[3,1]*points[3,1],points[3,0]*points[3,1]*2,points[3,0],points[3,1]],
         [points[4,0]*points[4,0],points[4,1]*points[4,1],points[4,0]*points[4,1]*2,points[4,0],points[4,1]]
     ])
-    a,c,b,d,e = np.matmul(np.linalg.inv(X),Y)
 
-    return a,b,c,d,e
+    # Solve equation
+    return np.matmul(np.linalg.inv(X),np.ones(5))
 
+# Class color scheme for visualization
 classColors = [
     (0,0,0),
     (0,0,255),
@@ -128,6 +123,7 @@ classColors = [
     (255,255,255),
 ]
 
+# Visualization function
 def colorize(img):
     cImg = np.zeros((img.shape[0],img.shape[1],3)).astype('uint8')
     for i in range(1,len(classColors)):
