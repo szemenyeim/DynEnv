@@ -19,7 +19,7 @@ class Environment(object):
         self.render = render
 
         # Which robot's observation to visualize
-        self.visId = random.randint(0,self.nPlayers*2-1)
+        self.visId = 1#random.randint(0,self.nPlayers*2-1)
 
         # Field setup
         self.W = 1040
@@ -721,7 +721,7 @@ class Environment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        print((t2-t1)*1000)
+        #print((t2-t1)*1000)
 
         return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
 
@@ -802,7 +802,7 @@ class Environment(object):
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.goalPostRadius*2) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.penaltyRadius*2) for cross in self.fieldCrosses]
         lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist[1],headAngle) for p1,p2 in self.lines]
-        circleDets = isSeenInArea(self.centerCircle[0] - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.centerCircleRadius*2)
+        circleDets = isSeenInArea(self.centerCircle[0] - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.centerCircleRadius*2,False)
 
         # Get interactions between certain object classes
         robRobInter = [max([doesInteract(rob1[1],rob2[1],Robot.totalRadius*2) for rob1 in robDets if rob1 != rob2]) for rob2 in robDets] if self.nPlayers > 1 else [0]
@@ -988,6 +988,7 @@ class Environment(object):
             # Visualization image size
             H = self.W//2-50
             W = self.W//2
+            xOffs = 150
             img = np.zeros((H*2,W*2,3)).astype('uint8')
 
             # Rotate FoV back for visualization
@@ -995,35 +996,35 @@ class Environment(object):
             vec2.rotate(-headAngle)
 
             # Draw
-            cv2.line(img,(0,H),(int(vec1.x*1000),int(H-vec1.y*1000)),(255,255,0))
-            cv2.line(img,(0,H),(int(vec2.x*1000),int(H-vec2.y*1000)),(255,255,0))
+            cv2.line(img,(xOffs,H),(int(xOffs+vec1.x*1000),int(H-vec1.y*1000)),(255,255,0))
+            cv2.line(img,(xOffs,H),(int(xOffs+vec2.x*1000),int(H-vec2.y*1000)),(255,255,0))
 
             # Draw all objects
             # Partially seen and distant objects are dim
             # Objects are drawn from the robot center
             for line in lineDets:
                 color = (255,255,255) if line[0] == SightingType.Normal else (127,127,127)
-                cv2.line(img,(int(line[1].x),int(-line[1].y+H)),(int(line[2].x),int(-line[2].y+H)),color,self.lineWidth)
+                cv2.line(img,(int(xOffs+line[1].x),int(-line[1].y+H)),(int(xOffs+line[2].x),int(-line[2].y+H)),color,self.lineWidth)
 
             if circleDets[0] != SightingType.NoSighting:
                 color = (255,0,255) if circleDets[0] == SightingType.Normal else (127,0,127)
-                cv2.circle(img,(int(circleDets[1].x),int(-circleDets[1].y+H)),int(circleDets[2]),color,self.lineWidth)
+                cv2.circle(img,(int(xOffs+circleDets[1].x),int(-circleDets[1].y+H)),int(circleDets[2]),color,self.lineWidth)
 
             for cross in crossDets:
                 color = (255,255,255) if cross[0] == SightingType.Normal else (127,127,127)
-                cv2.circle(img,(int(cross[1].x),int(-cross[1].y+H)),int(cross[2]),color,-1)
+                cv2.circle(img,(int(xOffs+cross[1].x),int(-cross[1].y+H)),int(cross[2]),color,-1)
 
             for goal in goalDets:
                 color = (255,0,0) if goal[0] == SightingType.Normal else (127,0,0)
-                cv2.circle(img,(int(goal[1].x),int(-goal[1].y+H)),int(goal[2]),color,-1)
+                cv2.circle(img,(int(xOffs+goal[1].x),int(-goal[1].y+H)),int(goal[2]),color,-1)
 
             for i,rob in enumerate(robDets):
                 color = (0,255,0) if rob[0] == SightingType.Normal else (0,127,0)
-                cv2.circle(img,(int(rob[1].x),int(-rob[1].y+H)),int(rob[2]),color,-1)
+                cv2.circle(img,(int(xOffs+rob[1].x),int(-rob[1].y+H)),int(rob[2]),color,-1)
 
             for ball in ballDets:
                 color = (0,0,255) if ball[0] == SightingType.Normal else (0,0,127)
-                cv2.circle(img,(int(ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
+                cv2.circle(img,(int(xOffs+ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
 
             cv2.imshow(("Robot %d" % robot.id),img)
             if self.observationType == ObservationType.Image:

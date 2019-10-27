@@ -231,7 +231,7 @@ def doesInteract(obj1,obj2,radius,canOcclude=True):
 
     return type
 
-def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0):
+def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0,allowPartial=True):
 
     # Get object sighting
     seen = SightingType.NoSighting
@@ -252,8 +252,24 @@ def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0):
                 seen = SightingType.Normal
             else:
                 seen = SightingType.Distant
-        else:
+        elif allowPartial:
             seen = SightingType.Partial
+        else:
+            a1 = dir1.dot(dir1)
+            a2 = dir2.dot(dir2)
+            b1 = -2 * (dir1.x * point.x - dir1.y * point.y)
+            b2 = -2 * (dir2.x * point.x - dir2.y * point.y)
+            c = point.dot(point) - radius * radius
+            sqr1 = b1 * b1 - 4 * a1 * c
+            sqr2 = b2 * b2 - 4 * a2 * c
+            if sqr1 >= 0:
+                sqrt = math.sqrt(sqr1)
+                if (-b1 + sqrt) / (2 * a1) > 0 or (-b1 - sqrt) / (2 * a1) > 0:
+                    seen = SightingType.Partial
+            elif sqr2 >= 0:
+                sqrt = math.sqrt(sqr2)
+                if (-b2 + sqrt) / (2 * a2) > 0 or (-b2 - sqrt) / (2 * a2) > 0:
+                    seen = SightingType.Partial
 
         # Rotate sighting in the robot's coordinate system
         rotPt = copy.copy(point)
