@@ -100,7 +100,7 @@ class Environment(object):
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
             ((self.sideLength), self.H/2),
             # Opposing team
-            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2),self.H/2),
+            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2+100),self.H/2),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
             (centX+(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/2 + self.fieldH/4*random.random()),
@@ -714,7 +714,7 @@ class Environment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        #print((t2-t1)*1000)
+        print((t2-t1)*1000)
 
         return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
 
@@ -796,12 +796,12 @@ class Environment(object):
         ballCrossInter = [doesInteract(ballDets[0][1],cross[1],self.ballRadius*4,False)for cross in crossDets]
 
         # Random position noise and false negatives
-        ballDets = [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for ball in ballDets]
-        robDets = [addNoise(rob, self.noiseType, robRobInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,rob in enumerate(robDets)]
-        goalDets = [addNoise(goal, self.noiseType, robPostInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,goal in enumerate(goalDets)]
-        crossDets = [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,cross in enumerate(crossDets)]
-        lineDets = [addNoiseLine(line, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,line in enumerate(lineDets)]
-        circleDets = addNoise(circleDets, self.noiseType, 0, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
+        [addNoise(ball, self.noiseType, max(robBallInter,ballPostInter), self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for ball in ballDets]
+        [addNoise(rob, self.noiseType, robRobInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,rob in enumerate(robDets)]
+        [addNoise(goal, self.noiseType, robPostInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,goal in enumerate(goalDets)]
+        [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,cross in enumerate(crossDets)]
+        addNoise(circleDets, self.noiseType, 0, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
+        [addNoiseLine(line, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,line in enumerate(lineDets)]
 
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
@@ -824,7 +824,7 @@ class Environment(object):
                                    [SightingType.Normal,pos,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
                 elif c == 1:
                     robDets.insert(len(robDets),
-                                   [SightingType.Normal,pos,Robot.totalRadius**(1-0.4*(random.random()-0.5)),random.random() > 0.5,random.random() > 0.75])
+                                   [SightingType.Normal,pos,Robot.totalRadius*(1-0.4*(random.random()-0.5)),random.random() > 0.5,random.random() > 0.75])
                 elif c == 2:
                     goalDets.insert(len(goalDets),
                                    [SightingType.Normal,pos,self.goalPostRadius*2*(1-0.4*(random.random()-0.5))])
@@ -852,54 +852,54 @@ class Environment(object):
 
         if self.observationType == ObservationType.Image:
 
-            bottomCamImg = np.zeros((480,640,3))
-            topCamImg = np.zeros((480,640,3))
+            bottomCamImg = np.zeros((480,640))
+            topCamImg = np.zeros((480,640))
 
             for line in lineDets:
                 linevec = np.array([[-line[1].y,0,line[1].x,1],[-line[1].y+self.lineWidth/2,0,line[1].x,1],[-line[2].y,0,line[2].x,1]]).transpose()
                 tProj,tRad,bProj,bRad = projectPoints(linevec)
-                cv2.line(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,2]),int(480-tProj[1,2])),(255,255,255),int(tRad))
-                cv2.line(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,2]),int(480-bProj[1,2])),(255,255,255),int(bRad))
+                cv2.line(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,2]),int(480-tProj[1,2])),4,int(tRad))
+                cv2.line(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,2]),int(480-bProj[1,2])),4,int(bRad))
             if circleDets[0] != SightingType.NoSighting:
 
                 ellipseOffs = pymunk.Vec2d(circleDets[2],0)
-                ellipseOffs.rotate(-headAngle)
-                offs2 = copy.copy(ellipseOffs)
-                offs2.rotate(math.pi/3)
+                ellipseOffs.rotate(math.pi/3)
                 circlevec = np.array([[-circleDets[1].y,0,circleDets[1].x,1],
-                                      [-circleDets[1].y-ellipseOffs.x,0,circleDets[1].x-ellipseOffs.y,1],
-                                      [-circleDets[1].y+ellipseOffs.y,0,circleDets[1].x-ellipseOffs.x,1],
-                                      [-circleDets[1].y+offs2.x,0,circleDets[1].x+offs2.y,1],
+                                      [-circleDets[1].y+self.lineWidth/2,0,circleDets[1].x,1],
+                                      [-circleDets[1].y-circleDets[2],0,circleDets[1].x,1],
+                                      [-circleDets[1].y+circleDets[2],0,circleDets[1].x,1],
+                                      [-circleDets[1].y-ellipseOffs.y,0,circleDets[1].x+ellipseOffs.x,1],
+                                      [-circleDets[1].y,0,circleDets[1].x-circleDets[2],1],
+                                      [-circleDets[1].y,0,circleDets[1].x+circleDets[2],1],
+                                      [-circleDets[1].y+ellipseOffs.x,0,circleDets[1].x+ellipseOffs.y,1],
                                       ]).transpose()
-                tProj,tRad,bProj,bRad = projectPoints(circlevec,False)
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),40,(255,0,255),1)
-                cv2.circle(topCamImg,(int(tProj[0,1]),int(480-tProj[1,1])),40,(255,0,255),1)
-                cv2.circle(topCamImg,(int(tProj[0,2]),int(480-tProj[1,2])),40,(255,0,255),1)
-                cv2.circle(topCamImg,(int(tProj[0,3]),int(480-tProj[1,3])),40,(255,0,255),1)
+                tProj,tRad,bProj,bRad = projectPoints(circlevec,True)
                 tProj[1] = 480-tProj[1]
-                angle,a,b = getEllipse(tProj[:,0:1],tProj[:,1:])
-                cv2.ellipse(bottomCamImg,(int(bProj[0,0]),int(bProj[1,0])),(int(a),int(b)),angle,0,360,(255,0,255),int(5))
-                #cv2.ellipse(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bRad[0]),int(bRad[1])),0,0,360,(255,0,255),int(bRad[2]/2))
-            for goal in goalDets:
-                goalvec = np.array([[-goal[1].y,0,goal[1].x,1],[-goal[1].y+goal[2]/2,0,goal[1].x,1],[-goal[1].y,80,goal[1].x,1]]).transpose()
-                tProj,tRad,bProj,bRad = projectPoints(goalvec)
-                cv2.line(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,2]),int(480-tProj[1,2])),(255,0,0),int(tRad))
-                cv2.line(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,2]),int(480-bProj[1,2])),(255,0,0),int(bRad))
+                params = getEllipse(tProj[:,2:]-tProj[:,0:1])
+                drawConic(topCamImg,tProj[:,0:1],params,4,int(tRad))
+                bProj[1] = 480-bProj[1]
+                params = getEllipse(bProj[:,2:]-bProj[:,0:1])
+                drawConic(bottomCamImg,bProj[:,0:1],params,4,int(bRad))
             for rob in robDets:
                 robvec = np.array([[-rob[1].y-rob[2],0,rob[1].x,1],[-rob[1].y+rob[2],58,rob[1].x,1]]).transpose()
                 tProj,tRad,bProj,bRad = projectPoints(robvec,False)
-                cv2.rectangle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,1]),int(480-tProj[1,1])),(0,255,0),-1)
-                cv2.rectangle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,1]),int(480-bProj[1,1])),(0,255,0),-1)
+                cv2.rectangle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,1]),int(480-tProj[1,1])),2,-1)
+                cv2.rectangle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,1]),int(480-bProj[1,1])),2,-1)
+            for goal in goalDets:
+                goalvec = np.array([[-goal[1].y,0,goal[1].x,1],[-goal[1].y+goal[2]/2,0,goal[1].x,1],[-goal[1].y,80,goal[1].x,1]]).transpose()
+                tProj,tRad,bProj,bRad = projectPoints(goalvec)
+                cv2.line(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),(int(tProj[0,2]),int(480-tProj[1,2])),3,int(tRad))
+                cv2.line(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),(int(bProj[0,2]),int(480-bProj[1,2])),3,int(bRad))
             for cross in crossDets:
                 crossvec = np.array([[-cross[1].y,0,cross[1].x,1],[-cross[1].y+cross[2]/2,0,cross[1].x,1]]).transpose()
                 tProj,tRad,bProj,bRad = projectPoints(crossvec)
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),int(tRad), (255,255,255),-1)
-                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),int(bRad), (255,255,255),-1)
+                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),int(tRad), 4,-1)
+                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),int(bRad), 4,-1)
             for ball in ballDets:
                 ballvec = np.array([[-ball[1].y,ball[2]/2,ball[1].x,1],[-ball[1].y+ball[2]/2,ball[2]/2,ball[1].x,1]]).transpose()
                 tProj,tRad,bProj,bRad = projectPoints(ballvec)
-                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),int(tRad), (0,0,255),-1)
-                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),int(bRad), (0,0,255),-1)
+                cv2.circle(topCamImg,(int(tProj[0,0]),int(480-tProj[1,0])),int(tRad), 1,-1)
+                cv2.circle(bottomCamImg,(int(bProj[0,0]),int(480-bProj[1,0])),int(bRad), 1,-1)
 
         if self.render and robot.id == self.visId:
             H = 540
@@ -930,7 +930,9 @@ class Environment(object):
 
             cv2.imshow(("Robot %d" % robot.id),img)
             if self.observationType == ObservationType.Image:
-                cv2.imshow("Bottom",bottomCamImg)
-                cv2.imshow("Top",topCamImg)
+                cv2.imshow("Bottom",colorize(bottomCamImg))
+                cv2.imshow("Top",colorize(topCamImg))
 
+        if self.observationType == ObservationType.Image:
+            return topCamImg,bottomCamImg
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

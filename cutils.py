@@ -3,6 +3,7 @@ import math, random, copy
 from enum import IntEnum
 from utils import *
 import numpy as np
+import cv2
 
 # Type of observation
 class SightingType(IntEnum):
@@ -63,18 +64,14 @@ topRot = rotX(topAng)
 topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [54.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
 
-def projectPoints(points,compRadius = True,allRadius=False):
+def projectPoints(points,compRadius = True):
     topProj = np.matmul(topTr, points)
     topProj = topProj[0:2] / topProj[2]
     bottomProj = np.matmul(bottomTr, points)
     bottomProj = bottomProj[0:2] / bottomProj[2]
     if compRadius:
-        if allRadius:
-            tRad = np.sqrt(np.sum(np.square(topProj[:, 0:1] - topProj[:, 1:]),axis=0))
-            bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0:1] - bottomProj[:, 1:]),axis=0))
-        else:
-            tRad = np.sqrt(np.sum(np.square(topProj[:, 0] - topProj[:, 1])))
-            bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0] - bottomProj[:, 1])))
+        tRad = np.sqrt(np.sum(np.square(topProj[:, 0] - topProj[:, 1])))
+        bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0] - bottomProj[:, 1])))
     else:
         tRad = 0
         bRad = 0
@@ -82,25 +79,84 @@ def projectPoints(points,compRadius = True,allRadius=False):
 
     return topProj,tRad,bottomProj,bRad
 
-Y = np.array([1,1,1])
+def getConic(yRange,center,params):
+    yCoord = np.arange(0,yRange)-center[1]
+    a = params[0]
+    a4 = 4*a
+    overa = 1.0/(2*a)
+    b = yCoord*params[1] + params[3]
+    c = yCoord*(yCoord*params[2] + params[4])-1
+    sqr = b*b-a4*c
+    ind = sqr >= 0
+    sqrt = np.sqrt(sqr[ind])
+    x1 = ((-b[ind] + sqrt)*overa+center[0]).astype('int32')
+    x2 = ((-b[ind] - sqrt)*overa+center[0]).astype('int32')
+    y = (yCoord+center[1]).astype('int32')
+    return y,x1,x2
 
-def getEllipse(center,points):
-    points = (points-center).transpose()/640.0
+def drawConic(img,center,params,color,thickness):
+    a = 2*params[0]
+    a4 = 2*a
+    overa = 1.0/a
+    first = True
+    prevx1 = 0
+    prevx2 = 0
+    prevy = 0
+    for y in range(img.shape[0]):
+        yCoor = y-center[1]
+        b = yCoor*params[1] + params[3]
+        c = yCoor*(yCoor*params[2] + params[4])-1
+
+        sqr = b*b-a4*c
+        if sqr >= 0:
+            sqr = math.sqrt(sqr)
+            x1 = int((-b + sqr)*overa+center[0])
+            x2 = int((-b - sqr)*overa+center[0])
+            if first:
+                if y:
+                    cv2.line(img,(x1,y),(x2,y),color,thickness)
+                first = False
+            else:
+                cv2.line(img,(x1,y),(prevx1,prevy),color,thickness)
+                cv2.line(img,(x2,y),(prevx2,prevy),color,thickness)
+
+            prevx1 = x1
+            prevx2 = x2
+            prevy = y
+        else:
+            continue
+    if not first and prevy < img.shape[0]-1:
+        cv2.line(img,(prevx1,prevy),(prevx2,prevy),color,thickness)
+
+Y = np.ones(5)
+
+def getEllipse(points):
+    points = (points).transpose()
     X = np.array([
-        [points[0,0]**2,points[0,1]**2,points[0,0]*points[0,1]*2],
-        [points[1,0]**2,points[1,1]**2,points[1,0]*points[1,1]*2],
-        [points[2,0]**2,points[2,1]**2,points[2,0]*points[2,1]*2]
+        [points[0,0]*points[0,0],points[0,1]*points[0,1],points[0,0]*points[0,1]*2,points[0,0],points[0,1]],
+        [points[1,0]*points[1,0],points[1,1]*points[1,1],points[1,0]*points[1,1]*2,points[1,0],points[1,1]],
+        [points[2,0]*points[2,0],points[2,1]*points[2,1],points[2,0]*points[2,1]*2,points[2,0],points[2,1]],
+        [points[3,0]*points[3,0],points[3,1]*points[3,1],points[3,0]*points[3,1]*2,points[3,0],points[3,1]],
+        [points[4,0]*points[4,0],points[4,1]*points[4,1],points[4,0]*points[4,1]*2,points[4,0],points[4,1]]
     ])
-    coeffs = np.linalg.solve(X,Y)
-    theta = 0.5*math.atan2(2*coeffs[2],coeffs[1]-coeffs[0])
-    nu = coeffs[0]+coeffs[1]
-    zeta = (coeffs[1]-coeffs[0])/math.cos(2*theta)
-    if zeta < nu:
-        a = 0
-    else:
-        a = math.sqrt(2/(zeta-nu))
-    b = math.sqrt(2/(nu+zeta))
-    return theta,a,b
+    a,c,b,d,e = np.matmul(np.linalg.inv(X),Y)
+
+    return a,b,c,d,e
+
+classColors = [
+    (0,0,0),
+    (0,0,255),
+    (0,255,0),
+    (255,0,0),
+    (255,255,255),
+]
+
+def colorize(img):
+    cImg = np.zeros((img.shape[0],img.shape[1],3)).astype('uint8')
+    for i in range(1,len(classColors)):
+        cImg[img==i] = classColors[i]
+    return cImg
+
 
 # Add noise to a line sighting
 def addNoiseLine(obj,noiseType, magn, rand, maxDist):
@@ -131,8 +187,6 @@ def addNoiseLine(obj,noiseType, magn, rand, maxDist):
 
             obj[1] += noiseVec1*multiplier1/2
             obj[2] += noiseVec2*multiplier2/2
-
-    return obj
 
 # Add random noise to other sightings
 def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
@@ -181,8 +235,6 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
             obj[0] = sightingType
             obj[1] = newPos
             obj[2] *= 1+(random.random() * 0.1 * diff)
-
-    return obj
 
 # Is there interaction between the two sightings
 def doesInteract(obj1,obj2,radius,canOcclude=True):
