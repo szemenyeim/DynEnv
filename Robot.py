@@ -1,6 +1,7 @@
-from utils import *
+from utils import CollisionType, friction_robot
+from pymunk import Body, Segment, moment_for_segment, Vec2d
+from pymunk.constraint import PivotJoint, RotaryLimitJoint
 import math
-from cutils import *
 
 class Robot(object):
 
@@ -22,33 +23,33 @@ class Robot(object):
         d = (self.length,-self.length)
 
         # Setup left foot
-        inertia = pymunk.moment_for_segment(self.mass,a,b,self.radius)
-        body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
+        inertia = moment_for_segment(self.mass,a,b,self.radius)
+        body = Body(self.mass, inertia, Body.DYNAMIC)
         body.position = pos
         body.angle = 0 if team > 0 else math.pi
         body.velocity_func = friction_robot
-        self.leftFoot = pymunk.Segment(body,a,b,self.radius)
+        self.leftFoot = Segment(body,a,b,self.radius)
         self.leftFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
         self.leftFoot.elasticity = 0.3
         self.leftFoot.friction = 2.5
         self.leftFoot.collision_type = CollisionType.Robot
 
         # Setup right foot
-        inertia = pymunk.moment_for_segment(self.mass,c,d,self.radius)
-        body = pymunk.Body(self.mass, inertia, pymunk.Body.DYNAMIC)
+        inertia = moment_for_segment(self.mass,c,d,self.radius)
+        body = Body(self.mass, inertia, Body.DYNAMIC)
         body.position = pos
         body.angle = 0 if team > 0 else math.pi
         body.velocity_func = friction_robot
-        self.rightFoot = pymunk.Segment(body,c,d,self.radius)
+        self.rightFoot = Segment(body,c,d,self.radius)
         self.rightFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
         self.rightFoot.elasticity = 0.3
         self.rightFoot.friction = 2.5
         self.rightFoot.collision_type = CollisionType.Robot
 
         # setup joint
-        self.joint = pymunk.constraint.PivotJoint(self.leftFoot.body,self.rightFoot.body,(pos[0],pos[1]))
+        self.joint = PivotJoint(self.leftFoot.body,self.rightFoot.body,(pos[0],pos[1]))
         self.joint.error_bias = 0.1
-        self.rotJoint = pymunk.constraint.RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
+        self.rotJoint = RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
 
         # Basic properties
         self.team = team
@@ -83,13 +84,13 @@ class Robot(object):
             self.moveTime = 500
             velocity = None
             if dir == 0:
-                velocity = pymunk.Vec2d(0,2.5*self.velocity)
+                velocity = Vec2d(0,2.5*self.velocity)
             elif dir == 1:
-                velocity = pymunk.Vec2d(0,-2.5*self.velocity)
+                velocity = Vec2d(0,-2.5*self.velocity)
             elif dir == 2:
-                velocity = pymunk.Vec2d(2.5*self.velocity,0)
+                velocity = Vec2d(2.5*self.velocity,0)
             elif dir == 3:
-                velocity = pymunk.Vec2d(-2.5*self.velocity,0)
+                velocity = Vec2d(-2.5*self.velocity,0)
             if velocity is not None:
                 shape = self.leftFoot
                 angle = shape.body.angle

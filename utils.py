@@ -1,4 +1,4 @@
-import pymunk
+from pymunk import Body, Vec2d
 from enum import IntEnum
 
 # Type of noise to be added
@@ -29,7 +29,7 @@ def friction_ball(body, gravity, damping, dt):
 def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0):
 
     # Update velocity
-    pymunk.Body.update_velocity(body, gravity, damping, dt)
+    Body.update_velocity(body, gravity, damping, dt)
 
     # Get friction coefficients for velocity and angular velocity
     m = body.mass
@@ -64,5 +64,5 @@ def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0
         theta -= rotFactor if theta > 0 else -rotFactor
 
     # Set velocity
-    body.velocity = pymunk.Vec2d(x,y)
+    body.velocity = Vec2d(x,y)
     body.angular_velocity = theta

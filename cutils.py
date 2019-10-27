@@ -1,9 +1,8 @@
 from pymunk import Vec2d
 import math, random, copy
 from enum import IntEnum
-from utils import *
 import numpy as np
-import cv2
+from utils import NoiseType
 
 # Type of observation
 class SightingType(IntEnum):
