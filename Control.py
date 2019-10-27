@@ -9,7 +9,9 @@ from Robot import Robot
 import cv2
 import numpy as np
 
+
 class Environment(object):
+
     def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2):
 
         # Basic settings
@@ -97,7 +99,7 @@ class Environment(object):
 
         self.robotSpots = [
             # Kickoff team
-            (centX-(self.ballRadius*2+Robot.totalRadius+250),self.H/2+(0 if random.random() > 0.5 else -0)),
+            (centX-(self.ballRadius*2+Robot.totalRadius),self.H/2+(10 if random.random() > 0.5 else -10)),
             (centX-(Robot.totalRadius+self.lineWidth/2),self.sideLength + (self.fieldH/4-20 if random.random() > 0.5 else 3*self.fieldH/4+20)),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
             (centX-(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
