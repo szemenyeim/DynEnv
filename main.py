@@ -7,7 +7,7 @@ import sys
 
 if __name__ == '__main__':
     nPlayers = 5
-    env = RoboEnv(nPlayers=nPlayers,render=False,observationType=ObservationType.Image,noiseType=NoiseType.Realistic,noiseMagnitude = 2)
+    env = RoboEnv(nPlayers=nPlayers,render=False,observationType=ObservationType.Partial,noiseType=NoiseType.Realistic,noiseMagnitude = 2)
     pygame.init()
     action1 = [0,0,0,0]
     action2 = [0,0,0,0]

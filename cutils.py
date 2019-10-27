@@ -86,47 +86,24 @@ def getConic(yRange,center,params):
     overa = 1.0/(2*a)
     b = yCoord*params[1] + params[3]
     c = yCoord*(yCoord*params[2] + params[4])-1
+    yCoord += center[1]
     sqr = b*b-a4*c
     ind = sqr >= 0
     sqrt = np.sqrt(sqr[ind])
-    x1 = ((-b[ind] + sqrt)*overa+center[0]).astype('int32')
-    x2 = ((-b[ind] - sqrt)*overa+center[0]).astype('int32')
-    y = (yCoord+center[1]).astype('int32')
-    return y,x1,x2
+    x1 = np.vstack( ((-b[ind] + sqrt)*overa+center[0], yCoord[ind]) ).astype('int32').transpose()
+    x2 = np.vstack( ((-b[ind] - sqrt)*overa+center[0], yCoord[ind]) ).astype('int32').transpose()
+    return x1,x2
 
 def drawConic(img,center,params,color,thickness):
-    a = 2*params[0]
-    a4 = 2*a
-    overa = 1.0/a
-    first = True
-    prevx1 = 0
-    prevx2 = 0
-    prevy = 0
-    for y in range(img.shape[0]):
-        yCoor = y-center[1]
-        b = yCoor*params[1] + params[3]
-        c = yCoor*(yCoor*params[2] + params[4])-1
 
-        sqr = b*b-a4*c
-        if sqr >= 0:
-            sqr = math.sqrt(sqr)
-            x1 = int((-b + sqr)*overa+center[0])
-            x2 = int((-b - sqr)*overa+center[0])
-            if first:
-                if y:
-                    cv2.line(img,(x1,y),(x2,y),color,thickness)
-                first = False
-            else:
-                cv2.line(img,(x1,y),(prevx1,prevy),color,thickness)
-                cv2.line(img,(x2,y),(prevx2,prevy),color,thickness)
-
-            prevx1 = x1
-            prevx2 = x2
-            prevy = y
-        else:
-            continue
-    if not first and prevy < img.shape[0]-1:
-        cv2.line(img,(prevx1,prevy),(prevx2,prevy),color,thickness)
+    x1,x2 = getConic(img.shape[0],center,params)
+    cv2.polylines(img,[x1],False,color,thickness)
+    cv2.polylines(img,[x2],False,color,thickness)
+    if x1.shape[0]:
+        if x1[0,1]:
+            cv2.line(img,tuple(x1[0]),tuple(x2[0]),color,thickness)
+        if x1[-1,1] < img.shape[0]-1:
+            cv2.line(img,tuple(x1[-1]),tuple(x1[-1]),color,thickness)
 
 Y = np.ones(5)
 
