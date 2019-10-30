@@ -1,11 +1,11 @@
 import pygame
 import pymunk.pygame_util
 import time
-from utils import *
-from cutils import *
-from Ball import Ball
-from Goalpost import Goalpost
-from Robot import Robot
+from .utils import *
+from .cutils import *
+from .Ball import Ball
+from .Goalpost import Goalpost
+from .Robot import Robot
 import cv2
 import numpy as np
 

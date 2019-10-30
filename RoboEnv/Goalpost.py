@@ -1,4 +1,4 @@
-from utils import CollisionType
+from .utils import CollisionType
 from pymunk import Body, Circle
 
 class Goalpost(object):

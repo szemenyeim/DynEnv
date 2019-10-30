@@ -1,4 +1,4 @@
-from utils import CollisionType, friction_ball
+from .utils import CollisionType, friction_ball
 from pymunk import Body, Circle, moment_for_circle, Vec2d
 
 class Ball(object):

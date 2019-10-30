@@ -2,7 +2,7 @@ from pymunk import Vec2d
 import math, random, copy
 from enum import IntEnum
 import numpy as np
-from utils import NoiseType
+from .utils import NoiseType
 
 # Type of observation
 class SightingType(IntEnum):
