@@ -4,15 +4,7 @@
     <list default="true" id="eabf3c79-64c3-413b-89cc-e4fe764e6783" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/RoboEnv.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/RoboEnv.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Ball.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Control.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Goalpost.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Robot.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cutils.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RoboEnv/Control.py" beforeDir="false" afterPath="$PROJECT_DIR$/RoboEnv/Control.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -36,7 +28,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$USER_HOME$/Google Drive/Edu/mérés/DeepLearningLab" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="restartRequiresConfirmation" value="false" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>

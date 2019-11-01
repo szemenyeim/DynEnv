@@ -1,4 +1,4 @@
-import RoboEnv
+import DynEnv
 import pygame
 from pygame.locals import *
 import sys
@@ -7,7 +7,7 @@ import sys
 
 if __name__ == '__main__':
     nPlayers = 5
-    env = RoboEnv.RoboEnv(nPlayers=nPlayers,render=False,observationType=RoboEnv.ObservationType.Partial,noiseType=RoboEnv.NoiseType.Realistic,noiseMagnitude = 2)
+    env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers,render=False,observationType=DynEnv.ObservationType.Partial,noiseType=DynEnv.NoiseType.Realistic,noiseMagnitude = 2)
     pygame.init()
     action1 = [0,0,0,0]
     action2 = [0,0,0,0]

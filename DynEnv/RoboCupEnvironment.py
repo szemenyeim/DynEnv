@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 
-class Environment(object):
+class RoboCupEnvironment(object):
 
     def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2):
 

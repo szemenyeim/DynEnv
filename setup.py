@@ -4,11 +4,11 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='RoboEnv',
+    name='DynEnv',
     version='0.1',
     author="Marton Szemenyei",
     author_email="szemenyei@iit.bme.hu",
-    description="RL Environment for Robot Soccer",
+    description="Dynamic RL Environments for Autonomous Driving and Robot Soccer",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/szemenyeim/RoboEnv",
