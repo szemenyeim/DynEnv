@@ -1,5 +1,5 @@
-# ROBOEnv
-RoboCup SPL Simulation Environment for Reinforcement Learning
+# DynEnv
+Dynamic Simulation Environments for Reinforcement Learning
 
 ## Random Noise
 
