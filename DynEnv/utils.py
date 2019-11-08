@@ -17,6 +17,9 @@ class CollisionType(IntEnum):
     Ball = 0
     Goalpost = 1
     Robot = 2
+    Car = 3
+    Pedestrian = 4
+    Obstacle = 5
 
 # Robot friction callback
 def friction_robot(body, gravity, damping, dt):

@@ -4,6 +4,12 @@ from enum import IntEnum
 import numpy as np
 from .utils import NoiseType
 
+class LanePosition(IntEnum):
+    AtGoal = 0
+    InRightLane = 1
+    InOpposingLane = 2
+    OffRoad = 3
+
 # Type of observation
 class SightingType(IntEnum):
     NoSighting = 0

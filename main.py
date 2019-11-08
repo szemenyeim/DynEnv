@@ -5,12 +5,12 @@ import sys
 
 # Launch game, allow user controls
 
-if __name__ == '__main__':
+def doRoboCup():
     nPlayers = 5
-    env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers,render=False,observationType=DynEnv.ObservationType.Partial,noiseType=DynEnv.NoiseType.Realistic,noiseMagnitude = 2)
-    pygame.init()
-    action1 = [0,0,0,0]
-    action2 = [0,0,0,0]
+    env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
+                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+    action1 = [0, 0, 0, 0]
+    action2 = [0, 0, 0, 0]
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -69,10 +69,48 @@ if __name__ == '__main__':
                 elif event.key == K_HOME:
                     action2[3] = 2
             elif event.type == KEYUP:
-                action1 = [0,0,0,0]
-                action2 = [0,0,0,0]
+                action1 = [0, 0, 0, 0]
+                action2 = [0, 0, 0, 0]
 
-        action = [action1,action2]*nPlayers
+        action = [action1, action2] * nPlayers
         ret = env.step(action)
         if ret[4]:
-            print("Goal: reward: ",ret[0])
+            print("Goal: reward: ", ret[0])
+
+def doDrive():
+    nPlayers = 1
+    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
+                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+    action1 = [0, 0]
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                sys.exit(0)
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    sys.exit(0)
+                elif event.key == K_w:
+                    action1[0] = 1
+                elif event.key == K_s:
+                    action1[0] = -2
+                elif event.key == K_d:
+                    action1[1] = 1
+                elif event.key == K_a:
+                    action1[1] = -1
+
+            elif event.type == KEYUP:
+                action1 = [0, 0]
+
+        action = [action1,] * nPlayers
+        ret = env.step(action)
+
+if __name__ == '__main__':
+
+    drive = True
+
+    pygame.init()
+
+    if drive:
+        doDrive()
+    else:
+        doRoboCup()

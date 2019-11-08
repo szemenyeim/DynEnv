@@ -1,0 +1,55 @@
+from .utils import CollisionType
+from .cutils import LanePosition
+import math
+from pymunk import Vec2d, Poly, Body, moment_for_poly,Segment,moment_for_segment
+
+class Car(object):
+
+    masses = [1200,1800,3500,5000]
+    widths = [10,11,14,15]
+    lengths = [15,20,30,50]
+    powers = [5,5,3,2]
+
+    def __init__(self,center,type,team,goal):
+
+        width = self.widths[type]
+        height = self.lengths[type]
+        mass = self.masses[type]
+        #points = [center + Vec2d(width, height), center + Vec2d(-width, height), center - Vec2d(width, height), center + Vec2d(width, -height)]
+        #inertia = moment_for_poly(mass,points)
+        a = Vec2d(height, 0)
+        b = Vec2d(-height, 0)
+        inertia = moment_for_segment(mass,a,b,width)
+
+        self.type = type
+        self.team = team
+        self.goal = goal
+
+        self.direction = Vec2d(1,0)
+
+        self.position = LanePosition.OffRoad
+
+        body = Body(mass, inertia, Body.DYNAMIC)
+        body.position = center
+        #self.shape = Poly(body, points)
+        self.shape = Segment(body,a,b,width)
+        self.shape.color = (0, 255, 0)
+        self.shape.elasticity = 0.05
+        self.shape.collision_type = CollisionType.Car
+
+        self.angleDiff = math.pi/36
+
+    def accelerate(self,dir):
+        velocity = Vec2d(self.powers[self.type]*dir,0)
+        velocity.rotate(self.shape.body.angle)
+        self.shape.body.velocity = self.shape.body.velocity + velocity
+        if self.shape.body.velocity.dot(self.direction) < 0:
+            self.shape.body.velocity = Vec2d(0,0)
+
+    def turn(self,dir):
+        rot = dir*self.angleDiff
+        self.shape.body.angle += rot
+        vel = self.shape.body.velocity
+        vel.rotate(rot)
+        self.shape.body.velocity = vel
+        self.direction.rotate(rot)
