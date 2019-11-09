@@ -12,6 +12,8 @@ class Road:
         self.points = points
         self.hasWalkway = hasWalkway
 
+        self.followDist = 80
+
         self.direction = self.points[1]-self.points[0]
         self.length = self.direction.length
         self.direction = self.direction / self.length
@@ -23,16 +25,31 @@ class Road:
         [self.points[0] - (nLanes+1)*width*self.normal,self.points[1] - (nLanes+1)*width*self.normal] ]if hasWalkway else []
 
     def isPointOnRoad(self,point,angle):
-        point -= self.points[0]
-        dist = self.direction.cross(point)
-        if abs(dist) > self.nLanes*self.width:
+        pt = point - self.points[0]
+        dist = self.direction.cross(pt)
+        if abs(dist) >= self.nLanes*self.width+5:
             return LanePosition.OffRoad
         else:
             pos = LanePosition.OffRoad
 
-            dirDist = self.direction.dot(point)
-            if dirDist > 0 and dirDist < self.length:
+            dirDist = self.direction.dot(pt)
+            if dirDist >= -10 and dirDist <= self.length+10:
                 relAngle = math.cos(self.direction.angle - angle)*dist
                 pos = LanePosition.InRightLane if relAngle < 0 else LanePosition.InOpposingLane
 
             return pos
+
+    def getSpot(self,lane,spot):
+        end = 1 if lane >= self.nLanes else 0
+        pos = self.points[end]
+        spotDir = (-self.direction if end else self.direction) * self.followDist
+        laneDir = (self.normal if end else -self.normal) * self.width
+
+        lane = (lane-self.nLanes if end else lane)+0.5
+
+        return pos + lane*laneDir + spot*spotDir,spotDir.angle
+
+    def getWalkSpot(self,side,length,width):
+        center = self.Walkways[side][0] + length*(self.Walkways[side][1]-self.Walkways[side][0])
+        center += width*self.width*self.normal*(1 if side else -1)
+        return center

@@ -21,6 +21,10 @@ class CollisionType(IntEnum):
     Pedestrian = 4
     Obstacle = 5
 
+# Car friction callback
+def friction_car(body, gravity, damping, dt):
+    apply_friction(body,gravity,damping,dt,5e-5,0)
+
 # Robot friction callback
 def friction_robot(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,2e-3,1e-2)

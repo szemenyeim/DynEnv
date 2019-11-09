@@ -8,8 +8,8 @@ class Obstacle(object):
         body = Body(0, 0, Body.STATIC)
         body.position = center
 
-        points = [center+Vec2d(width,height),center+Vec2d(-width,height),center-Vec2d(width,height),center+Vec2d(width,-height)]
+        points = [Vec2d(width,height),Vec2d(-width,height),-Vec2d(width,height),Vec2d(width,-height)]
         self.shape = Poly(body,points)
-        self.shape.color = (255, 0, 0)
+        self.shape.color = (0, 0, 0)
         self.shape.elasticity = 0.05
         self.shape.collision_type = CollisionType.Obstacle

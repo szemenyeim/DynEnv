@@ -92,7 +92,7 @@ def doDrive():
                 elif event.key == K_w:
                     action1[0] = 1
                 elif event.key == K_s:
-                    action1[0] = -2
+                    action1[0] = -1
                 elif event.key == K_d:
                     action1[1] = 1
                 elif event.key == K_a:
