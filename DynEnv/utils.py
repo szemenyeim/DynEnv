@@ -25,6 +25,14 @@ class CollisionType(IntEnum):
 def friction_car(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,5e-5,0)
 
+# Car friction callback crashed
+def friction_car_crashed(body, gravity, damping, dt):
+    apply_friction(body,gravity,damping,dt,5e-4,2e-5)
+
+# Dead pedestrian friction
+def friction_pedestrian_dead(body, gravity, damping, dt):
+    apply_friction(body,gravity,damping,dt,5e-2,2e-4)
+
 # Robot friction callback
 def friction_robot(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,2e-3,1e-2)

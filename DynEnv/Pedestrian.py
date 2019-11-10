@@ -1,11 +1,11 @@
-from .utils import CollisionType
+from .utils import CollisionType, friction_pedestrian_dead
 from pymunk import Vec2d, Circle, Body, moment_for_circle
 import random
 
 
 class Pedestrian(object):
 
-    def __init__(self, center, road):
+    def __init__(self, center, road, side):
 
         # setup shape
         mass = 90
@@ -20,16 +20,21 @@ class Pedestrian(object):
 
         self.lenRange = road.length
         self.widthRange = (road.nLanes+1)*road.width*2
+        self.side = side
+
+        self.dead = False
 
         # Move direction
         self.moving = 0
+        self.crossing = False
+        self.beginCrossing = False
         self.direction = road.direction
         self.normal = road.normal
-        self.speed = random.randint(5,15)
+        self.speed = random.randint(4,10)
 
-    def move(self,time):
-        if self.moving > 0:
-            self.moving = max(0,self.moving-time)
-        else:
-            self.moving = random.randint(5000,30000)
-            self.shape.body.velocity = self.speed*self.direction*random.randint(-1,1)
+    def die(self):
+        self.moving = 0
+        self.shape.body.velocity = Vec2d(0,0)
+        self.shape.color = (255, 0, 0)
+        self.dead = True
+        self.shape.body.velocity_func = friction_pedestrian_dead

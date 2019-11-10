@@ -1,4 +1,4 @@
-from .utils import CollisionType, friction_car
+from .utils import CollisionType, friction_car, friction_car_crashed
 from .cutils import LanePosition
 import math
 from pymunk import Vec2d, Poly, Body, moment_for_poly,Segment,moment_for_segment
@@ -7,7 +7,7 @@ class Car(object):
 
     masses = [1200,1800,3500,5000]
     widths = [10,11,14,15]
-    lengths = [10,15,25,30]
+    lengths = [10,15,20,25]
     powers = [3,4,3,4]
 
     def __init__(self,center,angle,type,team,goal):
@@ -68,3 +68,4 @@ class Car(object):
         self.shape.color = (255, 0, 0)
         self.finished = True
         self.crashed = True
+        self.shape.body.velocity_func = friction_car_crashed

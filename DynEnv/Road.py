@@ -12,7 +12,7 @@ class Road:
         self.points = points
         self.hasWalkway = hasWalkway
 
-        self.followDist = 80
+        self.followDist = 90
 
         self.direction = self.points[1]-self.points[0]
         self.length = self.direction.length

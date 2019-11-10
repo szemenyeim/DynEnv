@@ -11,6 +11,7 @@ import pymunk
 import pymunk.pygame_util
 import pygame
 import numpy as np
+import random
 
 class DrivingEnvironment(object):
 
@@ -41,7 +42,7 @@ class DrivingEnvironment(object):
         # Time rewards
         self.maxTime = 2000
         self.elapsed = 0
-        self.teamFinished = [False,False]
+        self.allFinished = False
 
         # Setup roads
         self.roads = [
@@ -99,7 +100,7 @@ class DrivingEnvironment(object):
         h = self.space.add_collision_handler(
             CollisionType.Car,
             CollisionType.Pedestrian)
-        h.begin = self.carHit
+        h.begin = self.pedHit
 
         # Setup car-obst collision
         h = self.space.add_collision_handler(
@@ -119,7 +120,7 @@ class DrivingEnvironment(object):
         t1 = time.clock()
 
         # Setup reward and state variables
-        self.teamRewards = [0, 0]
+        self.teamReward = 0
         self.carRewards = [0,] * self.nPlayers
         observations = []
         finished = False
@@ -145,20 +146,19 @@ class DrivingEnvironment(object):
                 # Update cars
                 self.tick(car)
 
-            [ped.move(self.timeDiff) for ped in self.pedestrians]
+            [self.move(ped) for ped in self.pedestrians]
 
             # Run simulation
             self.space.step(1 / self.timeStep)
 
             self.elapsed += 1
-            for team in range(self.numTeams):
-                teamFinished = all([car.finished and not car.crashed for car in self.cars if car.team == team])
-                if not self.teamFinished[team]:
-                    if teamFinished:
-                        self.teamFinished[team] = True
-                        self.teamRewards[team] += self.maxTime-self.elapsed
-                    elif self.elapsed >= self.maxTime:
-                        self.teamRewards[team] -= 2000
+            allFinised = all([car.finished and not car.crashed for car in self.cars])
+            if not self.allFinished:
+                if allFinised:
+                    self.allFinised = True
+                    self.teamReward += self.maxTime-self.elapsed
+                elif self.elapsed >= self.maxTime:
+                    self.teamReward -= 2000
 
             if self.elapsed >= self.maxTime:
                 finished = True
@@ -179,7 +179,7 @@ class DrivingEnvironment(object):
         t2 = time.clock()
         #print((t2 - t1) * 1000)
 
-        return self.getFullState(), observations, self.teamRewards, self.carRewards, finished
+        return self.getFullState(), observations, self.teamReward, self.carRewards, finished
 
     def drawStaticObjects(self):
 
@@ -240,6 +240,47 @@ class DrivingEnvironment(object):
             elif car.position == LanePosition.InOpposingLane:
                 self.carRewards[index] -= 10
 
+    def move(self,pedestrian):
+        if not pedestrian.dead:
+            isOffRoad = self.isOffRoad(pedestrian.shape.body.position)
+            isOut = self.isOut(pedestrian.shape.body.position)
+            if pedestrian.moving > 0:
+                pedestrian.moving = max(0,pedestrian.moving-self.timeDiff)
+                if pedestrian.crossing:
+                    if not pedestrian.beginCrossing and isOffRoad:
+                        pedestrian.moving = 0
+                        pedestrian.crossing = False
+                        pedestrian.shape.body.velocity = pymunk.Vec2d(0,0)
+                    elif pedestrian.beginCrossing and not isOffRoad:
+                        pedestrian.beginCrossing = False
+                if isOut:
+                    pedestrian.moving = 0
+                    pedestrian.shape.body.velocity = pymunk.Vec2d(0,0)
+            else:
+                if not pedestrian.crossing:
+                    pedestrian.moving = random.randint(5000,30000)
+                    speed = random.randint(-2,2)
+                    dir = pedestrian.direction
+                    if not isOffRoad:
+                        pedestrian.crossing = True
+                        pedestrian.beginCrossing = False
+                        if speed == 0:
+                            speed = 2
+                    elif isOut:
+                        dir = -pedestrian.direction if self.isOut(pedestrian.shape.body.position+pedestrian.direction) else pedestrian.direction
+                    elif random.random() < 0.1:
+                        pedestrian.crossing = True
+                        pedestrian.beginCrossing = True
+                        dir = pedestrian.normal if pedestrian.side else -pedestrian.normal
+                        pedestrian.side = 0 if pedestrian.side else 1
+                        speed = random.randint(1,2)
+                    pedestrian.shape.body.velocity = pedestrian.speed*dir*speed
+                else:
+                    if isOffRoad:
+                        pedestrian.crossing = False
+                        pedestrian.beginCrossing = False
+
+
     def getUniqueSpots(self):
 
         roadSpots = np.array([10*road.nLanes for road in self.roads])
@@ -264,7 +305,7 @@ class DrivingEnvironment(object):
         lenOffs = np.random.rand(self.pedestrianNum)
         widthOffs = np.random.rand(self.pedestrianNum)/2+0.25
 
-        return [Pedestrian(self.roads[road].getWalkSpot(side,length,width),self.roads[road]) for road, side, length, width in zip(roadIds,sideIds,lenOffs,widthOffs)]
+        return [Pedestrian(self.roads[road].getWalkSpot(side,length,width),self.roads[road],side) for road, side, length, width in zip(roadIds,sideIds,lenOffs,widthOffs)]
 
     def createRandomObstacles(self):
 
@@ -285,6 +326,9 @@ class DrivingEnvironment(object):
             position = min(position, rPos)
 
         return position == LanePosition.OffRoad
+
+    def isOut(self,pos):
+        return pos.x <= 0 or pos.y <= 0 or pos.x >= self.W or pos.y >= self.H
 
     def pedCollision(self,arbiter, space, data):
         return False
@@ -324,13 +368,30 @@ class DrivingEnvironment(object):
 
         return True
 
-    def carHit(self,arbiter, space, data):
+    def pedHit(self,arbiter, space, data):
 
         car = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
         ped = next(ped for ped in self.pedestrians if (ped.shape == arbiter.shapes[1]))
 
-        if ped is not None:
-            self.space.remove(ped.shape,ped.shape.body)
+        ped.die()
+
+        v1 = arbiter.shapes[0].body.velocity
+        if v1.length > 1:
+            car.crash()
+
+            p1 = car.shape.body.position
+            p2 = ped.shape.body.position
+            dp = p1 - p2
+
+            if math.cos(dp.angle - v1.angle) < -0.4:
+                index = self.cars.index(car)
+                self.carRewards[index] -= 5000
+
+        return True
+
+    def carHit(self,arbiter, space, data):
+
+        car = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
 
         car.crash()
 
