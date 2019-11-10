@@ -50,12 +50,14 @@ class DrivingEnvironment(object):
             Road(1,35,[pymunk.Vec2d(0,500),pymunk.Vec2d(1750,500)]),
         ]
 
-        self.obstacles = [
+        self.buildings = [
             Obstacle(pymunk.Vec2d(365,200),400,225),
             Obstacle(pymunk.Vec2d(365,800),400,225),
             Obstacle(pymunk.Vec2d(1385,200),400,225),
             Obstacle(pymunk.Vec2d(1385,800),400,225),
         ]
+        for building in self.buildings:
+            self.space.add(building.shape.body,building.shape)
 
         # Add cars
         roadSel = np.random.randint(0,len(self.roads), self.nPlayers)
@@ -76,7 +78,7 @@ class DrivingEnvironment(object):
 
         # Add random obstacles
         self.obstacleNum = 20
-        self.obstacles += self.createRandomObstacles()
+        self.obstacles = self.createRandomObstacles()
         for obs in self.obstacles:
             self.space.add(obs.shape.body,obs.shape)
 
@@ -200,12 +202,6 @@ class DrivingEnvironment(object):
                 pygame.draw.line(self.screen,color,line[0],line[1],thickness)
 
         self.space.debug_draw(self.draw_options)
-
-    def getFullState(self,car=None):
-        pass
-
-    def getCarVision(self,car):
-        pass
 
     def processAction(self,action,car):
         acc = action[0]
@@ -399,3 +395,46 @@ class DrivingEnvironment(object):
         self.carRewards[index] -= 5000
 
         return True
+
+    def getFullState(self,car=None):
+        if car is None:
+            state = [
+                [[c.shape.body.position, c.shape.body.angle] for c in self.cars] +
+                [[o.shape.body.position,] for o in self.obstacles] +
+                [[p.shape.body.position,] for p in self.pedestrians] +
+                [[r.points,r.direction,r.nLanes] for r in self.roads]
+            ]
+        else:
+            state = [
+                [[car.shape.body.position, car.shape.body.angle]] +
+                [[c.shape.body.position, c.shape.body.angle] for c in self.cars if c != car] +
+                [[o.shape.body.position, ] for o in self.obstacles] +
+                [[p.shape.body.position, ] for p in self.pedestrians] +
+                [[r.points, r.direction, r.nLanes] for r in self.roads]
+            ]
+
+        return state
+
+    def getCarVision(self,car):
+
+        selfDet = None
+
+        carDets = []
+        obsDets = []
+        pedDets = []
+        laneDets = []
+
+        buildCarInter = []
+        buildPedInter = []
+        carPedInter = []
+        obsPedInter = []
+
+        # Add noise: Car, Obs, Ped
+
+        # Cars and obstacles might by misclassified - move them in the other list
+
+        # Random false positives
+
+        # FP Pedestrians near cars and obstacles
+
+        # Remove occlusion and misclassified originals
