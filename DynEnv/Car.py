@@ -31,6 +31,7 @@ class Car(object):
         self.position = LanePosition.OffRoad
 
         self.prevPos = center
+        self.points = [p+center for p in points]
 
         body = Body(mass, inertia, Body.DYNAMIC)
         body.position = center

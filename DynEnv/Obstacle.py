@@ -9,6 +9,7 @@ class Obstacle(object):
         body.position = center
 
         points = [Vec2d(width,height),Vec2d(-width,height),-Vec2d(width,height),Vec2d(width,-height)]
+        self.points = [p+center for p in points]
         self.shape = Poly(body,points)
         self.shape.color = (0, 0, 0)
         self.shape.elasticity = 0.05

@@ -3,7 +3,7 @@ from .Pedestrian import Pedestrian
 from .Obstacle import Obstacle
 from .Road import Road
 from .utils import ObservationType, NoiseType, CollisionType
-from .cutils import LanePosition
+from .cutils import *
 import cv2
 import math
 import time
@@ -25,9 +25,23 @@ class DrivingEnvironment(object):
         self.render = render
         self.numTeams = 2
 
+        self.visId = 0#random.randint(0,self.nPlayers-1)
+
+        # Setup scene
+        self.W = 1750
+        self.H = 1000
+
         # Noise
+        # Vision settings
+        if noiseMagnitude < 0 or noiseMagnitude > 5:
+            print("Error: The noise magnitude must be between 0 and 5!")
+            exit(0)
+        if observationType == ObservationType.Full and noiseMagnitude > 0:
+            print(
+                "Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
+        self.randBase = 0.01 * noiseMagnitude
         self.noiseMagnitude = noiseMagnitude
-        self.maxVisDist = 300
+        self.maxVisDist = [self.W * 0.2, self.W * 0.3]
 
         # Space
         self.space = pymunk.Space()
@@ -35,10 +49,6 @@ class DrivingEnvironment(object):
         self.timeStep = 100.0
         self.timeDiff = 10.0
         self.distThreshold = 10
-
-        # Setup scene
-        self.W = 1750
-        self.H = 1000
 
         # Time rewards
         self.maxTime = 2000
@@ -420,15 +430,17 @@ class DrivingEnvironment(object):
 
         selfDet = [car.getPos(), car.getAngle()]
 
-        carDets = [isSeenInRadius(c.getPos(),c.points,c.getAngle(),selfDet[0],selfDet[1],self.maxVisDist) for c in self.cars if c != car]
-        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[0],selfDet[1],self.maxVisDist) for o in self.obstacles]
+        carDets = [isSeenInRadius(c.getPos(),c.points,c.getAngle(),selfDet[0],selfDet[1],self.maxVisDist[1]) for c in self.cars if c != car]
+        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[0],selfDet[1],self.maxVisDist[1]) for o in self.obstacles]
         buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[0],selfDet[1],2000) for b in self.buildings]
-        pedDets = [isSeenInRadius(p.getPos(),p.points,0,selfDet[0],selfDet[1],self.maxVisDist) for p in self.pedestrians]
-        laneDets = [[
-            getLineInRadius(l.Lanes[i-l.nLanes],selfDet[0],selfDet[1],self.maxVisDist) + [(1 if abs(i) == l.nLanes else (2 if i == 0 else 0)), ]
-                     for i in range(-l.nLanes,l.nLanes+1)] for l in lane]
+        pedDets = [isSeenInRadius(p.getPos(),[],0,selfDet[0],selfDet[1],self.maxVisDist[0]) for p in self.pedestrians]
+        laneDets = []
+        for l in self.roads:
+            laneDets += [getLineInRadius(l.Lanes[i-l.nLanes],selfDet[0],selfDet[1],self.maxVisDist[1])
+                         + [(1 if abs(i) == l.nLanes else (2 if i == 0 else 0)), ]
+                        for i in range(-l.nLanes,l.nLanes+1)]
 
-        buildCarInter = [max([doesInteractPoly(c.getPos(),b.getPos(),b.points,0) for b in self.buildDets]) for c in self.cars]
+        buildCarInter = [max([doesInteractPoly(c.getPos(),b.getPos(),b.points,0) for b in self.buildings]) for c in self.cars]
         buildPedInter = [max([doesInteractPoly(p.getPos(),b.getPos(),b.points,0) for b in self.buildings]) for p in self.pedestrians]
         buildObsInter = [max([doesInteractPoly(o.getPos(),b.getPos(),b.points,0) for b in self.buildings]) for o in self.obstacles]
         carPedInter = [max([doesInteractPoly(p.getPos(),c.getPos(),c.points,0) for c in self.cars]) for p in self.pedestrians]
@@ -436,9 +448,9 @@ class DrivingEnvironment(object):
         pedInter = max(buildPedInter,carPedInter,obsPedInter)
 
         # Add noise: Car, Obs, Ped
-        [addNoise(c, self.noiseType, buildCarInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,c in enumerate(carDets)]
-        [addNoise(ped, self.noiseType, pedInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0]) for i,ped in enumerate(pedDets)]
-        [addNoise(obs, self.noiseType, buildObsInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,obs in enumerate(obsDets)]
+        [addNoiseRect(c, self.noiseType, buildCarInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,c in enumerate(carDets)]
+        [addNoiseRect(ped, self.noiseType, pedInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0]) for i,ped in enumerate(pedDets)]
+        [addNoiseRect(obs, self.noiseType, buildObsInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,obs in enumerate(obsDets)]
         [addNoiseLine(lane, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,lane in enumerate(laneDets)]
 
         # Cars and obstacles might by misclassified - move them in the other list
@@ -479,7 +491,7 @@ class DrivingEnvironment(object):
                     pos2 = pymunk.Vec2d(d,0)
                     pos2.rotate(a2)
                     laneDets.insert(len(laneDets),
-                                   [SightingType.Normal,[pos,pos2]])
+                                   [SightingType.Normal,pos,pos2])
 
         # FP Pedestrians near cars and obstacles
         if self.noiseType == NoiseType.Realistic:
@@ -513,23 +525,27 @@ class DrivingEnvironment(object):
             # Objects are drawn from the robot center
             for lane in laneDets:
                 color = (255,255,255) if lane[0] == SightingType.Normal else (127,127,127)
-                cv2.line(img,(int(xOffs+lane[1].x),int(-lane[1].y+H)),(int(xOffs+lane[2].x),int(-lane[2].y+H)),color,self.lineWidth)
+                cv2.line(img,(int(xOffs+lane[1].x),int(-lane[1].y+H)),(int(xOffs+lane[2].x),int(-lane[2].y+H)),color,2)
 
             for c in carDets:
-                color = (0,255,0) if cross[0] == SightingType.Normal else (0,127,0)
-                cv2.poly()
+                color = (0,255,0) if c[0] == SightingType.Normal else (0,127,0)
+                points = c[2]
+                cv2.fillConvexPoly(img,np.array([(int(p.x),int(p.y)) for p in points]),color)
 
             for ped in pedDets:
-                color = (255,0,0) if goal[0] == SightingType.Normal else (127,0,0)
-                cv2.circle(img,(int(xOffs+goal[1].x),int(-goal[1].y+H)),int(goal[2]),color,-1)
+                color = (255,0,0) if ped[0] == SightingType.Normal else (127,0,0)
+                point = ped[1]
+                cv2.circle(img,(int(point.x),int(point.y)),5,color,-1)
 
             for obs in obsDets:
-                color = (0,255,0) if rob[0] == SightingType.Normal else (0,127,0)
-                cv2.circle(img,(int(xOffs+rob[1].x),int(-rob[1].y+H)),int(rob[2]),color,-1)
+                color = (0,255,0) if obs[0] == SightingType.Normal else (0,127,0)
+                points = obs[2]
+                cv2.fillConvexPoly(img,np.array([(int(p.x),int(p.y)) for p in points]),color)
 
             for build in buildDets:
-                color = (0,0,255) if ball[0] == SightingType.Normal else (0,0,127)
-                cv2.circle(img,(int(xOffs+ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
+                color = (0,0,255) if build[0] == SightingType.Normal else (0,0,127)
+                points = build[2]
+                cv2.fillConvexPoly(img,np.array([(int(p.x),int(p.y)) for p in points]),color)
 
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
 

@@ -340,7 +340,7 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
         trPts = [trPts[0] + t1*dP,trPts[0] + t2*dP]
         [pt.rotate(obsAngle) for pt in trPts]
 
-        return [SightingType.Normal,trPts]
+        return [SightingType.Normal,trPts[0],trPts[1]]
 
     return[SightingType.NoSighting,]
 
@@ -364,7 +364,7 @@ def doesInteractPoly(point1,point2,corners,radius,canOcclude=True):
         edges = getViewBlockAngle(point2.angle,corners)
 
         if point1.angle > edges[0].angle and point1.angle < edges[1].angle:
-            if (edges[1]-edges[0].cross(point1-edges[0]) > 0):
+            if ((edges[1]-edges[0]).cross(point1-edges[0]) > 0):
                 ret = InteractionType.Occlude
 
     return ret
