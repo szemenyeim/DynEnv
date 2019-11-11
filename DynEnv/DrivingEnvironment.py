@@ -373,13 +373,13 @@ class DrivingEnvironment(object):
 
         v1 = arbiter.shapes[0].body.velocity
         if v1.length > 1:
-            car.crash()
 
             p1 = car.shape.body.position
             p2 = ped.shape.body.position
             dp = p1 - p2
 
             if math.cos(dp.angle - v1.angle) < -0.4:
+                car.crash()
                 index = self.cars.index(car)
                 self.carRewards[index] -= 5000
 

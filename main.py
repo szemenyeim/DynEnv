@@ -94,9 +94,9 @@ def doDrive():
                 elif event.key == K_s:
                     action1[0] = -1
                 elif event.key == K_d:
-                    action1[1] = 1
-                elif event.key == K_a:
                     action1[1] = -1
+                elif event.key == K_a:
+                    action1[1] = 1
 
             elif event.type == KEYUP:
                 action1 = [0, 0]
