@@ -13,3 +13,6 @@ class Obstacle(object):
         self.shape.color = (0, 0, 0)
         self.shape.elasticity = 0.05
         self.shape.collision_type = CollisionType.Obstacle
+
+    def getPos(self):
+        return self.shape.body.position

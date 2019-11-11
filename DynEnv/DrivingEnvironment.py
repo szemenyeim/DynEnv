@@ -27,6 +27,7 @@ class DrivingEnvironment(object):
 
         # Noise
         self.noiseMagnitude = noiseMagnitude
+        self.maxVisDist = 300
 
         # Space
         self.space = pymunk.Space()
@@ -218,18 +219,18 @@ class DrivingEnvironment(object):
         index = self.cars.index(car)
 
         for road in self.roads:
-            rPos = road.isPointOnRoad(car.shape.body.position,car.shape.body.angle)
+            rPos = road.isPointOnRoad(car.getPos(),car.getAngle())
             car.position = min(car.position,rPos)
 
-        if (car.shape.body.position - car.goal).length < self.distThreshold:
+        if (car.getPos() - car.goal).length < self.distThreshold:
             car.position = LanePosition.AtGoal
             car.finished = True
             car.shape.color = (255,255,255)
             self.carRewards[index] += 5000
         else:
-            diff = (car.prevPos-car.goal).length - (car.shape.body.position-car.goal).length
+            diff = (car.prevPos-car.goal).length - (car.getPos()-car.goal).length
             self.carRewards[index] += diff
-            car.prevPos = car.shape.body.position
+            car.prevPos = car.getPos()
             if car.position == LanePosition.OffRoad:
                 car.crash()
                 self.carRewards[index] -= 2000
@@ -238,8 +239,8 @@ class DrivingEnvironment(object):
 
     def move(self,pedestrian):
         if not pedestrian.dead:
-            isOffRoad = self.isOffRoad(pedestrian.shape.body.position)
-            isOut = self.isOut(pedestrian.shape.body.position)
+            isOffRoad = self.isOffRoad(pedestrian.getPos())
+            isOut = self.isOut(pedestrian.getPos())
             if pedestrian.moving > 0:
                 pedestrian.moving = max(0,pedestrian.moving-self.timeDiff)
                 if pedestrian.crossing:
@@ -263,7 +264,7 @@ class DrivingEnvironment(object):
                         if speed == 0:
                             speed = 2
                     elif isOut:
-                        dir = -pedestrian.direction if self.isOut(pedestrian.shape.body.position+pedestrian.direction) else pedestrian.direction
+                        dir = -pedestrian.direction if self.isOut(pedestrian.getPos()+pedestrian.direction) else pedestrian.direction
                     elif random.random() < 0.1:
                         pedestrian.crossing = True
                         pedestrian.beginCrossing = True
@@ -312,7 +313,7 @@ class DrivingEnvironment(object):
 
         obs = [Obstacle(self.roads[road].getWalkSpot(side,length,width),10,10) for road, side, length, width in zip(roadIds,sideIds,lenOffs,widthOffs)]
 
-        return [ob for ob in obs if self.isOffRoad(ob.shape.body.position)]
+        return [ob for ob in obs if self.isOffRoad(ob.getPos())]
 
     def isOffRoad(self,point):
         position = LanePosition.OffRoad
@@ -351,8 +352,8 @@ class DrivingEnvironment(object):
         if car1.position == LanePosition.InRightLane and car2.position == LanePosition.InRightLane:
             v1 = arbiter.shapes[0].body.velocity
             v2 = arbiter.shapes[1].body.velocity
-            p1 = car1.shape.body.position
-            p2 = car2.shape.body.position
+            p1 = car1.getPos()
+            p2 = car2.getPos()
             dp = p1 - p2
 
             # Car is responsible if moving towards the other one
@@ -374,8 +375,8 @@ class DrivingEnvironment(object):
         v1 = arbiter.shapes[0].body.velocity
         if v1.length > 1:
 
-            p1 = car.shape.body.position
-            p2 = ped.shape.body.position
+            p1 = car.getPos()
+            p2 = ped.getPos()
             dp = p1 - p2
 
             if math.cos(dp.angle - v1.angle) < -0.4:
@@ -399,17 +400,17 @@ class DrivingEnvironment(object):
     def getFullState(self,car=None):
         if car is None:
             state = [
-                [[c.shape.body.position, c.shape.body.angle] for c in self.cars] +
-                [[o.shape.body.position,] for o in self.obstacles] +
-                [[p.shape.body.position,] for p in self.pedestrians] +
+                [[c.getPos(), c.getAngle()] for c in self.cars] +
+                [[o.getPos(),] for o in self.obstacles] +
+                [[p.getPos(),] for p in self.pedestrians] +
                 [[r.points,r.direction,r.nLanes] for r in self.roads]
             ]
         else:
             state = [
-                [[car.shape.body.position, car.shape.body.angle]] +
-                [[c.shape.body.position, c.shape.body.angle] for c in self.cars if c != car] +
-                [[o.shape.body.position, ] for o in self.obstacles] +
-                [[p.shape.body.position, ] for p in self.pedestrians] +
+                [[car.getPos(), car.getAngle()]] +
+                [[c.getPos(), c.getAngle()] for c in self.cars if c != car] +
+                [[o.getPos(), ] for o in self.obstacles] +
+                [[p.getPos(), ] for p in self.pedestrians] +
                 [[r.points, r.direction, r.nLanes] for r in self.roads]
             ]
 
@@ -417,24 +418,119 @@ class DrivingEnvironment(object):
 
     def getCarVision(self,car):
 
-        selfDet = None
+        selfDet = [car.getPos(), car.getAngle()]
 
-        carDets = []
-        obsDets = []
-        pedDets = []
-        laneDets = []
+        carDets = [isSeenInRadius(c.getPos(),c.points,c.getAngle(),selfDet[0],selfDet[1],self.maxVisDist) for c in self.cars if c != car]
+        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[0],selfDet[1],self.maxVisDist) for o in self.obstacles]
+        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[0],selfDet[1],2000) for b in self.buildings]
+        pedDets = [isSeenInRadius(p.getPos(),p.points,0,selfDet[0],selfDet[1],self.maxVisDist) for p in self.pedestrians]
+        laneDets = [[
+            getLineInRadius(l.Lanes[i-l.nLanes],selfDet[0],selfDet[1],self.maxVisDist) + [(1 if abs(i) == l.nLanes else (2 if i == 0 else 0)), ]
+                     for i in range(-l.nLanes,l.nLanes+1)] for l in lane]
 
-        buildCarInter = []
-        buildPedInter = []
-        carPedInter = []
-        obsPedInter = []
+        buildCarInter = [max([doesInteractPoly(c.getPos(),b.getPos(),b.points,0) for b in self.buildDets]) for c in self.cars]
+        buildPedInter = [max([doesInteractPoly(p.getPos(),b.getPos(),b.points,0) for b in self.buildings]) for p in self.pedestrians]
+        buildObsInter = [max([doesInteractPoly(o.getPos(),b.getPos(),b.points,0) for b in self.buildings]) for o in self.obstacles]
+        carPedInter = [max([doesInteractPoly(p.getPos(),c.getPos(),c.points,0) for c in self.cars]) for p in self.pedestrians]
+        obsPedInter = [max([doesInteractPoly(p.getPos(),o.getPos(),o.points,0) for o in self.obstacles]) for p in self.pedestrians]
+        pedInter = max(buildPedInter,carPedInter,obsPedInter)
 
         # Add noise: Car, Obs, Ped
+        [addNoise(c, self.noiseType, buildCarInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,c in enumerate(carDets)]
+        [addNoise(ped, self.noiseType, pedInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0]) for i,ped in enumerate(pedDets)]
+        [addNoise(obs, self.noiseType, buildObsInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0], True) for i,obs in enumerate(obsDets)]
+        [addNoiseLine(lane, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,lane in enumerate(laneDets)]
 
         # Cars and obstacles might by misclassified - move them in the other list
+        for c in carDets:
+            if c[0] == SightingType.Misclassified:
+                obsDets.append((SightingType.Normal,c[1],c[2],c[3]))
+        for obs in obsDets:
+            if obs[0] == SightingType.Misclassified:
+                carDets.append((SightingType.Normal,obs[1],obs[2],obs[3]))
 
         # Random false positives
+        for i in range(10):
+            if random.random() < self.randBase:
+                c = random.randint(0,5)
+                d = random.random()*self.maxVisDist[1]
+                a1 = random.random()*2*math.pi
+                angle = random.random()*2*math.pi
+                pos = pymunk.Vec2d(d,0)
+                pos.rotate(a1)
+
+                if c <= 1:
+                    w = random.random()*5+5
+                    h = random.random()*10+5
+                    obs = [Vec2d(h, w), Vec2d(-h, w), -Vec2d(h, w), Vec2d(h, -w)]
+                    [ob.rotate(angle) for ob in obs]
+                    obs = [ob + pos for ob in obs]
+                    if c == 0:
+                        carDets.insert(len(carDets),
+                                   [SightingType.Normal,pos,obs,angle])
+                    else:
+                        obsDets.insert(len(obsDets),
+                                   [SightingType.Normal,pos,obs,angle])
+                elif c == 2:
+                    pedDets.insert(len(pedDets),
+                                   [SightingType.Normal,pos,[],0])
+                elif c == 3:
+                    a2 = random.random()*2*math.pi
+                    pos2 = pymunk.Vec2d(d,0)
+                    pos2.rotate(a2)
+                    laneDets.insert(len(laneDets),
+                                   [SightingType.Normal,[pos,pos2]])
 
         # FP Pedestrians near cars and obstacles
+        if self.noiseType == NoiseType.Realistic:
+            for c in carDets:
+                if c[0] == SightingType.Normal and random.random() < self.randBase*10 and c[1].length < 250:
+                    offset = pymunk.Vec2d(2*random.random()-1.0,2*random.random()-1.0)*10
+                    pedDets.insert(len(pedDets),
+                                   [SightingType.Normal,c[1]+offset,[],0])
 
         # Remove occlusion and misclassified originals
+        carDets = [c for i,c in enumerate(carDets) if c[0] != SightingType.NoSighting and c[0] != SightingType.Misclassified]
+        pedDets = [ped for i,ped in enumerate(pedDets) if ped[0] != SightingType.NoSighting]
+        obsDets = [obs for i,obs in enumerate(obsDets) if obs[0] != SightingType.NoSighting and obs[0] != SightingType.Misclassified]
+        laneDets = [lane for i,lane in enumerate(laneDets) if lane[0] != SightingType.NoSighting]
+
+        if self.observationType == ObservationType.Image:
+
+            print("Image type observation is not supported for this environment")
+            exit(0)
+
+        if self.render and self.cars.index(car) == self.visId:
+
+            # Visualization image size
+            H = self.W//2-50
+            W = self.W//2
+            xOffs = 150
+            img = np.zeros((H*2,W*2,3)).astype('uint8')
+
+            # Draw all objects
+            # Partially seen and distant objects are dim
+            # Objects are drawn from the robot center
+            for lane in laneDets:
+                color = (255,255,255) if lane[0] == SightingType.Normal else (127,127,127)
+                cv2.line(img,(int(xOffs+lane[1].x),int(-lane[1].y+H)),(int(xOffs+lane[2].x),int(-lane[2].y+H)),color,self.lineWidth)
+
+            for c in carDets:
+                color = (0,255,0) if cross[0] == SightingType.Normal else (0,127,0)
+                cv2.poly()
+
+            for ped in pedDets:
+                color = (255,0,0) if goal[0] == SightingType.Normal else (127,0,0)
+                cv2.circle(img,(int(xOffs+goal[1].x),int(-goal[1].y+H)),int(goal[2]),color,-1)
+
+            for obs in obsDets:
+                color = (0,255,0) if rob[0] == SightingType.Normal else (0,127,0)
+                cv2.circle(img,(int(xOffs+rob[1].x),int(-rob[1].y+H)),int(rob[2]),color,-1)
+
+            for build in buildDets:
+                color = (0,0,255) if ball[0] == SightingType.Normal else (0,0,127)
+                cv2.circle(img,(int(xOffs+ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
+
+            cv2.imshow(("Car %d" % self.cars.index(car)),img)
+
+        return selfDet,carDets,buildDets,obsDets,pedDets,laneDets

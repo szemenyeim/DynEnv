@@ -65,3 +65,9 @@ class Car(object):
         self.finished = True
         self.crashed = True
         self.shape.body.velocity_func = friction_car_crashed
+
+    def getPos(self):
+        return self.shape.body.position
+
+    def getAngle(self):
+        return self.shape.body.angle

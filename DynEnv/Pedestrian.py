@@ -38,3 +38,6 @@ class Pedestrian(object):
         self.shape.color = (255, 0, 0)
         self.dead = True
         self.shape.body.velocity_func = friction_pedestrian_dead
+
+    def getPos(self):
+        return self.shape.body.position

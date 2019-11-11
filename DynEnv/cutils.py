@@ -54,6 +54,8 @@ topRot = np.array([
 topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [58.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
 
+angleNoise = math.pi/36
+
 def projectPoints(points,compRadius = True):
 
     # Project points
@@ -221,6 +223,57 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
             obj[1] = newPos
             obj[2] *= 1+(random.random() * 0.1 * diff)
 
+def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
+    if interaction == InteractionType.Occlude:
+        obj[0] = SightingType.NoSighting
+        return obj
+
+    if obj[0]:
+
+        # Random position noise
+        noiseVec = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
+
+        # Add random noise to position and size and FN
+        if noiseType == NoiseType.Random:
+            if random.random() < rand:
+                obj[0] = SightingType.NoSighting
+            obj[2] = [pt-obj[1] for pt in obj[2]]
+            obj[1] += noiseVec
+            angleDiff = (random.random()-0.5)*magn*angleNoise
+            [pt.rotate(angleDiff) for pt in obj[2]]
+            obj[2] = [pt+obj[1] for pt in obj[2]]
+            obj[3] += angleDiff
+
+        # Realistic noise
+        elif noiseType == NoiseType.Realistic:
+
+            # Add larger noise to distant objetcs
+            sightingType = obj[0]
+            range = 0.25 + 3.75*obj[1].length/maxDist
+            multiplier = range
+            if interaction == InteractionType.Nearby:
+                multiplier= range*2
+            if sightingType == SightingType.Distant:
+                multiplier = range*3
+            elif sightingType == sightingType.Partial:
+                multiplier = range*4
+            newPos = obj[1]+noiseVec*multiplier/4
+
+            # Random misclassification if the flag is set
+            if random.random() < rand*multiplier:
+                sightingType = SightingType.NoSighting
+            if misClass and random.random() < rand*multiplier/2:
+                sightingType = SightingType.Misclassified
+
+            # Apply noise
+            obj[0] = sightingType
+            obj[2] = [pt-obj[1] for pt in obj[2]]
+            obj[1] = newPos
+            angleDiff = (random.random()-0.5)*magn*angleNoise
+            [pt.rotate(angleDiff) for pt in obj[2]]
+            obj[2] = [pt+obj[1] for pt in obj[2]]
+            obj[3] += angleDiff
+
 # Is there interaction between the two sightings
 def doesInteract(obj1,obj2,radius,canOcclude=True):
     if obj2 is None or obj1 is None:
@@ -242,6 +295,79 @@ def doesInteract(obj1,obj2,radius,canOcclude=True):
             type = InteractionType.Occlude
 
     return type
+
+def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantRatio=0.75):
+
+    trPt = point-obsPt
+
+    if trPt.length <= maxDist:
+        seen = SightingType.Distant
+        if trPt.length <= distantRatio*maxDist:
+            seen = SightingType.Normal
+
+        trCorners = [corner - obsPt for corner in corners]
+        trAngle = angle - obsAngle
+
+        trPt.rotate(obsAngle)
+        [corner.rotate(obsAngle) for corner in trCorners]
+
+        return [seen,trPt,trCorners,trAngle]
+
+
+    return [SightingType.NoSighting,]
+
+def getLineInRadius(points,obsPt,obsAngle,maxDist):
+
+    trPts = [point-obsPt for point in points]
+
+    x1 = trPts[0].x
+    y1 = trPts[0].y
+    dx = trPts[1].x-x1
+    dy = trPts[1].y-y1
+
+    a = dx*dx+dy*dy
+    b = 2*(x1*dx + y1*dy)
+    c = x1*x1+y1*y1-maxDist*maxDist
+
+    det = b*b-4*a*c
+
+    if det >= 0:
+        den = 0.5/a
+        sqrDet = math.sqrt(det)
+        t1 = (-b-sqrDet)*den
+        t2 = (-b+sqrDet)*den
+        dP = trPts[1]-trPts[0]
+        trPts = [trPts[0] + t1*dP,trPts[0] + t2*dP]
+        [pt.rotate(obsAngle) for pt in trPts]
+
+        return [SightingType.Normal,trPts]
+
+    return[SightingType.NoSighting,]
+
+def getViewBlockAngle(centerAngle,corners):
+
+    angles = np.array([corner.angle-centerAngle for corner in corners])
+
+    minIdx = np.argmin(angles)
+    maxIdx = np.argmax(angles)
+
+    return corners[minIdx],corners[maxIdx]
+
+def doesInteractPoly(point1,point2,corners,radius,canOcclude=True):
+
+    ret = InteractionType.NoInter
+
+    if (point2-point1).length < radius:
+        ret = InteractionType.Nearby
+
+    if canOcclude:
+        edges = getViewBlockAngle(point2.angle,corners)
+
+        if point1.angle > edges[0].angle and point1.angle < edges[1].angle:
+            if (edges[1]-edges[0].cross(point1-edges[0]) > 0):
+                ret = InteractionType.Occlude
+
+    return ret
 
 def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0,allowPartial=True):
 
