@@ -1,3 +1,4 @@
+# coding=utf-8
 import pygame
 import pymunk.pygame_util
 import time
@@ -768,7 +769,7 @@ class RoboCupEnvironment(object):
     # Get true object state for a robot
     def getFullState(self,robot=None):
         if robot is None:
-            state = [[self.ball.shape.body.position,self.ballOwned]] + [[rob.getPos(),rob.team,rob.fallen or rob.penalized] for rob in self.robots]
+            state = [[self.ball.shape.body.position,self.ballOwned]] + [[rob.getPos(),rob.angle,rob.team,rob.fallen or rob.penalized] for rob in self.robots]
         else:
             state = [[self.ball.shape.body.position,self.ballOwned*robot.team]] + \
                    [[robot.getPos(),1,robot.fallen or robot.penalized]] +\
@@ -800,8 +801,8 @@ class RoboCupEnvironment(object):
         vec2.rotate(angle2)
 
         # Check if objects are seen
-        ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.ballRadius*2)+ [self.ballOwned*robot.team]]
-        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist[1],headAngle,Robot.totalRadius)+[robot.team == rob.team,robot.fallen or robot.penalized] for rob in self.robots if robot != rob]
+        ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.ballRadius*2) + [self.ballOwned*robot.team]]
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist[1],headAngle,Robot.totalRadius)+[rob.angle-headAngle, robot.team == rob.team,robot.fallen or robot.penalized] for rob in self.robots if robot != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.goalPostRadius*2) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.penaltyRadius*2) for cross in self.fieldCrosses]
         lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist[1],headAngle) for p1,p2 in self.lines]
@@ -1058,3 +1059,32 @@ class RoboCupEnvironment(object):
         if self.observationType == ObservationType.Image:
             return topCamImg,bottomCamImg
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets
+
+    def __str__(self):
+        return "Robot Soccer Simulation Environment\n\n" \
+               "Created by Márton Szemenyei\n\n" \
+               "Parameters:\n" \
+               "    nPlayers: Number of robots per team\n" \
+               "    render: Wether to render the environment using pyGame\n" \
+               "    observationType: Choose between full state, partial, and 2D image observation types\n" \
+               "    noiseType: Choose between random and realistic noise\n" \
+               "    noiseMagnitude: Set the amount of the noise between 0-5\n\n" \
+               "Actions:\n" \
+               "    Movement direction: 0,1,2,3,4\n" \
+               "    Turn: 0,1,2\n" \
+               "    Turn head: [-6:+6]\n" \
+               "    Kick: 0,1,2 (this is exclusive with moving or turning)\n\n" \
+               "Return values:\n\n" \
+               "    Full state: Contains the correct\n" \
+               "        Ball info [position,ball owned team ID]\n" \
+               "        Robot info for all robots [position, angle, team, fallen or penalized]\n" \
+               "    Observations: Contains robot observations (in the same order as the robots are in the full state):\n" \
+               "        Ball detections: [sightingType, position, radius, ball owned status]\n" \
+               "        Robot detections: [sightingType, position, radius, angle, team, fallen or penalized]\n" \
+               "        Goalpost detections: [sightingType, position, radius]\n" \
+               "        Cross detections: [sightingType, position, radius]\n" \
+               "        Line detections: [sightingType, endpoint1, endpoint2]\n" \
+               "        Center circle detections: [sightingType, position, radius]\n" \
+               "    Team rewards: rewards for each team\n" \
+               "    Robot rewards: rewards for each robot (in the same order as in state)\n" \
+               "    Finished: Game over flag"

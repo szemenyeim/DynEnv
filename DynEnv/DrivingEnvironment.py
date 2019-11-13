@@ -1,3 +1,4 @@
+# coding=utf-8
 from .Car import Car
 from .Pedestrian import Pedestrian
 from .Obstacle import Obstacle
@@ -408,12 +409,16 @@ class DrivingEnvironment(object):
         return True
 
     def getFullState(self,car=None):
+        lanes = []
+        for l in self.roads:
+            lanes += [[l.Lanes[i-l.nLanes][0], l.Lanes[i-l.nLanes][1],
+                       (1 if abs(i) == l.nLanes else (2 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
         if car is None:
             state = [
-                [[c.getPos(), c.getAngle()] for c in self.cars] +
-                [[o.getPos(),] for o in self.obstacles] +
+                [[c.getPos(), c.points, c.getAngle()] for c in self.cars] +
+                [[o.getPos(), o.points] for o in self.obstacles] +
                 [[p.getPos(),] for p in self.pedestrians] +
-                [[r.points,r.direction,r.nLanes] for r in self.roads]
+                lanes
             ]
         else:
             state = [
@@ -421,14 +426,14 @@ class DrivingEnvironment(object):
                 [[c.getPos(), c.getAngle()] for c in self.cars if c != car] +
                 [[o.getPos(), ] for o in self.obstacles] +
                 [[p.getPos(), ] for p in self.pedestrians] +
-                [[r.points, r.direction, r.nLanes] for r in self.roads]
+                lanes
             ]
 
         return state
 
     def getCarVision(self,car):
 
-        selfDet = [car.getPos(), car.getAngle()]
+        selfDet = [car.getPos(), car.points, car.getAngle()]
 
         carDets = [isSeenInRadius(c.getPos(),c.points,c.getAngle(),selfDet[0],selfDet[1],self.maxVisDist[1]) for c in self.cars if c != car]
         obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[0],selfDet[1],self.maxVisDist[1]) for o in self.obstacles]
@@ -550,3 +555,32 @@ class DrivingEnvironment(object):
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
 
         return selfDet,carDets,buildDets,obsDets,pedDets,laneDets
+
+    def __str__(self):
+        return "Driving Simulation Environment\n\n" \
+               "Created by Márton Szemenyei\n\n" \
+               "Parameters:\n" \
+               "    nPlayers: Number of cars\n" \
+               "    render: Wether to render the environment using pyGame\n" \
+               "    observationType: Choose between full state and partial observation types (2D images not supported for this env)\n" \
+               "    noiseType: Choose between random and realistic noise\n" \
+               "    noiseMagnitude: Set the amount of the noise between 0-5\n\n" \
+               "Actions:\n" \
+               "    Gas/Break: 1,0,-1\n" \
+               "    Turn: 2,1,0,-1,-2\n" \
+               "Return values:\n\n" \
+               "    Full state: Contains the correct car info for all\n" \
+               "        Cars [position, corner points, angle]\n" \
+               "        Observations [position, corners]\n" \
+               "        Pedestrians [position]\n" \
+               "        Lanes [point1, point2, type]\n" \
+               "    Observations: Contains car observations (in the same order as the cars are in the full state):\n" \
+               "        Self detection: [position, corners, angle]\n" \
+               "        Car detections: [sightingType, position, corners, angled]\n" \
+               "        Building detections: [sightingType, position, corners]\n" \
+               "        Obstacle detections: [sightingType, position, corners]\n" \
+               "        Pedestrian detections: [sightingType, position]\n" \
+               "        Lane detections: [sightingType, point1, point2, type]\n" \
+               "    Team rewards: rewards for each team\n" \
+               "    Car rewards: rewards for each car (in the same order as in state)\n" \
+               "    Finished: Game over flag"
