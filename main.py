@@ -9,6 +9,7 @@ def doRoboCup():
     nPlayers = 5
     env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+    print(env)
     action1 = [0, 0, 0, 0]
     action2 = [0, 0, 0, 0]
     while True:
@@ -81,6 +82,8 @@ def doDrive():
     nPlayers = 1
     env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+
+    print(env)
     action1 = [0, 0]
     while True:
         for event in pygame.event.get():

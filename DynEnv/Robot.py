@@ -78,6 +78,9 @@ class Robot(object):
     def getPos(self):
         return (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
 
+    def getAngle(self):
+        return (self.leftFoot.body.angle + self.rightFoot.body.angle)/2.0
+
     # Move in certain direction (relative to the robot
     def step(self, dir):
         if not self.kicking and not self.penalized and not self.fallen:

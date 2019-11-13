@@ -305,11 +305,13 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantRatio=0.75)
         if trPt.length <= distantRatio*maxDist:
             seen = SightingType.Normal
 
-        trCorners = [corner - obsPt for corner in corners]
+        corners = [c - point for c in corners]
+        [corner.rotate(-angle) for corner in corners]
+        trCorners = [corner - obsPt + point for corner in corners]
         trAngle = angle - obsAngle
 
-        trPt.rotate(obsAngle)
-        [corner.rotate(obsAngle) for corner in trCorners]
+        trPt.rotate(-obsAngle)
+        [corner.rotate(-obsAngle) for corner in trCorners]
 
         return [seen,trPt,trCorners,trAngle]
 
@@ -338,7 +340,7 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
         t2 = (-b+sqrDet)*den
         dP = trPts[1]-trPts[0]
         trPts = [trPts[0] + t1*dP,trPts[0] + t2*dP]
-        [pt.rotate(obsAngle) for pt in trPts]
+        [pt.rotate(-obsAngle) for pt in trPts]
 
         return [SightingType.Normal,trPts[0],trPts[1]]
 

@@ -4,7 +4,8 @@
     <list default="true" id="eabf3c79-64c3-413b-89cc-e4fe764e6783" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DynEnv/RoboCupEnvironment.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/RoboCupEnvironment.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DynEnv/cutils.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/cutils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -100,13 +101,13 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
-      <default-breakpoints>
-        <breakpoint type="python-exception">
-          <properties notifyOnTerminate="true" exception="BaseException">
-            <option name="notifyOnTerminate" value="true" />
-          </properties>
-        </breakpoint>
-      </default-breakpoints>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/DynEnv/cutils.py</url>
+          <line>322</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+      </breakpoints>
     </breakpoint-manager>
   </component>
 </project>
