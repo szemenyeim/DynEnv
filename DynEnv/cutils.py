@@ -306,7 +306,7 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantRatio=0.75)
             seen = SightingType.Normal
 
         corners = [c - point for c in corners]
-        [corner.rotate(-angle) for corner in corners]
+        [corner.rotate(angle) for corner in corners]
         trCorners = [corner - obsPt + point for corner in corners]
         trAngle = angle - obsAngle
 
@@ -355,9 +355,16 @@ def getViewBlockAngle(centerAngle,corners):
 
     return corners[minIdx],corners[maxIdx]
 
-def doesInteractPoly(point1,point2,corners,radius,canOcclude=True):
+def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
 
     ret = InteractionType.NoInter
+
+    if elem1[0] == SightingType.NoSighting or elem2[0] == SightingType.NoSighting:
+        return ret
+
+    point1 = elem1[1]
+    point2 = elem2[1]
+    corners = elem2[2]
 
     if (point2-point1).length < radius:
         ret = InteractionType.Nearby
@@ -366,7 +373,7 @@ def doesInteractPoly(point1,point2,corners,radius,canOcclude=True):
         edges = getViewBlockAngle(point2.angle,corners)
 
         if point1.angle > edges[0].angle and point1.angle < edges[1].angle:
-            if ((edges[1]-edges[0]).cross(point1-edges[0]) > 0):
+            if ((edges[1]-edges[0]).cross(point1-edges[0]) < 0):
                 ret = InteractionType.Occlude
 
     return ret

@@ -15,8 +15,8 @@ class Car(object):
         width = self.widths[type]
         height = self.lengths[type]
         mass = self.masses[type]
-        points = [Vec2d(height, width), Vec2d(-height, width), -Vec2d(height, width), Vec2d(height, -width)]
-        inertia = moment_for_poly(mass,points)
+        self.points = [Vec2d(height, width), Vec2d(-height, width), -Vec2d(height, width), Vec2d(height, -width)]
+        inertia = moment_for_poly(mass,self.points)
 
         self.type = type
         self.team = team
@@ -31,13 +31,12 @@ class Car(object):
         self.position = LanePosition.OffRoad
 
         self.prevPos = center
-        self.points = [p+center for p in points]
 
         body = Body(mass, inertia, Body.DYNAMIC)
         body.position = center
         body.angle = angle
         body.velocity_func = friction_car
-        self.shape = Poly(body, points)
+        self.shape = Poly(body, self.points)
         self.shape.color = (0, 255, 0)
         self.shape.elasticity = 0.05
         self.shape.collision_type = CollisionType.Car
@@ -69,6 +68,10 @@ class Car(object):
 
     def getPos(self):
         return self.shape.body.position
+
+    def getPoints(self):
+        center = self.getPos()
+        return [p+center for p in self.points]
 
     def getAngle(self):
         return self.shape.body.angle

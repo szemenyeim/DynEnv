@@ -104,7 +104,7 @@ def doDrive():
             elif event.type == KEYUP:
                 action1 = [0, 0]
 
-        action = [action1,] * nPlayers
+        action = [action1,]*nPlayers
         ret = env.step(action)
 
 if __name__ == '__main__':
