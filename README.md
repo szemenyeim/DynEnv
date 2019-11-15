@@ -43,11 +43,11 @@ ret = myEnv.step(actions)
 
 Here are some of the important settings of the environments
 
-- nPlayers [1-5]: Number of total players per team. The total number of players is twice this in both environments.
-- render [bool]: Whether to visualize the environment.
-- observationType [Full, Partial, Image]: Image observation only supported for the RoboCup environment.
-- noiseType [Random, Realistic]: Realistic noise: noise magnitude and false negative rate depends on distance, proximity of other objects and sighting type. False positives and misclassifications are more likely to occur in certain situations.
-- noiseMagnitude [0-5]: Variable to control noise
+- **nPlayers [1-5]**: Number of total players per team. The total number of players is twice this in both environments.
+- **render [bool]**: Whether to visualize the environment.
+- **observationType [Full, Partial, Image]**: Image observation only supported for the RoboCup environment.
+- **noiseType [Random, Realistic]**: Realistic noise: noise magnitude and false negative rate depends on distance, proximity of other objects and sighting type. False positives and misclassifications are more likely to occur in certain situations.
+- **noiseMagnitude [0-5]**: Variable to control noise
 
 Here are some examples of different noise and observation trypes
 
@@ -77,42 +77,42 @@ Here are some examples of different noise and observation trypes
 The environments expect an iterable object containing the actions for every player. Each player action must contain the following:
 
 #### RoboCup:
-- Movement direction: 0,1,2,3,4
-- Turn: 0,1,2
-- Turn head: between +/-6
-- Kick: 0,1,2 (this is exclusive with moving or turning)
+- **Movement direction:** 0,1,2,3,4
+- **Turn:** 0,1,2
+- **Turn head:** between +/-6
+- **Kick: 0,1,2** (this is exclusive with moving or turning)
 
 #### Driving:
-- Gas/break: between +/-3
-- Turn: between +/- 3
+- **Gas/break:** between +/-3
+- **Turn: between** +/- 3
 
 ### What is returned?
 
 Both environments return the following variables in the step function:
 
-- Full state: The full state variables.
-- Observations: Observations for every robot/car. What this is exactly depends on the observationType variable.
-- Team rewards: Rewards for every team. The rewards for the two teams are the same for the driving env, since the teams are not competing.
-- Car/Robot rewards: Rewards for each car or robot.
-- Finished: Game over flag
+- **Full state:** The full state variables.
+- **Observations:** Observations for every robot/car. What this is exactly depends on the observationType variable.
+- **Team rewards:** Rewards for every team. The rewards for the two teams are the same for the driving env, since the teams are not competing.
+- **Car/Robot rewards:** Rewards for each car or robot.
+- **Finished:** Game over flag
 
 #### RoboCup
 
 The full state contains the following:
 
-- Ball info [position,ball owned team ID]
-- Robot info for all robots [position, angle, team, fallen or penalized]
+- Balls **[position, ball owned team ID]**
+- Robots **[position, angle, team, fallen or penalized]**
 
 If the observation is full state, the robot's own position is returned in a separate list, and the x axis is flipped for team 1. Moreover, in this case the ball owned flag indicates whether the ball is owned by the robot's team, or the opponent.
 
 The partial observation contains the following for each robot:
 
-- Ball detections: [sightingType, position, radius, ball owned status]
-- Robot detections (self not included): [sightingType, position, radius, angle, team, fallen or penalized]
-- Goalpost detections: [sightingType, position, radius]
-- Cross detections: [sightingType, position, radius]
-- Line detections: [sightingType, endpoint1, endpoint2]
-- Center circle detections: [sightingType, position, radius]
+- Balls: **[sightingType, position, radius, ball owned status]**
+- Robots (self not included): **[sightingType, position, radius, angle, team, fallen or penalized]**
+- Goalposts: **[sightingType, position, radius]**
+- Crosses: **[sightingType, position, radius]**
+- Lines: **[sightingType, endpoint1, endpoint2]**
+- Center circle: **[sightingType, position, radius]**
 
 sigthingType can be Normal, Distant or Partial. In this case, the positions and angles are returned relative to the robot's position and head angle.
 
@@ -122,20 +122,20 @@ The image observations contain 2D images of semantic segmentation data.
 
 The full state contains the following:
 
-- Cars [position, corner points, angle]
-- Obstacles [position, corners]
-- Pedestrians [position]
-- Lanes [point1, point2, type]
+- Cars: **[position, corner points, angle]**
+- Obstacles: **[position, corners]**
+- Pedestrians: **[position]**
+- Lanes: **[point1, point2, type]**
 
 If the observation is full state, the car's own position is returned in a separate list.
 
 The partial observation contains the following for each car:
 
-- Self detection: [sightingType, position, corners, angle, goal]
-- Car detections: [sightingType, position, corners, angle]
-- Building detections: [sightingType, position, corners]
-- Obstacle detections: [sightingType, position, corners]
-- Pedestrian detections: [sightingType, position]
-- Lane detections: [sightingType, point1, point2, type]
+- Self: **[sightingType, position, corners, angle, goal]**
+- Cars: **[sightingType, position, corners, angle]**
+- Buildings: **[sightingType, position, corners]**
+- Obstacles: **[sightingType, position, corners]**
+- Pedestrians: **[sightingType, position]**
+- Lanes: **[sightingType, point1, point2, type]**
 
 sigthingType can be Normal, Distant or Partial. In this case, the positions and angles are returned relative to the car's position and angle.
