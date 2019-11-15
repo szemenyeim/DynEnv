@@ -32,6 +32,8 @@ A = np.array([
     [0,0,1]
 ])
 
+twoPi = math.pi*2
+
 # Camera orientation and rotation
 bottomAng = (0.6929+0.25)
 bottomRot = np.array([
@@ -298,24 +300,25 @@ def doesInteract(obj1,obj2,radius,canOcclude=True):
 
     return type
 
-def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantRatio=0.75):
+def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
 
     trPt = point-obsPt
+    dist = trPt.get_length_sqrd()
 
-    if trPt.length <= maxDist:
+    if dist <= maxDist:
         seen = SightingType.Distant
-        if trPt.length <= distantRatio*maxDist:
+        if dist <= distantDist:
             seen = SightingType.Normal
 
-        corners = [c - point for c in corners]
+        corners = [corner - point for corner in corners]
         [corner.rotate(angle) for corner in corners]
-        trCorners = [corner - obsPt + point for corner in corners]
-        trAngle = angle - obsAngle
-
-        trPt.rotate(-obsAngle)
+        trCorners = [corner + trPt for corner in corners]
         [corner.rotate(-obsAngle) for corner in trCorners]
 
-        return [seen,trPt,trCorners,trAngle]
+        trPt.rotate(-obsAngle)
+        trAngle = angle - obsAngle
+
+        return [seen,trPt,corners,trAngle]
 
 
     return [SightingType.NoSighting,]
@@ -331,7 +334,7 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
     a = dx*dx+dy*dy
     b = 2*(x1*dx + y1*dy)
-    c = x1*x1+y1*y1-maxDist*maxDist
+    c = x1*x1+y1*y1-maxDist
 
     det = b*b-4*a*c
 
@@ -351,10 +354,10 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
 def getViewBlockAngle(centerAngle,corners):
 
     angles = np.array([corner.angle-centerAngle for corner in corners])
-    distances = np.array([corner.length for corner in corners])
+    distances = np.array([corner.get_length_sqrd() for corner in corners])
 
-    angles[angles > math.pi] -= math.pi*2
-    angles[angles < -math.pi] += math.pi*2
+    angles[angles > math.pi] -= twoPi
+    angles[angles < -math.pi] += twoPi
 
     minIdx = np.argmin(angles)
     maxIdx = np.argmax(angles)
@@ -373,11 +376,14 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
     point2 = elem2[1]
     corners = elem2[2]
 
-    if (point2-point1).length < radius:
+    if radius > 0 and (point2-point1).get_length_sqrd() < radius:
         ret = InteractionType.Nearby
 
     if canOcclude:
-        angles,minIdx,maxIdx,closestIdx = getViewBlockAngle(point2.angle,corners)
+
+        angle2 = point2.angle
+
+        angles,minIdx,maxIdx,closestIdx = getViewBlockAngle(angle2,corners)
 
         minAngle = angles[minIdx]
         maxAngle = angles[maxIdx]
@@ -386,12 +392,12 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
         p2 = corners[maxIdx]
         pm = corners[closestIdx]
 
-        pAngle = point1.angle - point2.angle
+        pAngle = point1.angle - angle2
 
         if pAngle > math.pi:
-            pAngle -= math.pi*2
+            pAngle -= twoPi
         elif pAngle < -math.pi:
-            pAngle += math.pi*2
+            pAngle += twoPi
 
         if pAngle > minAngle and pAngle < maxAngle:
             if closestIdx == minIdx or closestIdx == maxIdx:

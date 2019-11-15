@@ -22,9 +22,14 @@ class DrivingEnvironment(object):
         self.observationType = observationType
         self.noiseType = noiseType
         self.maxPlayers = 10
-        self.nPlayers = min(nPlayers,self.maxPlayers)
+        self.nPlayers = min(nPlayers*2,self.maxPlayers)
         self.render = render
         self.numTeams = 2
+
+        if self.observationType == ObservationType.Image:
+
+            print("Image type observation is not supported for this environment")
+            exit(0)
 
         self.visId = 0#random.randint(0,self.nPlayers-1)
 
@@ -42,7 +47,7 @@ class DrivingEnvironment(object):
                 "Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
         self.randBase = 0.01 * noiseMagnitude
         self.noiseMagnitude = noiseMagnitude
-        self.maxVisDist = [self.W * 0.4, self.W * 0.6]
+        self.maxVisDist = [(self.W * 0.4)**2, (self.W * 0.6)**2]
 
         # Space
         self.space = pymunk.Space()
@@ -63,10 +68,10 @@ class DrivingEnvironment(object):
         ]
 
         self.buildings = [
-            Obstacle(pymunk.Vec2d(365,200),400,225),
-            Obstacle(pymunk.Vec2d(365,800),400,225),
-            Obstacle(pymunk.Vec2d(1385,200),400,225),
-            Obstacle(pymunk.Vec2d(1385,800),400,225),
+            Obstacle(pymunk.Vec2d(365.0,200.0),400,225),
+            Obstacle(pymunk.Vec2d(365.0,800.0),400,225),
+            Obstacle(pymunk.Vec2d(1385.0,200.0),400,225),
+            Obstacle(pymunk.Vec2d(1385.0,800.0),400,225),
         ]
         for building in self.buildings:
             self.space.add(building.shape.body,building.shape)
@@ -140,15 +145,15 @@ class DrivingEnvironment(object):
         finished = False
 
         # Run simulation for 500 ms (time for every action)
-        for i in range(50):
+        for i in range(10):
 
             # Draw lines
             if self.render:
                 self.drawStaticObjects()
 
             # Sanity check
-            if len(actions) != len(self.cars):
-                print("Error: There must be action s for every car")
+            if actions.shape != (len(self.cars),2):
+                print("Error: There must be 2 actions for every car")
                 exit(0)
 
             # Car loop
@@ -193,7 +198,7 @@ class DrivingEnvironment(object):
         t2 = time.clock()
         print((t2 - t1) * 1000)
 
-        return self.getFullState(), observations, self.teamReward, self.carRewards, finished
+        return self.getFullState(), observations, [self.teamReward,]*2, self.carRewards, finished
 
     def drawStaticObjects(self):
 
@@ -217,7 +222,13 @@ class DrivingEnvironment(object):
 
     def processAction(self,action,car):
         acc = action[0]
+        if np.abs(acc) > 3:
+            print("Error: Acceleration must be between +/-3")
+            exit(0)
         steer = action[1]
+        if np.abs(steer) > 3:
+            print("Error: Steering must be between +/-3")
+            exit(0)
 
         if acc != 0:
             car.accelerate(acc)
@@ -435,32 +446,44 @@ class DrivingEnvironment(object):
 
         selfDet = [SightingType.Normal, car.getPos(), car.getPoints(), car.getAngle(), car.goal]
 
-        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[3],self.maxVisDist[1]) for c in self.cars if c != car]
-        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],selfDet[3],self.maxVisDist[1]) for o in self.obstacles]
-        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],selfDet[3],2000) for b in self.buildings]
-        pedDets = [isSeenInRadius(p.getPos(),[],0,selfDet[1],selfDet[3],self.maxVisDist[0]) for p in self.pedestrians]
+        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[3],self.maxVisDist[0],self.maxVisDist[1]) for c in self.cars if c != car]
+        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],selfDet[3],self.maxVisDist[0],self.maxVisDist[1]) for o in self.obstacles]
+        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],selfDet[3],20000000,20000000) for b in self.buildings]
+        pedDets = [isSeenInRadius(p.getPos(),[],0,selfDet[1],selfDet[3],self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
         laneDets = []
         for l in self.roads:
             laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],selfDet[3],self.maxVisDist[1])
                          + [(1 if abs(i) == l.nLanes else (2 if i == 0 else 0)), ]
                         for i in range(-l.nLanes,l.nLanes+1)]
 
+        carDets = [c for i,c in enumerate(carDets) if c[0] != SightingType.NoSighting]
+        pedDets = [ped for i,ped in enumerate(pedDets) if ped[0] != SightingType.NoSighting]
+        obsDets = [obs for i,obs in enumerate(obsDets) if obs[0] != SightingType.NoSighting]
+        laneDets = [lane for i,lane in enumerate(laneDets) if lane[0] != SightingType.NoSighting]
+
         buildCarInter = [max([doesInteractPoly(c,b,0) for b in buildDets]) for c in carDets]
-        [filterOcclude(c,buildCarInter[i]) for i,c in enumerate(carDets)]
         buildPedInter = [max([doesInteractPoly(p,b,0) for b in buildDets]) for p in pedDets]
-        [filterOcclude(p,buildPedInter[i]) for i,p in enumerate(pedDets)]
         buildObsInter = [max([doesInteractPoly(o,b,0) for b in buildDets]) for o in obsDets]
+
+        [filterOcclude(c,buildCarInter[i]) for i,c in enumerate(carDets)]
+        [filterOcclude(p,buildPedInter[i]) for i,p in enumerate(pedDets)]
         [filterOcclude(o,buildObsInter[i]) for i,o in enumerate(obsDets)]
-        carPedInter = [max([doesInteractPoly(p,c,0) for c in carDets]) for p in pedDets] if carDets else [InteractionType.NoInter,]*len(pedDets)
-        obsPedInter = [max([doesInteractPoly(p,o,0) for o in obsDets]) for p in pedDets]
+
+        carDets = [c for i,c in enumerate(carDets) if c[0] != SightingType.NoSighting]
+        pedDets = [ped for i,ped in enumerate(pedDets) if ped[0] != SightingType.NoSighting]
+        obsDets = [obs for i,obs in enumerate(obsDets) if obs[0] != SightingType.NoSighting]
+
+        carPedInter = [max([doesInteractPoly(p,c,400) for c in carDets]) for p in pedDets] if carDets else [InteractionType.NoInter,]*len(pedDets)
+        obsPedInter = [max([doesInteractPoly(p,o,400) for o in obsDets]) for p in pedDets] if obsDets else [InteractionType.NoInter,]*len(pedDets)
         pedInter = max(carPedInter,obsPedInter)
+
         [filterOcclude(p,pedInter[i]) for i,p in enumerate(pedDets)]
 
         # Add noise: Car, Obs, Ped
         addNoiseRect(selfDet,  self.noiseType, InteractionType.NoInter, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
-        [addNoiseRect(c, self.noiseType, buildCarInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,c in enumerate(carDets)]
+        [addNoiseRect(c, self.noiseType, InteractionType.NoInter, self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,c in enumerate(carDets)]
         [addNoiseRect(ped, self.noiseType, pedInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0]) for i,ped in enumerate(pedDets)]
-        [addNoiseRect(obs, self.noiseType, buildObsInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,obs in enumerate(obsDets)]
+        [addNoiseRect(obs, self.noiseType, InteractionType.NoInter, self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,obs in enumerate(obsDets)]
         [addNoiseLine(lane, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,lane in enumerate(laneDets)]
 
         # Cars and obstacles might by misclassified - move them in the other list
@@ -516,11 +539,6 @@ class DrivingEnvironment(object):
         pedDets = [ped for i,ped in enumerate(pedDets) if ped[0] != SightingType.NoSighting]
         obsDets = [obs for i,obs in enumerate(obsDets) if obs[0] != SightingType.NoSighting and obs[0] != SightingType.Misclassified]
         laneDets = [lane for i,lane in enumerate(laneDets) if lane[0] != SightingType.NoSighting]
-
-        if self.observationType == ObservationType.Image:
-
-            print("Image type observation is not supported for this environment")
-            exit(0)
 
         if self.render and self.cars.index(car) == self.visId:
 
@@ -584,7 +602,7 @@ class DrivingEnvironment(object):
                "Return values:\n" \
                "    Full state: Contains the correct car info for all\n" \
                "        Cars [position, corner points, angle]\n" \
-               "        Observations [position, corners]\n" \
+               "        Obstacles [position, corners]\n" \
                "        Pedestrians [position]\n" \
                "        Lanes [point1, point2, type]\n" \
                "    Observations: Contains car observations (in the same order as the cars are in the full state):\n" \

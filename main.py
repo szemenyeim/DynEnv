@@ -2,6 +2,7 @@ import DynEnv
 import pygame
 from pygame.locals import *
 import sys
+import numpy as np
 
 # Launch game, allow user controls
 
@@ -73,13 +74,13 @@ def doRoboCup():
                 action1 = [0, 0, 0, 0]
                 action2 = [0, 0, 0, 0]
 
-        action = [action1, action2] * nPlayers
+        action = np.array([action1, action2] * nPlayers)
         ret = env.step(action)
         if ret[4]:
             print("Goal: reward: ", ret[0])
 
 def doDrive():
-    nPlayers = 10
+    nPlayers = 5
     env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
 
@@ -104,7 +105,7 @@ def doDrive():
             elif event.type == KEYUP:
                 action1 = [0, 0]
 
-        action = [action1,]*nPlayers
+        action =  np.array([action1,]*(nPlayers*2))
         ret = env.step(action)
 
 if __name__ == '__main__':

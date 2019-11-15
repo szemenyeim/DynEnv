@@ -691,8 +691,8 @@ class RoboCupEnvironment(object):
                 self.drawStaticObjects()
 
             # Sanity check
-            if len(actions) != len(self.robots):
-                print("Error: There must be action s for every robot")
+            if actions.shape != (len(self.robots),4):
+                print("Error: There must be four actions for every robot")
                 exit(0)
 
             # Robot loop
@@ -734,6 +734,19 @@ class RoboCupEnvironment(object):
 
         # Get 4 action types
         move,turn,head,kick = action
+
+        if move not in [0,1,2,3,4]:
+            print("Error: Robot movement must be categorical in the range [0-4]")
+            exit(0)
+        if turn not in [0,1,2]:
+            print("Error: Robot turn must be categorical in the range [0-2]")
+            exit(0)
+        if kick not in [0,1,2]:
+            print("Error: Robot kick must be categorical in the range [0-2]")
+            exit(0)
+        if np.abs(head) > 6:
+            print("Error: Head turn must be between +/-6")
+            exit(0)
 
         # Don't allow movement or falling unless no action is being performed
         canMove = not(robot.penalized or robot.kicking or robot.fallen)
