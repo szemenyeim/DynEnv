@@ -79,8 +79,8 @@ def doRoboCup():
             print("Goal: reward: ", ret[0])
 
 def doDrive():
-    nPlayers = 1
-    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
+    nPlayers = 10
+    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
 
     print(env)

@@ -54,7 +54,7 @@ topRot = np.array([
 topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [58.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
 topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
 
-angleNoise = math.pi/36
+angleNoise = math.pi/180
 
 def projectPoints(points,compRadius = True):
 
@@ -223,10 +223,12 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
             obj[1] = newPos
             obj[2] *= 1+(random.random() * 0.1 * diff)
 
-def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
+def filterOcclude(obj,interaction):
     if interaction == InteractionType.Occlude:
         obj[0] = SightingType.NoSighting
-        return obj
+    return obj
+
+def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
 
     if obj[0]:
 
@@ -349,11 +351,16 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
 def getViewBlockAngle(centerAngle,corners):
 
     angles = np.array([corner.angle-centerAngle for corner in corners])
+    distances = np.array([corner.length for corner in corners])
+
+    angles[angles > math.pi] -= math.pi*2
+    angles[angles < -math.pi] += math.pi*2
 
     minIdx = np.argmin(angles)
     maxIdx = np.argmax(angles)
+    cIdx = np.argmin(distances)
 
-    return corners[minIdx],corners[maxIdx]
+    return angles,minIdx,maxIdx,cIdx
 
 def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
 
@@ -370,10 +377,27 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
         ret = InteractionType.Nearby
 
     if canOcclude:
-        edges = getViewBlockAngle(point2.angle,corners)
+        angles,minIdx,maxIdx,closestIdx = getViewBlockAngle(point2.angle,corners)
 
-        if point1.angle > edges[0].angle and point1.angle < edges[1].angle:
-            if ((edges[1]-edges[0]).cross(point1-edges[0]) < 0):
+        minAngle = angles[minIdx]
+        maxAngle = angles[maxIdx]
+
+        p1 = corners[minIdx]
+        p2 = corners[maxIdx]
+        pm = corners[closestIdx]
+
+        pAngle = point1.angle - point2.angle
+
+        if pAngle > math.pi:
+            pAngle -= math.pi*2
+        elif pAngle < -math.pi:
+            pAngle += math.pi*2
+
+        if pAngle > minAngle and pAngle < maxAngle:
+            if closestIdx == minIdx or closestIdx == maxIdx:
+                if ((p2-p1).cross(point1-p1) < 0):
+                    ret = InteractionType.Occlude
+            elif ((p2-pm).cross(point1-pm) < 0) and ((pm-p1).cross(point1-p1) < 0):
                 ret = InteractionType.Occlude
 
     return ret

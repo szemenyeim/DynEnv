@@ -83,13 +83,13 @@ class DrivingEnvironment(object):
             self.space.add(car.shape.body,car.shape)
 
         # Add random pedestrians
-        self.pedestrianNum = 20
+        self.pedestrianNum = random.randint(15,30)
         self.pedestrians = self.createRandomPedestrians()
         for ped in self.pedestrians:
             self.space.add(ped.shape.body,ped.shape)
 
         # Add random obstacles
-        self.obstacleNum = 10
+        self.obstacleNum = random.randint(10,20)
         self.obstacles = self.createRandomObstacles()
         for obs in self.obstacles:
             self.space.add(obs.shape.body,obs.shape)
@@ -191,7 +191,7 @@ class DrivingEnvironment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        #print((t2 - t1) * 1000)
+        print((t2 - t1) * 1000)
 
         return self.getFullState(), observations, self.teamReward, self.carRewards, finished
 
@@ -446,11 +446,15 @@ class DrivingEnvironment(object):
                         for i in range(-l.nLanes,l.nLanes+1)]
 
         buildCarInter = [max([doesInteractPoly(c,b,0) for b in buildDets]) for c in carDets]
+        [filterOcclude(c,buildCarInter[i]) for i,c in enumerate(carDets)]
         buildPedInter = [max([doesInteractPoly(p,b,0) for b in buildDets]) for p in pedDets]
+        [filterOcclude(p,buildPedInter[i]) for i,p in enumerate(pedDets)]
         buildObsInter = [max([doesInteractPoly(o,b,0) for b in buildDets]) for o in obsDets]
+        [filterOcclude(o,buildObsInter[i]) for i,o in enumerate(obsDets)]
         carPedInter = [max([doesInteractPoly(p,c,0) for c in carDets]) for p in pedDets] if carDets else [InteractionType.NoInter,]*len(pedDets)
         obsPedInter = [max([doesInteractPoly(p,o,0) for o in obsDets]) for p in pedDets]
-        pedInter = max(buildPedInter,carPedInter,obsPedInter)
+        pedInter = max(carPedInter,obsPedInter)
+        [filterOcclude(p,pedInter[i]) for i,p in enumerate(pedDets)]
 
         # Add noise: Car, Obs, Ped
         addNoiseRect(selfDet,  self.noiseType, InteractionType.NoInter, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
@@ -532,7 +536,9 @@ class DrivingEnvironment(object):
             for build in buildDets:
                 color = (255,255,255)
                 points = build[2]
+                point = build[1]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
+                cv2.putText(img,("%d"%buildDets.index(build)),(int(point.x+W),int(-point.y+H)),cv2.FONT_HERSHEY_COMPLEX_SMALL,2.0,(0,0,0))
 
             color = (255,255,0)
             points = [p - car.getPos() for p in selfDet[2]]
@@ -549,15 +555,15 @@ class DrivingEnvironment(object):
                 points = c[2]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
-            for ped in pedDets:
-                color = (255,0,0) if ped[0] == SightingType.Normal else (127,0,0)
-                point = ped[1]
-                cv2.circle(img,(int(point.x+W),int(-point.y+H)),5,color,-1)
-
             for obs in obsDets:
                 color = (255,0,255) if obs[0] == SightingType.Normal else (127,0,127)
                 points = obs[2]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
+
+            for ped in pedDets:
+                color = (255,0,0) if ped[0] == SightingType.Normal else (127,0,0)
+                point = ped[1]
+                cv2.circle(img,(int(point.x+W),int(-point.y+H)),5,color,-1)
 
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
 

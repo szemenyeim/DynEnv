@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="eabf3c79-64c3-413b-89cc-e4fe764e6783" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/DynEnv.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/DynEnv.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DynEnv/Car.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/Car.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DynEnv/cutils.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/cutils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
@@ -106,11 +103,22 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/DynEnv/DrivingEnvironment.py</url>
-          <line>455</line>
-          <option name="timeStamp" value="15" />
+          <url>file://$PROJECT_DIR$/DynEnv/cutils.py</url>
+          <line>366</line>
+          <option name="timeStamp" value="34" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/DynEnv/cutils.py</url>
+          <line>352</line>
+          <option name="timeStamp" value="35" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+    <watches-manager>
+      <configuration name="PythonConfigurationType">
+        <watch expression="corners[2]" />
+        <watch expression="__py_debug_temp_var_42130109" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>
