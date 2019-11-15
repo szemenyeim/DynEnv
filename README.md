@@ -1,7 +1,7 @@
 # DynEnv
 Dynamic Simulation Environments for Reinforcement Learning
 
-This project contains two reinforcement learning environments based on 2D physics simulation via [pymunk](www.pymunk.org). The environments support different observation modalities and also noisy observations. The current environments are the following:
+This project contains two reinforcement learning environments based on 2D physics simulation via [pymunk](https://www.pymunk.org). The environments support different observation modalities and also noisy observations. The current environments are the following:
 
 - Robot Soccer SPL League (RoboCupEnvironment) Here, two teams of robots are competing to play soccer.
 - Autonomous driving environment (DrivingEnvironment) Here, two teams of cars try to get to their unique destinations as quickly as possible without crashing or hitting pedestrians. The teams are not competing here, but only cars on the same team are allowed to share information (to model human drivers).
