@@ -49,7 +49,7 @@ class RoboCupEnvironment(object):
             print("Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
         self.randBase = 0.01 * noiseMagnitude
         self.noiseMagnitude = noiseMagnitude
-        self.maxVisDist = [self.W*0.4,self.W*0.8]
+        self.maxVisDist = [(self.W*0.4)**2,(self.W*0.8)**2]
 
         # Free kick status
         self.ballOwned = 1
@@ -725,7 +725,7 @@ class RoboCupEnvironment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        print((t2-t1)*1000)
+        #print((t2-t1)*1000)
 
         return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
 
@@ -735,6 +735,7 @@ class RoboCupEnvironment(object):
         # Get 4 action types
         move,turn,head,kick = action
 
+        # Sanity check for actions
         if move not in [0,1,2,3,4]:
             print("Error: Robot movement must be categorical in the range [0-4]")
             exit(0)
@@ -849,7 +850,7 @@ class RoboCupEnvironment(object):
         for i in range(10):
             if random.random() < self.randBase:
                 c = random.randint(0,5)
-                d = random.random()*self.maxVisDist[1]
+                d = random.random()*math.sqrt(self.maxVisDist[1])
                 a = random.random()*2*robot.fieldOfView - robot.fieldOfView
                 pos = pymunk.Vec2d(d,0)
                 pos.rotate(a)
@@ -1073,6 +1074,7 @@ class RoboCupEnvironment(object):
             return topCamImg,bottomCamImg
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets
 
+    # Print env params
     def __str__(self):
         return "Robot Soccer Simulation Environment\n" \
                "Created by Márton Szemenyei\n\n" \

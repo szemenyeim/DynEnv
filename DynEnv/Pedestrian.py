@@ -18,26 +18,34 @@ class Pedestrian(object):
         self.shape.collision_type = CollisionType.Pedestrian
         self.shape.elasticity = 0.05
 
+        # Walk parameter
         self.lenRange = road.length
         self.widthRange = (road.nLanes+1)*road.width*2
         self.side = side
 
+        # Bool flags
         self.dead = False
 
-        # Move direction
+        # Move parameters
         self.moving = 0
-        self.crossing = False
-        self.beginCrossing = False
         self.direction = road.direction
         self.normal = road.normal
         self.speed = random.randint(4,10)
 
+        # Flags for crossing
+        self.crossing = False
+        self.beginCrossing = False
+
+    # Die function
     def die(self):
         self.moving = 0
         self.shape.body.velocity = Vec2d(0,0)
         self.shape.color = (255, 0, 0)
         self.dead = True
+
+        # Increase friction (should stop fast)
         self.shape.body.velocity_func = friction_pedestrian_dead
 
+    # Getter function for position
     def getPos(self):
         return self.shape.body.position

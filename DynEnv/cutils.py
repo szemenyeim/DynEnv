@@ -32,6 +32,7 @@ A = np.array([
     [0,0,1]
 ])
 
+# 2*pi
 twoPi = math.pi*2
 
 # Camera orientation and rotation
@@ -167,8 +168,8 @@ def addNoiseLine(obj,noiseType, magn, rand, maxDist):
         elif noiseType == NoiseType.Realistic:
 
             # Get distances of points and average dist
-            multiplier1 = 0.25 + 3.75*obj[1].length/maxDist
-            multiplier2 = 0.25 + 3.75*obj[2].length/maxDist
+            multiplier1 = 0.25 + 3.75*obj[1].get_length_sqrd()/maxDist
+            multiplier2 = 0.25 + 3.75*obj[2].get_length_sqrd()/maxDist
             multiplier = (multiplier1+multiplier2)*0.5
 
             if random.random() < rand*multiplier:
@@ -201,7 +202,7 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
 
             # Add larger noise to distant objetcs
             sightingType = obj[0]
-            range = 0.25 + 3.75*obj[1].length/maxDist
+            range = 0.25 + 3.75*obj[1].get_length_sqrd()/maxDist
             multiplier = range
             if interaction == InteractionType.Nearby:
                 multiplier= range*2
@@ -225,11 +226,13 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
             obj[1] = newPos
             obj[2] *= 1+(random.random() * 0.1 * diff)
 
+# Function to change sighting type of occluded objects
 def filterOcclude(obj,interaction):
     if interaction == InteractionType.Occlude:
         obj[0] = SightingType.NoSighting
     return obj
 
+# Add noise to polynom
 def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
 
     if obj[0]:
@@ -239,14 +242,20 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
 
         # Add random noise to position and size and FN
         if noiseType == NoiseType.Random:
+
+            # Change to FN
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
-            obj[2] = [pt-obj[1] for pt in obj[2]]
-            obj[1] += noiseVec
-            angleDiff = (random.random()-0.5)*magn*angleNoise
-            [pt.rotate(angleDiff) for pt in obj[2]]
-            obj[2] = [pt+obj[1] for pt in obj[2]]
-            obj[3] += angleDiff
+            else:
+                # Compute rotation
+                angleDiff = (random.random()-0.5)*magn*angleNoise
+                obj[3] += angleDiff
+                # Center corner points and rotate
+                obj[2] = [pt-obj[1] for pt in obj[2]]
+                [pt.rotate(angleDiff) for pt in obj[2]]
+                # Compute new center and add it to corners
+                obj[1] += noiseVec
+                obj[2] = [pt+obj[1] for pt in obj[2]]
 
         # Realistic noise
         elif noiseType == NoiseType.Realistic:
@@ -265,18 +274,21 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
 
             # Random misclassification if the flag is set
             if random.random() < rand*multiplier:
-                sightingType = SightingType.NoSighting
+                obj[0] = SightingType.NoSighting
+                return
             if misClass and random.random() < rand*multiplier/2:
-                sightingType = SightingType.Misclassified
+                obj[0] = SightingType.Misclassified
 
             # Apply noise
-            obj[0] = sightingType
-            obj[2] = [pt-obj[1] for pt in obj[2]]
-            obj[1] = newPos
             angleDiff = (random.random()-0.5)*magn*angleNoise
-            [pt.rotate(angleDiff) for pt in obj[2]]
-            obj[2] = [pt+obj[1] for pt in obj[2]]
             obj[3] += angleDiff
+
+            # Center corners and rotate
+            obj[2] = [pt-obj[1] for pt in obj[2]]
+            [pt.rotate(angleDiff) for pt in obj[2]]
+            # Compute new center and add it to corners
+            obj[1] = newPos
+            obj[2] = [pt+obj[1] for pt in obj[2]]
 
 # Is there interaction between the two sightings
 def doesInteract(obj1,obj2,radius,canOcclude=True):
@@ -295,26 +307,33 @@ def doesInteract(obj1,obj2,radius,canOcclude=True):
         dist = obj1.cross(obj2)/obj1.length
 
         # If obj2 falls in the LoS and is closer, there is occlusion
-        if abs(dist) < radius and obj1.length < obj2.length:
+        if abs(dist) < radius and obj1.get_length_sqrd() < obj2.get_length_sqrd():
             type = InteractionType.Occlude
 
     return type
 
+# Is object seen in radius
 def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
 
+    # Center point and get distance
     trPt = point-obsPt
     dist = trPt.get_length_sqrd()
 
+    # Decide normal and distant sighting
     if dist <= maxDist:
         seen = SightingType.Distant
         if dist <= distantDist:
             seen = SightingType.Normal
 
+        # Center corners and rotate with object angle
         corners = [corner - point for corner in corners]
         [corner.rotate(angle) for corner in corners]
-        trCorners = [corner + trPt for corner in corners]
-        [corner.rotate(-obsAngle) for corner in trCorners]
 
+        # Add back transformaed center and rotate with observer angle
+        corners = [corner + trPt for corner in corners]
+        [corner.rotate(-obsAngle) for corner in corners]
+
+        # Rotate center point and get new object angle
         trPt.rotate(-obsAngle)
         trAngle = angle - obsAngle
 
@@ -325,26 +344,34 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
 
 def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
+    # Center points
     trPts = [point-obsPt for point in points]
 
+    # Chortcuts
     x1 = trPts[0].x
     y1 = trPts[0].y
     dx = trPts[1].x-x1
     dy = trPts[1].y-y1
 
+    # Compute coefficients
     a = dx*dx+dy*dy
     b = 2*(x1*dx + y1*dy)
     c = x1*x1+y1*y1-maxDist
 
+    # Determinant
     det = b*b-4*a*c
 
+    # Solve equation
     if det >= 0:
         den = 0.5/a
         sqrDet = math.sqrt(det)
         t1 = (-b-sqrDet)*den
         t2 = (-b+sqrDet)*den
         dP = trPts[1]-trPts[0]
+
+        # Get points
         trPts = [trPts[0] + t1*dP,trPts[0] + t2*dP]
+        # Rotate them
         [pt.rotate(-obsAngle) for pt in trPts]
 
         return [SightingType.Normal,trPts[0],trPts[1]]
@@ -353,12 +380,15 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
 def getViewBlockAngle(centerAngle,corners):
 
+    # Get relative angles and distances
     angles = np.array([corner.angle-centerAngle for corner in corners])
     distances = np.array([corner.get_length_sqrd() for corner in corners])
 
+    # Transform angles into the +/- pi interval
     angles[angles > math.pi] -= twoPi
     angles[angles < -math.pi] += twoPi
 
+    # Get minmax angles and closest point
     minIdx = np.argmin(angles)
     maxIdx = np.argmax(angles)
     cIdx = np.argmin(distances)
@@ -367,15 +397,19 @@ def getViewBlockAngle(centerAngle,corners):
 
 def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
 
+    # Default value
     ret = InteractionType.NoInter
 
+    # Return if theay are not seen
     if elem1[0] == SightingType.NoSighting or elem2[0] == SightingType.NoSighting:
         return ret
 
+    # Get variables
     point1 = elem1[1]
     point2 = elem2[1]
     corners = elem2[2]
 
+    # Check proximity
     if radius > 0 and (point2-point1).get_length_sqrd() < radius:
         ret = InteractionType.Nearby
 
@@ -383,26 +417,35 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
 
         angle2 = point2.angle
 
+        # Get blocked interval
         angles,minIdx,maxIdx,closestIdx = getViewBlockAngle(angle2,corners)
 
+        # Get min and max angles
         minAngle = angles[minIdx]
         maxAngle = angles[maxIdx]
 
+        # Get extreme points and closest one
         p1 = corners[minIdx]
         p2 = corners[maxIdx]
         pm = corners[closestIdx]
 
+        # Angle difference between centers
         pAngle = point1.angle - angle2
 
+        # Normalize angle to +/- pi interval
         if pAngle > math.pi:
             pAngle -= twoPi
         elif pAngle < -math.pi:
             pAngle += twoPi
 
+        # If object falls into angle range
         if pAngle > minAngle and pAngle < maxAngle:
+            # If one of the extreme points is the closest
             if closestIdx == minIdx or closestIdx == maxIdx:
+                # Check if objects is on the far side of the line between extreme points
                 if ((p2-p1).cross(point1-p1) < 0):
                     ret = InteractionType.Occlude
+            # Otherwise it needs to be on the far side of two lines
             elif ((p2-pm).cross(point1-pm) < 0) and ((pm-p1).cross(point1-p1) < 0):
                 ret = InteractionType.Occlude
 
@@ -425,7 +468,7 @@ def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0,allowPartial=True):
         if dist1 < -radius and dist2 > radius:
 
             # Check for distant sightings
-            if point.length < maxDist:
+            if point.get_length_sqrd() < maxDist:
                 seen = SightingType.Normal
             else:
                 seen = SightingType.Distant
@@ -520,7 +563,7 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,angle):
                 seen = SightingType.Partial
 
             # Are the points close enough
-            if pt1.length > maxDist or pt2.length > maxDist:
+            if pt1.get_length_sqrd() > maxDist or pt2.get_length_sqrd() > maxDist:
                 seen = SightingType.Distant
 
             # Transfer the points to the robot coordinate system
