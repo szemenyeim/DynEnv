@@ -247,15 +247,17 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             else:
+                newPos = obj[1] + noiseVec
                 # Compute rotation
                 angleDiff = (random.random()-0.5)*magn*angleNoise
-                obj[3] += angleDiff
+                obj[2] += angleDiff
                 # Center corner points and rotate
-                obj[2] = [pt-obj[1] for pt in obj[2]]
-                [pt.rotate(angleDiff) for pt in obj[2]]
+                if obj[3] is not None:
+                    obj[3] = [pt-obj[1] for pt in obj[3]]
+                    [pt.rotate(angleDiff) for pt in obj[3]]
+                    obj[3] = [pt+obj[1] for pt in obj[3]]
                 # Compute new center and add it to corners
-                obj[1] += noiseVec
-                obj[2] = [pt+obj[1] for pt in obj[2]]
+                obj[1]  = newPos
 
         # Realistic noise
         elif noiseType == NoiseType.Realistic:
@@ -281,14 +283,15 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
 
             # Apply noise
             angleDiff = (random.random()-0.5)*magn*angleNoise
-            obj[3] += angleDiff
+            obj[2] += angleDiff
 
             # Center corners and rotate
-            obj[2] = [pt-obj[1] for pt in obj[2]]
-            [pt.rotate(angleDiff) for pt in obj[2]]
+            if obj[3] is not None:
+                obj[3] = [pt-obj[1] for pt in obj[3]]
+                [pt.rotate(angleDiff) for pt in obj[3]]
+                obj[3] = [pt+newPos for pt in obj[3]]
             # Compute new center and add it to corners
             obj[1] = newPos
-            obj[2] = [pt+obj[1] for pt in obj[2]]
 
 # Is there interaction between the two sightings
 def doesInteract(obj1,obj2,radius,canOcclude=True):
@@ -325,19 +328,21 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
         if dist <= distantDist:
             seen = SightingType.Normal
 
-        # Center corners and rotate with object angle
-        corners = [corner - point for corner in corners]
-        [corner.rotate(angle) for corner in corners]
+        if corners is not None:
+            # Center corners and rotate with object angle
+            corners = [corner - point for corner in corners]
+            if angle != 0:
+                [corner.rotate(angle) for corner in corners]
 
-        # Add back transformaed center and rotate with observer angle
-        corners = [corner + trPt for corner in corners]
-        [corner.rotate(-obsAngle) for corner in corners]
+            # Add back transformaed center and rotate with observer angle
+            corners = [corner + trPt for corner in corners]
+            [corner.rotate(-obsAngle) for corner in corners]
 
         # Rotate center point and get new object angle
         trPt.rotate(-obsAngle)
         trAngle = angle - obsAngle
 
-        return [seen,trPt,corners,trAngle]
+        return [seen,trPt,trAngle,corners]
 
 
     return [SightingType.NoSighting,]
@@ -378,10 +383,14 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
     return[SightingType.NoSighting,]
 
+def angle(corner):
+
+    return math.atan2(corner.y,corner.x)
+
 def getViewBlockAngle(centerAngle,corners):
 
     # Get relative angles and distances
-    angles = np.array([corner.angle-centerAngle for corner in corners])
+    angles = np.array([angle(corner)-centerAngle for corner in corners])
     distances = np.array([corner.get_length_sqrd() for corner in corners])
 
     # Transform angles into the +/- pi interval
@@ -407,7 +416,7 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
     # Get variables
     point1 = elem1[1]
     point2 = elem2[1]
-    corners = elem2[2]
+    corners = elem2[3]
 
     # Check proximity
     if radius > 0 and (point2-point1).get_length_sqrd() < radius:
@@ -415,7 +424,7 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
 
     if canOcclude:
 
-        angle2 = point2.angle
+        angle2 = angle(point2)
 
         # Get blocked interval
         angles,minIdx,maxIdx,closestIdx = getViewBlockAngle(angle2,corners)
@@ -430,7 +439,7 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
         pm = corners[closestIdx]
 
         # Angle difference between centers
-        pAngle = point1.angle - angle2
+        pAngle = angle(point1) - angle2
 
         # Normalize angle to +/- pi interval
         if pAngle > math.pi:

@@ -179,8 +179,8 @@ class RoboCupEnvironment(object):
         dp = p1-p2
 
         # Robot might be pushing if it's walking towards the other
-        robot1.mightPush = v1.length > 1 and math.cos(dp.angle-v1.angle) < -0.4
-        robot2.mightPush = v2.length > 1 and math.cos(dp.angle-v2.angle) > 0.4
+        robot1.mightPush = v1.length > 1 and math.cos(angle(dp)-angle(v1)) < -0.4
+        robot2.mightPush = v2.length > 1 and math.cos(angle(dp)-angle(v2)) > 0.4
 
         # Set touching and touch counter variables
         robot1.touching = True

@@ -3,6 +3,7 @@ import pygame
 from pygame.locals import *
 import sys
 import numpy as np
+import random
 
 # Launch game, allow user controls
 
@@ -111,6 +112,8 @@ def doDrive():
 if __name__ == '__main__':
 
     drive = True
+    #random.seed(1)
+    #np.random.seed(1)
 
     pygame.init()
 

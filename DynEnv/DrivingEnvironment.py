@@ -481,10 +481,10 @@ class DrivingEnvironment(object):
             dp = p1 - p2
 
             # Car is responsible if moving towards the other one
-            if v1.length > 1 and math.cos(dp.angle - v1.angle) < -0.4:
+            if v1.length > 1 and math.cos(angle(dp) - angle(v1)) < -0.4:
                 self.carRewards[index1] -= 2000
 
-            if v2.length > 1 and math.cos(dp.angle - v2.angle) > 0.4:
+            if v2.length > 1 and math.cos(angle(dp) - angle(v2)) > 0.4:
                 self.carRewards[index2] -= 2000
 
         return True
@@ -509,7 +509,7 @@ class DrivingEnvironment(object):
             dp = p1 - p2
 
             # Crash car if it actually hit pedestrian
-            if math.cos(dp.angle - v1.angle) < -0.4:
+            if math.cos(angle(dp) - angle(v1)) < -0.4:
                 car.crash()
                 index = self.cars.index(car)
                 self.carRewards[index] -= 5000
@@ -565,14 +565,14 @@ class DrivingEnvironment(object):
     def getCarVision(self,car):
 
         # Get detections within radius
-        selfDet = [SightingType.Normal, car.getPos(), car.getPoints(), car.getAngle(), car.goal]
-        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[3],self.maxVisDist[0],self.maxVisDist[1]) for c in self.cars if c != car]
-        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],selfDet[3],self.maxVisDist[0],self.maxVisDist[1]) for o in self.obstacles]
-        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],selfDet[3],20000000,20000000) for b in self.buildings] # Buildings are always seen
-        pedDets = [isSeenInRadius(p.getPos(),[],0,selfDet[1],selfDet[3],self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
+        selfDet = [SightingType.Normal, car.getPos(), car.getAngle(), car.getPoints(), car.goal]
+        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) for c in self.cars if c != car]
+        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) for o in self.obstacles]
+        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],selfDet[2],20000000,20000000) for b in self.buildings] # Buildings are always seen
+        pedDets = [isSeenInRadius(p.getPos(),None,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
         laneDets = []
         for l in self.roads:
-            laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],selfDet[3],self.maxVisDist[1])
+            laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],selfDet[2],self.maxVisDist[1])
                          + [(1 if abs(i) == l.nLanes else (2 if i == 0 else 0)), ]
                         for i in range(-l.nLanes,l.nLanes+1)]
 
@@ -615,6 +615,11 @@ class DrivingEnvironment(object):
             if obs[0] == SightingType.Misclassified:
                 carDets.append((SightingType.Normal,obs[1],obs[2],obs[3]))
 
+        # Remove angles from pedestrians, obstaces and buildings, and also corners from pedestrians
+        pedDets = [[p[0],p[1]] for p in pedDets]
+        obsDets = [[o[0],o[1],o[3]] for o in obsDets]
+        buildDets = [[b[0],b[1],b[3]] for b in buildDets]
+
         # Random false positives
         for i in range(10):
             if random.random() < self.randBase:
@@ -646,14 +651,14 @@ class DrivingEnvironment(object):
                     # Add objects
                     if c == 0:
                         carDets.insert(len(carDets),
-                                   [SightingType.Normal,pos,obs,angle])
+                                   [SightingType.Normal,pos,angle,obs])
                     else:
                         obsDets.insert(len(obsDets),
-                                   [SightingType.Normal,pos,obs,angle])
+                                   [SightingType.Normal,pos,obs])
                 # Add pedestrian
                 elif c == 2:
                     pedDets.insert(len(pedDets),
-                                   [SightingType.Normal,pos,[],0])
+                                   [SightingType.Normal,pos])
                 # Add lane
                 elif c == 3:
                     # Get second point
@@ -698,7 +703,7 @@ class DrivingEnvironment(object):
 
             # draw self
             color = (255,255,0)
-            points = [p - car.getPos() for p in selfDet[2]]
+            points = [p - car.getPos() for p in selfDet[3]]
             cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw lane (color based on type)
@@ -711,7 +716,7 @@ class DrivingEnvironment(object):
             # draw cars
             for c in carDets:
                 color = (0,255,0) if c[0] == SightingType.Normal else (0,127,0)
-                points = c[2]
+                points = c[3]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw obstacles
