@@ -162,139 +162,139 @@ class RoboCupEnvironment(object):
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
 
-    # Called when robots begin touching
-    def robotPushingDet(self,arbiter, space, data):
+    # Reset env
+    def reset(self):
+        self.__init__(self.nPlayers, self.render, self.observationType, self.noiseType, self.noiseMagnitude)
 
-        # Get objects involved
-        robot1 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
-        robot2 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
+    # Set random seed
+    def setRandomSeed(self, seed):
+        np.random.seed(seed)
+        random.seed(seed)
+        self.reset()
 
-        print("Robot Collision")
+    # Observation space
+    def getObservationSize(self):
+        if self.observationType == ObservationType.Full:
+            return [5,self.nPlayers,[[3,],[3,],[self.nPlayers-1,4]]]
+        elif self.observationType == ObservationType.Image:
+            return [5,self.nPlayers,[8,480,640]]
+        else:
+            return [5,self.nPlayers,6,[4,6,3,3,4,3]]
 
-        # Get velocities and positions
-        v1 = arbiter.shapes[0].body.velocity
-        v2 = arbiter.shapes[1].body.velocity
-        p1 = robot1.getPos()
-        p2 = robot2.getPos()
-        dp = p1-p2
+    # Action space
+    def getActionSize(self):
+        return [self.nPlayers,[
+            ['cat',5],
+            ['cat',3],
+            ['cat',3],
+            ['cont',1,[0,],[12,]],
+        ]]
 
-        # Robot might be pushing if it's walking towards the other
-        robot1.mightPush = v1.length > 1 and math.cos(angle(dp)-angle(v1)) < -0.4
-        robot2.mightPush = v2.length > 1 and math.cos(angle(dp)-angle(v2)) > 0.4
+    # Main step function
+    def step(self, actions):
+        t1 = time.clock()
 
-        # Set touching and touch counter variables
-        robot1.touching = True
-        robot2.touching = True
-        robot1.touchCntr = 0
-        robot2.touchCntr = 0
+        # Setup reward and state variables
+        self.teamRewards = [0, 0]
+        self.robotRewards = [0, 0] * self.nPlayers
+        observations = []
+        finished = False
 
-        return True
+        # Run simulation for 500 ms (time for every action, except the kick)
+        for i in range(50):
 
-    # Called when robots are touching (before collision is computed)
-    def robotCollision(self,arbiter, space, data):
+            # Draw lines
+            if self.render:
+                self.drawStaticObjects()
 
-        # Get objects involved
-        robot1 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
-        robot2 = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
+            # Sanity check
+            if actions.shape != (len(self.robots), 4):
+                print("Error: There must be four actions for every robot")
+                exit(0)
 
-        # The two legs might collide
-        if robot1 == robot2:
-            return
+            # Robot loop
+            for action, robot in zip(actions, self.robots):
+                # Apply action as first step
+                if i == 0:
+                    self.processAction(action, robot)
 
-        # Increment touching
-        if not (robot1.fallen or robot1.penalized):
-            robot1.touchCntr += 1
-        if not (robot2.fallen or robot2.penalized):
-            robot2.touchCntr += 1
+                # Update robots
+                self.tick(robot)
 
-        # Compute fall probability thresholds - the longer the robots are touching the more likely they will fall
-        normalThresh = 0.99995
-        pushingThresh = 0.99998
+            # Process ball position
+            finished = self.isBallOutOfField()
 
-        # Determine if robots fall
-        r = random.random()
-        if r > (pushingThresh if robot1.mightPush else normalThresh)**robot1.touchCntr and not robot1.fallen:
-            self.fall(robot1)
-            robot1.touchCntr = 0
-        r = random.random()
-        if r > (pushingThresh if robot2.mightPush else normalThresh)**robot2.touchCntr and not robot2.fallen:
-            self.fall(robot2)
-            robot2.touchCntr = 0
+            # Run simulation
+            self.space.step(1 / self.timeStep)
 
-        # Penalize robots for pushing
-        if robot1.mightPush and not robot2.mightPush and robot2.fallen and robot1.team!=robot2.team:
-            print("Robot 1 Pushing")
-            self.penalize(robot1)
-            robot1.touchCntr = 0
-        elif robot2.mightPush and not robot1.mightPush and robot1.fallen and robot1.team!=robot2.team:
-            print("Robot 2 Pushing")
-            self.penalize(robot2)
-            robot2.touchCntr = 0
+            # Get observations every 100 ms
+            if i % 10 == 9:
+                if self.observationType == ObservationType.Full:
+                    observations.append([self.getFullState(robot) for robot in self.robots])
+                else:
+                    observations.append([self.getRobotVision(robot) for robot in self.robots])
 
+            # Render
+            if self.render:
+                pygame.display.flip()
+                self.clock.tick(self.timeStep)
+                cv2.waitKey(1)
 
-    # Called when robots stop touching
-    def separate(self,arbiter, space, data):
+        t2 = time.clock()
+        print((t2-t1)*1000)
 
-        print("Collision Separated")
+        return self.getFullState(), observations, self.teamRewards, self.robotRewards, finished
 
-        # Get robot
-        robots = [robot for robot in self.robots if (robot.leftFoot in arbiter.shapes or robot.rightFoot in arbiter.shapes)]
+    # Action handler
+    def processAction(self, action, robot):
 
-        # Reset collision variables
-        for robot in robots:
-            robot.touching = False
-            robot.mightPush = False
-            robot.touchCntr = 0
+        # Get 4 action types
+        move, turn, head, kick = action
 
+        # Sanity check for actions
+        if move not in [0, 1, 2, 3, 4]:
+            print("Error: Robot movement must be categorical in the range [0-4]")
+            exit(0)
+        if turn not in [0, 1, 2]:
+            print("Error: Robot turn must be categorical in the range [0-2]")
+            exit(0)
+        if kick not in [0, 1, 2]:
+            print("Error: Robot kick must be categorical in the range [0-2]")
+            exit(0)
+        if np.abs(head) > 6:
+            print("Error: Head turn must be between +/-6")
+            exit(0)
 
-    # Called when robot collides with goalpost
-    def goalpostCollision(self,arbiter, space, data):
+        # Don't allow movement or falling unless no action is being performed
+        canMove = not (robot.penalized or robot.kicking or robot.fallen)
 
-        # Get robot
-        robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
+        # Moving has a small chance of falling
+        if move > 0 and canMove:
+            r = random.random()
+            if r > 0.995:
+                self.fall(robot)
+                return
+            robot.step(move - 1)
 
-        # Don't make a fallen robot fall again from touching the post
-        if robot.fallen:
-            robot.touchCntr = 0
-            return
+        # Turning has a small chance of falling
+        if turn > 0 and canMove:
+            r = random.random()
+            if r > 0.995:
+                self.fall(robot)
+                return
+            robot.turn(turn - 1)
 
-        # Set things on first run
-        if not robot.touching:
-            print("Goalpost Collision")
-            robot.touching = True
-            robot.touchCntr = 0
+        # Head movements have no chance of falling
+        if head:
+            robot.turnHead(head)
 
-        # Increment touch counter and compute fall probability threshold
-        robot.touchCntr += 1
-        pushingThresh = 0.9999 ** robot.touchCntr
-
-        # Determine if robot falls
-        r = random.random()
-        if r > pushingThresh:
-            self.fall(robot)
-
-
-    # Called when robot touches the ball
-    def ballCollision(self,arbiter, space, data):
-
-        # Get robot
-        robot = next(robot for robot in self.robots if (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
-
-        if self.ballOwned != 0:
-            if robot.team != self.ballOwned and not robot.penalized:
-                self.penalize(robot)
-            else:
-                print("Ball Free")
-                self.ballOwned = -1
-                self.gracePeriod = 0
-                self.ballFreeCntr = 0
-
-        # Shift lastKicked array
-        self.ball.lastKicked = [robot.id] + self.ball.lastKicked
-        if len(self.ball.lastKicked) > 4:
-            self.ball.lastKicked = self.ball.lastKicked[:4]
-
-        return True
+        # Kick has a higher chance of falling. Also, kick cannot be performed together with any other motion
+        if kick > 0 and move == 0 and turn == 0 and canMove:
+            r = random.random()
+            if r > 0.95:
+                self.fall(robot)
+                return
+            robot.kick(kick - 1)
 
     # Drawing
     def drawStaticObjects(self):
@@ -658,139 +658,163 @@ class RoboCupEnvironment(object):
             elif robot.id in self.defenders[teamIdx]:
                 self.defenders[teamIdx].remove(robot.id)
 
-    # Robo leaving field detection
-    def isLeavingField(self,robot):
-
-        # Robot position
+        # If robot is about to leave the field, penalize
         pos = robot.getPos()
-
-        # Get field edges
-        outMin = 5
-        outMaxX = self.W-5
-        outMaxY = self.H-5
-
-        # If robot is about to leave, penalize
-        if pos.y < outMin or pos.x < outMin or pos.y > outMaxY or pos.x > outMaxX:
+        if pos.y < 0 or pos.x < 0 or pos.y > self.H or pos.x > self.W:
             self.penalize(robot)
 
-    # Main step function
-    def step(self,actions):
-        t1 = time.clock()
 
-        # Setup reward and state variables
-        self.teamRewards = [0,0]
-        self.robotRewards = [0,0]*self.nPlayers
-        observations = []
-        finished = False
+    # Called when robots begin touching
+    def robotPushingDet(self, arbiter, space, data):
 
-        # Run simulation for 500 ms (time for every action, except the kick)
-        for i in range(50):
+        # Get objects involved
+        robot1 = next(robot for robot in self.robots if
+                      (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
+        robot2 = next(robot for robot in self.robots if
+                      (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
-            # Draw lines
-            if self.render:
-                self.drawStaticObjects()
+        print("Robot Collision")
 
-            # Sanity check
-            if actions.shape != (len(self.robots),4):
-                print("Error: There must be four actions for every robot")
-                exit(0)
+        # Get velocities and positions
+        v1 = arbiter.shapes[0].body.velocity
+        v2 = arbiter.shapes[1].body.velocity
+        p1 = robot1.getPos()
+        p2 = robot2.getPos()
+        dp = p1 - p2
 
-            # Robot loop
-            for action, robot in zip(actions,self.robots):
-                # Apply action as first step
-                if i == 0:
-                    self.processAction(action,robot)
+        # Robot might be pushing if it's walking towards the other
+        robot1.mightPush = v1.length > 1 and math.cos(angle(dp) - angle(v1)) < -0.4
+        robot2.mightPush = v2.length > 1 and math.cos(angle(dp) - angle(v2)) > 0.4
 
-                # Update robots
-                self.tick(robot)
-                self.isLeavingField(robot)
+        # Set touching and touch counter variables
+        robot1.touching = True
+        robot2.touching = True
+        robot1.touchCntr = 0
+        robot2.touchCntr = 0
 
-            # Process ball position
-            finished = self.isBallOutOfField()
+        return True
 
-            # Run simulation
-            self.space.step(1 / self.timeStep)
+    # Called when robots are touching (before collision is computed)
+    def robotCollision(self, arbiter, space, data):
 
-            # Get observations every 100 ms
-            if i % 10 == 9:
-                if self.observationType == ObservationType.Full:
-                    observations.append([self.getFullState(robot) for robot in self.robots])
-                else:
-                    observations.append([self.getRobotVision(robot) for robot in self.robots])
+        # Get objects involved
+        robot1 = next(robot for robot in self.robots if
+                      (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
+        robot2 = next(robot for robot in self.robots if
+                      (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
-            # Render
-            if self.render:
-                pygame.display.flip()
-                self.clock.tick(self.timeStep)
-                cv2.waitKey(1)
+        # The two legs might collide
+        if robot1 == robot2:
+            return
 
-        t2 = time.clock()
-        #print((t2-t1)*1000)
+        # Increment touching
+        if not (robot1.fallen or robot1.penalized):
+            robot1.touchCntr += 1
+        if not (robot2.fallen or robot2.penalized):
+            robot2.touchCntr += 1
 
-        return self.getFullState(),observations,self.teamRewards,self.robotRewards,finished
+        # Compute fall probability thresholds - the longer the robots are touching the more likely they will fall
+        normalThresh = 0.99995
+        pushingThresh = 0.99998
 
-    # Action handler
-    def processAction(self, action, robot):
+        # Determine if robots fall
+        r = random.random()
+        if r > (pushingThresh if robot1.mightPush else normalThresh) ** robot1.touchCntr and not robot1.fallen:
+            self.fall(robot1)
+            robot1.touchCntr = 0
+        r = random.random()
+        if r > (pushingThresh if robot2.mightPush else normalThresh) ** robot2.touchCntr and not robot2.fallen:
+            self.fall(robot2)
+            robot2.touchCntr = 0
 
-        # Get 4 action types
-        move,turn,head,kick = action
+        # Penalize robots for pushing
+        if robot1.mightPush and not robot2.mightPush and robot2.fallen and robot1.team != robot2.team:
+            print("Robot 1 Pushing")
+            self.penalize(robot1)
+            robot1.touchCntr = 0
+        elif robot2.mightPush and not robot1.mightPush and robot1.fallen and robot1.team != robot2.team:
+            print("Robot 2 Pushing")
+            self.penalize(robot2)
+            robot2.touchCntr = 0
 
-        # Sanity check for actions
-        if move not in [0,1,2,3,4]:
-            print("Error: Robot movement must be categorical in the range [0-4]")
-            exit(0)
-        if turn not in [0,1,2]:
-            print("Error: Robot turn must be categorical in the range [0-2]")
-            exit(0)
-        if kick not in [0,1,2]:
-            print("Error: Robot kick must be categorical in the range [0-2]")
-            exit(0)
-        if np.abs(head) > 6:
-            print("Error: Head turn must be between +/-6")
-            exit(0)
+    # Called when robots stop touching
+    def separate(self, arbiter, space, data):
 
-        # Don't allow movement or falling unless no action is being performed
-        canMove = not(robot.penalized or robot.kicking or robot.fallen)
+        print("Collision Separated")
 
-        # Moving has a small chance of falling
-        if move > 0 and canMove:
-            r = random.random()
-            if r > 0.995:
-                self.fall(robot)
-                return
-            robot.step(move-1)
+        # Get robot
+        robots = [robot for robot in self.robots if
+                  (robot.leftFoot in arbiter.shapes or robot.rightFoot in arbiter.shapes)]
 
-        # Turning has a small chance of falling
-        if turn > 0 and canMove:
-            r = random.random()
-            if r > 0.995:
-                self.fall(robot)
-                return
-            robot.turn(turn-1)
+        # Reset collision variables
+        for robot in robots:
+            robot.touching = False
+            robot.mightPush = False
+            robot.touchCntr = 0
 
-        # Head movements have no chance of falling
-        if head:
-            robot.turnHead(head)
+    # Called when robot collides with goalpost
+    def goalpostCollision(self, arbiter, space, data):
 
-        # Kick has a higher chance of falling. Also, kick cannot be performed together with any other motion
-        if kick > 0 and move == 0 and turn == 0 and canMove:
-            r = random.random()
-            if r > 0.95:
-                self.fall(robot)
-                return
-            robot.kick(kick-1)
+        # Get robot
+        robot = next(robot for robot in self.robots if
+                     (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
+
+        # Don't make a fallen robot fall again from touching the post
+        if robot.fallen:
+            robot.touchCntr = 0
+            return
+
+        # Set things on first run
+        if not robot.touching:
+            print("Goalpost Collision")
+            robot.touching = True
+            robot.touchCntr = 0
+
+        # Increment touch counter and compute fall probability threshold
+        robot.touchCntr += 1
+        pushingThresh = 0.9999 ** robot.touchCntr
+
+        # Determine if robot falls
+        r = random.random()
+        if r > pushingThresh:
+            self.fall(robot)
+
+    # Called when robot touches the ball
+    def ballCollision(self, arbiter, space, data):
+
+        # Get robot
+        robot = next(robot for robot in self.robots if
+                     (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
+
+        if self.ballOwned != 0:
+            if robot.team != self.ballOwned and not robot.penalized:
+                self.penalize(robot)
+            else:
+                print("Ball Free")
+                self.ballOwned = -1
+                self.gracePeriod = 0
+                self.ballFreeCntr = 0
+
+        # Shift lastKicked array
+        self.ball.lastKicked = [robot.id] + self.ball.lastKicked
+        if len(self.ball.lastKicked) > 4:
+            self.ball.lastKicked = self.ball.lastKicked[:4]
+
+        return True
 
     # Get true object state for a robot
     def getFullState(self,robot=None):
         if robot is None:
-            state = [[self.ball.shape.body.position,self.ballOwned]] + [[rob.getPos(),rob.getAngle(),rob.team,rob.fallen or rob.penalized] for rob in self.robots]
+            state = [np.array([self.ball.shape.body.position,self.ballOwned]),
+                     np.array([[rob.getPos(),rob.getAngle(),rob.team,rob.fallen or rob.penalized] for rob in self.robots])]
         else:
-            state = [[self.ball.shape.body.position,self.ballOwned*robot.team]] + \
-                   [[robot.getPos(),1,robot.fallen or robot.penalized]] +\
-                   [[rob.getPos(),rob.team*robot.team,rob.fallen or rob.penalized] for rob in self.robots if rob != robot]
-
-            for elem in state:
-                elem[0].x *= robot.team
+            # Normalization factors (flip x axis for team -1)
+            normX = robot.team/self.W
+            normY = 1.0/self.H
+            state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],normY),self.ballOwned*robot.team]),
+                   np.array([normalize(robot.getPos()[0],normX),normalize(robot.getPos()[1],normY),int(robot.fallen or robot.penalized)]),
+                   np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],normY),
+                              rob.team*robot.team,int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
 
         return state
 
@@ -816,7 +840,7 @@ class RoboCupEnvironment(object):
 
         # Check if objects are seen
         ballDets = [isSeenInArea(self.ball.shape.body.position - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.ballRadius*2) + [self.ballOwned*robot.team]]
-        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist[1],headAngle,Robot.totalRadius)+[rob.getAngle()-headAngle, robot.team == rob.team,robot.fallen or robot.penalized] for rob in self.robots if robot != rob]
+        robDets = [isSeenInArea(rob.getPos() - pos,vec1,vec2,self.maxVisDist[1],headAngle,Robot.totalRadius)+[rob.getAngle()-headAngle, robot.team * rob.team,robot.fallen or robot.penalized] for rob in self.robots if robot != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos,vec1,vec2,self.maxVisDist[1],headAngle,self.goalPostRadius*2) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos,vec1,vec2,self.maxVisDist[0],headAngle,self.penaltyRadius*2) for cross in self.fieldCrosses]
         lineDets = [isLineInArea(p1 - pos,p2 - pos,vec1,vec2,self.maxVisDist[1],headAngle) for p1,p2 in self.lines]
@@ -841,10 +865,10 @@ class RoboCupEnvironment(object):
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
             if ball[0] == SightingType.Misclassified:
-                crossDets.append((SightingType.Normal,ball[1],ball[2]))
+                crossDets.append([SightingType.Normal,ball[1],ball[2]])
         for cross in crossDets:
             if cross[0] == SightingType.Misclassified:
-                ballDets.append((SightingType.Normal,cross[1],cross[2]))
+                ballDets.append([SightingType.Normal,cross[1],cross[2],0])
 
         # Random false positives
         for i in range(10):
@@ -856,10 +880,12 @@ class RoboCupEnvironment(object):
                 pos.rotate(a)
                 if c == 0:
                     ballDets.insert(len(ballDets),
-                                   [SightingType.Normal,pos,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
+                                   [SightingType.Normal,pos,self.ballRadius*2*(1-0.4*(random.random()-0.5)),0])
                 elif c == 1:
                     robDets.insert(len(robDets),
-                                   [SightingType.Normal,pos,Robot.totalRadius*(1-0.4*(random.random()-0.5)),random.random() > 0.5,random.random() > 0.75])
+                                   [SightingType.Normal,pos,Robot.totalRadius*(1-0.4*(random.random()-0.5)),
+                                    (random.random()-0.5)*2*math.pi,
+                                    (-1)**int(random.random() > 0.5),random.random() > 0.9])
                 elif c == 2:
                     goalDets.insert(len(goalDets),
                                    [SightingType.Normal,pos,self.goalPostRadius*2*(1-0.4*(random.random()-0.5))])
@@ -875,7 +901,7 @@ class RoboCupEnvironment(object):
                         rob[0] = SightingType.NoSighting
                     offset = pymunk.Vec2d(2*random.random()-1.0,2*random.random()-1.0)*Robot.totalRadius
                     ballDets.insert(len(ballDets),
-                                   [SightingType.Normal,rob[1]+offset,self.ballRadius*2*(1-0.4*(random.random()-0.5))])
+                                   [SightingType.Normal,rob[1]+offset,self.ballRadius*2*(1-0.4*(random.random()-0.5)),0])
 
 
         # Remove occlusion and misclassified originals
@@ -888,8 +914,8 @@ class RoboCupEnvironment(object):
         if self.observationType == ObservationType.Image:
 
             # Initialize images
-            bottomCamImg = np.zeros((480,640))
-            topCamImg = np.zeros((480,640))
+            bottomCamImg = np.zeros((4,480,640))
+            topCamImg = np.zeros((4,480,640))
 
             for line in lineDets:
 
@@ -905,8 +931,8 @@ class RoboCupEnvironment(object):
                 tProj,tRad,bProj,bRad = projectPoints(linevec)
 
                 # Draw
-                cv2.line(topCamImg,     (int(tProj[0,2]),int(tProj[1,2])),  (int(tProj[0,3]),int(tProj[1,3])), 4, tRad)
-                cv2.line(bottomCamImg,  (int(bProj[0,2]),int(bProj[1,2])),  (int(bProj[0,3]),int(bProj[1,3])), 4, bRad)
+                cv2.line(topCamImg[3],     (int(tProj[0,2]),int(tProj[1,2])),  (int(tProj[0,3]),int(tProj[1,3])), 1, tRad)
+                cv2.line(bottomCamImg[3],  (int(bProj[0,2]),int(bProj[1,2])),  (int(bProj[0,3]),int(bProj[1,3])), 1, bRad)
 
             if circleDets[0] != SightingType.NoSighting:
 
@@ -944,22 +970,22 @@ class RoboCupEnvironment(object):
                 bx1, bx2 = getConicPoints(480, bProj[:,0], bParams)
 
                 # Draw polygon on points
-                cv2.polylines(topCamImg, [tx1], False, 4, tThickness)
-                cv2.polylines(topCamImg, [tx2], False, 4, tThickness)
-                cv2.polylines(bottomCamImg, [bx1], False, 4, bThickness)
-                cv2.polylines(bottomCamImg, [bx2], False, 4, bThickness)
+                cv2.polylines(topCamImg[3], [tx1], False, 1, tThickness)
+                cv2.polylines(topCamImg[3], [tx2], False, 1, tThickness)
+                cv2.polylines(bottomCamImg[3], [bx1], False, 1, bThickness)
+                cv2.polylines(bottomCamImg[3], [bx2], False, 1, bThickness)
 
                 # Connect the first and last elements of the two curves, unless they are at the edges of the images
                 if tx1.shape[0]:
                     if tx1[0, 1]:
-                        cv2.line(topCamImg, tuple(tx1[0]), tuple(tx2[0]), 4, tThickness)
+                        cv2.line(topCamImg[3], tuple(tx1[0]), tuple(tx2[0]), 1, tThickness)
                     if tx1[-1, 1] < 480 - 1:
-                        cv2.line(topCamImg, tuple(tx1[-1]), tuple(tx2[-1]), 4, tThickness)
+                        cv2.line(topCamImg[3], tuple(tx1[-1]), tuple(tx2[-1]), 1, tThickness)
                 if bx1.shape[0]:
                     if bx1[0, 1]:
-                        cv2.line(bottomCamImg, tuple(bx1[0]), tuple(bx2[0]), 4, bThickness)
+                        cv2.line(bottomCamImg[3], tuple(bx1[0]), tuple(bx2[0]), 1, bThickness)
                     if bx1[-1, 1] < 480 - 1:
-                        cv2.line(bottomCamImg, tuple(bx1[-1]), tuple(bx2[-1]), 4, bThickness)
+                        cv2.line(bottomCamImg[3], tuple(bx1[-1]), tuple(bx2[-1]), 1, bThickness)
 
             for rob in robDets:
 
@@ -973,8 +999,8 @@ class RoboCupEnvironment(object):
                 tProj,tRad,bProj,bRad = projectPoints(robvec,False)
 
                 # Draw
-                cv2.rectangle(topCamImg,    (int(tProj[0,0]),int(tProj[1,0])),  (int(tProj[0,1]),int(tProj[1,1])), 2, -1)
-                cv2.rectangle(bottomCamImg, (int(bProj[0,0]),int(bProj[1,0])),  (int(bProj[0,1]),int(bProj[1,1])), 2, -1)
+                cv2.rectangle(topCamImg[1],    (int(tProj[0,0]),int(tProj[1,0])),  (int(tProj[0,1]),int(tProj[1,1])), 1, -1)
+                cv2.rectangle(bottomCamImg[1], (int(bProj[0,0]),int(bProj[1,0])),  (int(bProj[0,1]),int(bProj[1,1])), 1, -1)
 
             for goal in goalDets:
 
@@ -989,8 +1015,8 @@ class RoboCupEnvironment(object):
                 tProj,tRad,bProj,bRad = projectPoints(goalvec)
 
                 # Draw
-                cv2.line(topCamImg,     (int(tProj[0,0]),int(tProj[1,0])),  (int(tProj[0,2]),int(tProj[1,2])), 3, tRad)
-                cv2.line(bottomCamImg,  (int(bProj[0,0]),int(bProj[1,0])),  (int(bProj[0,2]),int(bProj[1,2])), 3, bRad)
+                cv2.line(topCamImg[2],     (int(tProj[0,0]),int(tProj[1,0])),  (int(tProj[0,2]),int(tProj[1,2])), 1, tRad)
+                cv2.line(bottomCamImg[2],  (int(bProj[0,0]),int(bProj[1,0])),  (int(bProj[0,2]),int(bProj[1,2])), 1, bRad)
 
             for cross in crossDets:
 
@@ -1004,8 +1030,8 @@ class RoboCupEnvironment(object):
                 tProj,tRad,bProj,bRad = projectPoints(crossvec)
 
                 # Draw
-                cv2.circle(topCamImg,       (int(tProj[0,0]),int(tProj[1,0])), tRad, 4, -1)
-                cv2.circle(bottomCamImg,    (int(bProj[0,0]),int(bProj[1,0])), bRad, 4, -1)
+                cv2.circle(topCamImg[3],       (int(tProj[0,0]),int(tProj[1,0])), tRad, 1, -1)
+                cv2.circle(bottomCamImg[3],    (int(bProj[0,0]),int(bProj[1,0])), bRad, 1, -1)
 
             for ball in ballDets:
 
@@ -1019,8 +1045,8 @@ class RoboCupEnvironment(object):
                 tProj,tRad,bProj,bRad = projectPoints(ballvec)
 
                 # Draw
-                cv2.circle(topCamImg,       (int(tProj[0,0]),int(tProj[1,0])),  tRad, 1, -1)
-                cv2.circle(bottomCamImg,    (int(bProj[0,0]),int(bProj[1,0])),  bRad, 1, -1)
+                cv2.circle(topCamImg[0],       (int(tProj[0,0]),int(tProj[1,0])),  tRad, 1, -1)
+                cv2.circle(bottomCamImg[0],    (int(bProj[0,0]),int(bProj[1,0])),  bRad, 1, -1)
 
         if self.render and robot.id == self.visId:
 
@@ -1071,7 +1097,20 @@ class RoboCupEnvironment(object):
                 cv2.imshow("Top",colorize(topCamImg))
 
         if self.observationType == ObservationType.Image:
-            return topCamImg,bottomCamImg
+            return np.concatenate((topCamImg,bottomCamImg))
+
+        # Convert to numpy
+        normX = 2.0/self.W
+        normY = 1.0/self.H
+        ballDets = np.array([[normalize(ball[1].x,normX),normalize(ball[1].y,normY),ball[2],ball[3]] for ball in ballDets])
+        robDets = np.array([[normalize(rob[1].x,normX),normalize(rob[1].y,normY),rob[2],rob[3],rob[4],rob[5]] for rob in robDets])
+        goalDets = np.array([[normalize(goal[1].x,normX),normalize(goal[1].y,normY),goal[2]] for goal in goalDets])
+        crossDets = np.array([[normalize(cross[1].x,normX),normalize(cross[1].y,normY),cross[2]] for cross in crossDets])
+        lineDets = np.array([[normalize(line[1].x,normX),normalize(line[1].y,normY),
+                              normalize(line[2].x,normX),normalize(line[2].y,normY)] for line in lineDets])
+        circleDets = np.array([[normalize(circleDets[1].x,normX),normalize(circleDets[1].y,normY),circleDets[2]]]) \
+            if circleDets[0] != SightingType.NoSighting else np.array([])
+
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets
 
     # Print env params
@@ -1094,12 +1133,12 @@ class RoboCupEnvironment(object):
                "        Ball info [position,ball owned team ID]\n" \
                "        Robot info for all robots [position, angle, team, fallen or penalized]\n" \
                "    Observations: Contains robot observations (in the same order as the robots are in the full state):\n" \
-               "        Ball detections: [sightingType, position, radius, ball owned status]\n" \
-               "        Robot detections: [sightingType, position, radius, angle, team, fallen or penalized]\n" \
-               "        Goalpost detections: [sightingType, position, radius]\n" \
-               "        Cross detections: [sightingType, position, radius]\n" \
-               "        Line detections: [sightingType, endpoint1, endpoint2]\n" \
-               "        Center circle detections: [sightingType, position, radius]\n" \
+               "        Ball detections: [x, y, radius, ball owned status]\n" \
+               "        Robot detections: [x, y, radius, angle, team, fallen or penalized]\n" \
+               "        Goalpost detections: [x, y, radius]\n" \
+               "        Cross detections: [x, y, radius]\n" \
+               "        Line detections: [x1, y1, x2, y2]\n" \
+               "        Center circle detections: [x, y, radius]\n" \
                "    Team rewards: rewards for each team\n" \
                "    Robot rewards: rewards for each robot (in the same order as in state)\n" \
                "    Finished: Game over flag"

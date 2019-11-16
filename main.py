@@ -11,9 +11,11 @@ def doRoboCup():
     nPlayers = 5
     env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
-    print(env)
+    env.setRandomSeed(42)
+
     action1 = [0, 0, 0, 0]
     action2 = [0, 0, 0, 0]
+
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -71,6 +73,8 @@ def doRoboCup():
                     action2[3] = 1
                 elif event.key == K_HOME:
                     action2[3] = 2
+                elif event.key == K_RETURN:
+                    env.reset()
             elif event.type == KEYUP:
                 action1 = [0, 0, 0, 0]
                 action2 = [0, 0, 0, 0]
@@ -82,11 +86,12 @@ def doRoboCup():
 
 def doDrive():
     nPlayers = 5
-    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
+    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Full,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+    env.setRandomSeed(42)
 
-    print(env)
     action1 = [0, 0]
+
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -94,6 +99,8 @@ def doDrive():
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     sys.exit(0)
+                elif event.key == K_RETURN:
+                    env.reset()
                 elif event.key == K_w:
                     action1[0] = 1
                 elif event.key == K_s:
@@ -112,8 +119,6 @@ def doDrive():
 if __name__ == '__main__':
 
     drive = True
-    #random.seed(1)
-    #np.random.seed(1)
 
     pygame.init()
 

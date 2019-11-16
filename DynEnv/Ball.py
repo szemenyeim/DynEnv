@@ -22,3 +22,6 @@ class Ball(object):
 
         # List of robots who last touched the ball
         self.lastKicked = []
+
+    def getPos(self):
+        return self.shape.body.position

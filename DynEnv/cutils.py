@@ -133,7 +133,6 @@ def estimateConic(points):
 
 # Class color scheme for visualization
 classColors = [
-    (0,0,0),
     (0,0,255),
     (0,255,0),
     (255,0,0),
@@ -142,11 +141,14 @@ classColors = [
 
 # Visualization function
 def colorize(img):
-    cImg = np.zeros((img.shape[0],img.shape[1],3)).astype('uint8')
-    for i in range(1,len(classColors)):
-        cImg[img==i] = classColors[i]
+    cImg = np.zeros((img.shape[1],img.shape[2],3)).astype('uint8')
+    for i in range(0,len(classColors)):
+        ind = len(classColors)-1-i
+        cImg[img[ind]==1] = classColors[ind]
     return cImg
 
+def normalize(pt,normFactor):
+    return ((pt*normFactor)-0.5)*2
 
 # Add noise to a line sighting
 def addNoiseLine(obj,noiseType, magn, rand, maxDist):

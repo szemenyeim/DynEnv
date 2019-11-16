@@ -10,6 +10,8 @@ class Obstacle(object):
         body = Body(0, 0, Body.STATIC)
         body.position = center
         points = [Vec2d(width,height),Vec2d(-width,height),-Vec2d(width,height),Vec2d(width,-height)]
+        self.width = width
+        self.height = height
         self.points = [p+center for p in points]
         self.shape = Poly(body,points)
         self.shape.color = (0, 0, 0)

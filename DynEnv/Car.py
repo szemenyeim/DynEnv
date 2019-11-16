@@ -15,10 +15,11 @@ class Car(object):
     def __init__(self,center,angle,type,team,goal):
 
         # Params based on vehicle type
-        width = self.widths[type]
-        height = self.lengths[type]
+        self.width = self.widths[type]
+        self.height = self.lengths[type]
         mass = self.masses[type]
-        self.points = [Vec2d(height, width), Vec2d(-height, width), -Vec2d(height, width), Vec2d(height, -width)]
+        self.points = [Vec2d(self.height,self. width), Vec2d(-self.height, self.width),
+                       -Vec2d(self.height, self.width), Vec2d(self.height, -self.width)]
         inertia = moment_for_poly(mass,self.points)
 
         # Basic params
