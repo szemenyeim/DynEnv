@@ -12,6 +12,7 @@ This project contains two reinforcement learning environments based on 2D physic
 - pymunk
 - opencv
 - pygame
+- PyTorch (optional)
 
 ## Installation
 
@@ -38,6 +39,8 @@ myEnv = DrivingEnvironment(nPlayers)
 
 ret = myEnv.step(actions)
 ```
+
+More complex examples can be found in the main.py and testNet.py files.
 
 ### Parameters
 
@@ -72,6 +75,14 @@ Here are some examples of different noise and observation trypes
 ![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/top.gif)
 ![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/bottom.gif)
 
+### Important functions
+
+`reset()` Resets the environment to a new game and returns initial observations.
+`setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
+`getObservationSize()` Returns information about the observations returned by the envionrment.
+`getActionSize()` Returns information about the actions the environment expects.
+`step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup envs). It returns observations for every 10 simulation steps and full state for the last step.
+
 ### So, what are the actions?
 
 The environments expect an iterable object containing the actions for every player. Each player action must contain the following:
@@ -96,6 +107,8 @@ Both environments return the following variables in the step function:
 - **Car/Robot rewards:** Rewards for each car or robot.
 - **Finished:** Game over flag
 
+Position information is normalized between +/-1 in both the observations and the full state.
+
 #### RoboCup
 
 The full state contains the following:
@@ -107,12 +120,12 @@ If the observation is full state, the robot's own position is returned in a sepa
 
 The partial observation contains the following for each robot:
 
-- Balls: **[sightingType, position, radius, ball owned status]**
-- Robots (self not included): **[sightingType, position, radius, angle, team, fallen or penalized]**
-- Goalposts: **[sightingType, position, radius]**
-- Crosses: **[sightingType, position, radius]**
-- Lines: **[sightingType, endpoint1, endpoint2]**
-- Center circle: **[sightingType, position, radius]**
+- Balls: **[position, radius, ball owned status]**
+- Robots (self not included): **[position, radius, angle, team, fallen or penalized]**
+- Goalposts: **[position, radius]**
+- Crosses: **[position, radius]**
+- Lines: **[endpoint1, endpoint2]**
+- Center circle: **[position, radius]**
 
 sigthingType can be Normal, Distant or Partial. In this case, the positions and angles are returned relative to the robot's position and head angle.
 
@@ -122,8 +135,8 @@ The image observations contain 2D images of semantic segmentation data.
 
 The full state contains the following:
 
-- Cars: **[position, corner points, angle]**
-- Obstacles: **[position, corners]**
+- Cars: **[position, angle, width, height]**
+- Obstacles: **[position,  angle, width, height]**
 - Pedestrians: **[position]**
 - Lanes: **[point1, point2, type]**
 
@@ -131,11 +144,10 @@ If the observation is full state, the car's own position is returned in a separa
 
 The partial observation contains the following for each car:
 
-- Self: **[sightingType, position, corners, angle, goal]**
-- Cars: **[sightingType, position, corners, angle]**
-- Buildings: **[sightingType, position, corners]**
-- Obstacles: **[sightingType, position, corners]**
-- Pedestrians: **[sightingType, position]**
-- Lanes: **[sightingType, point1, point2, type]**
+- Self: **[position, angle, width, height, goal]**
+- Cars: **[position, angle, width, height]**
+- Obstacles: **[position, angle, width, height]**
+- Pedestrians: **[position]**
+- Lanes: **[point1, point2, type]**
 
-sigthingType can be Normal, Distant or Partial. In this case, the positions and angles are returned relative to the car's position and angle.
+Widths and heights are also normalized.
