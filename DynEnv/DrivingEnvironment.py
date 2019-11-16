@@ -136,15 +136,21 @@ class DrivingEnvironment(object):
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
 
-    # Reser env
+    # Reset env
     def reset(self):
         self.__init__(self.nPlayers,self.render,self.observationType,self.noiseType,self.noiseMagnitude)
+        observations = []
+        if self.observationType == ObservationType.Full:
+            observations.append([self.getFullState(car) for car in self.cars])
+        else:
+            observations.append([self.getCarVision(car) for car in self.cars])
+        return observations
 
     # Set random seed
     def setRandomSeed(self,seed):
         np.random.seed(seed)
         random.seed(seed)
-        self.reset()
+        return self.reset()
 
     # Observation space
     def getObservationSize(self):
@@ -177,8 +183,7 @@ class DrivingEnvironment(object):
 
             # Sanity check
             if actions.shape != (len(self.cars),2):
-                print("Error: There must be 2 actions for every car")
-                exit(0)
+                raise Exception("Error: There must be 2 actions for every car")
 
             # Car loop
             for action, car in zip(actions, self.cars):
@@ -265,17 +270,15 @@ class DrivingEnvironment(object):
 
         # Sanity checks
         if np.abs(acc) > 3:
-            print("Error: Acceleration must be between +/-3")
-            exit(0)
+            raise Exception("Error: Acceleration must be between +/-3")
         if np.abs(steer) > 3:
-            print("Error: Steering must be between +/-3")
-            exit(0)
+            raise Exception("Error: Steering must be between +/-3")
 
         # Apply actions to car
         if acc != 0:
-            car.accelerate(acc)
+            car.accelerate(acc.item())
         if steer != 0:
-            car.turn(steer)
+            car.turn(steer.item())
 
     # Update car status
     def tick(self,car):

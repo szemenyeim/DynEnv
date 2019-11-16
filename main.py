@@ -86,7 +86,7 @@ def doRoboCup():
 
 def doDrive():
     nPlayers = 5
-    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Full,
+    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
     env.setRandomSeed(42)
 

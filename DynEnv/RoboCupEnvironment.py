@@ -165,28 +165,34 @@ class RoboCupEnvironment(object):
     # Reset env
     def reset(self):
         self.__init__(self.nPlayers, self.render, self.observationType, self.noiseType, self.noiseMagnitude)
+        observations = []
+        if self.observationType == ObservationType.Full:
+            observations.append([self.getFullState(robot) for robot in self.robots])
+        else:
+            observations.append([self.getRobotVision(robot) for robot in self.robots])
+        return observations
 
     # Set random seed
     def setRandomSeed(self, seed):
         np.random.seed(seed)
         random.seed(seed)
-        self.reset()
+        return self.reset()
 
     # Observation space
     def getObservationSize(self):
         if self.observationType == ObservationType.Full:
-            return [5,self.nPlayers,[[3,],[3,],[self.nPlayers-1,4]]]
+            return [5,self.nPlayers*2,[[3,],[3,],[self.nPlayers-1,4]]]
         elif self.observationType == ObservationType.Image:
-            return [5,self.nPlayers,[8,480,640]]
+            return [5,self.nPlayers*2,[8,480,640]]
         else:
-            return [5,self.nPlayers,6,[4,6,3,3,4,3]]
+            return [5,self.nPlayers*2,6,[4,6,3,3,4,3]]
 
     # Action space
     def getActionSize(self):
-        return [self.nPlayers,[
-            ['cat',5],
-            ['cat',3],
-            ['cat',3],
+        return [self.nPlayers*2,[
+            ['cat',5, None, None],
+            ['cat',3, None, None],
+            ['cat',3, None, None],
             ['cont',1,[0,],[12,]],
         ]]
 
@@ -208,9 +214,8 @@ class RoboCupEnvironment(object):
                 self.drawStaticObjects()
 
             # Sanity check
-            if actions.shape != (len(self.robots), 4):
-                print("Error: There must be four actions for every robot")
-                exit(0)
+            if actions.shape != (len(self.robots),4):
+                raise Exception("Error: There must be four actions for every robot")
 
             # Robot loop
             for action, robot in zip(actions, self.robots):
@@ -241,7 +246,7 @@ class RoboCupEnvironment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        print((t2-t1)*1000)
+        #print((t2-t1)*1000)
 
         return self.getFullState(), observations, self.teamRewards, self.robotRewards, finished
 
@@ -249,21 +254,17 @@ class RoboCupEnvironment(object):
     def processAction(self, action, robot):
 
         # Get 4 action types
-        move, turn, head, kick = action
+        move, turn, kick, head = action
 
         # Sanity check for actions
         if move not in [0, 1, 2, 3, 4]:
-            print("Error: Robot movement must be categorical in the range [0-4]")
-            exit(0)
+            raise Exception("Error: Robot movement must be categorical in the range [0-4]")
         if turn not in [0, 1, 2]:
-            print("Error: Robot turn must be categorical in the range [0-2]")
-            exit(0)
+            raise Exception("Error: Robot turn must be categorical in the range [0-2]")
         if kick not in [0, 1, 2]:
-            print("Error: Robot kick must be categorical in the range [0-2]")
-            exit(0)
+            raise Exception("Error: Robot kick must be categorical in the range [0-2]")
         if np.abs(head) > 6:
-            print("Error: Head turn must be between +/-6")
-            exit(0)
+            raise Exception("Error: Head turn must be between +/-6")
 
         # Don't allow movement or falling unless no action is being performed
         canMove = not (robot.penalized or robot.kicking or robot.fallen)
