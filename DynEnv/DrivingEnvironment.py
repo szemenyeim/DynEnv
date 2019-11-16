@@ -558,49 +558,44 @@ class DrivingEnvironment(object):
     # Gett correct state
     def getFullState(self,car=None):
 
+        # Normalization factors
+        normX = 1.0 / self.W
+        normY = 1.0 / self.H
+        normW = 1.0/7.5
+        normH = 1.0/15
+
+        # Get lanes
+        lanes = []
+        for l in self.roads:
+            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, normX), normalize(l.Lanes[i - l.nLanes][0].y, normY),
+                       normalize(l.Lanes[i - l.nLanes][1].x, normX), normalize(l.Lanes[i - l.nLanes][1].y, normY),
+                       (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
+
         # If complete state
         if car is None:
 
-            # Get lanes
-            lanes = []
-            for l in self.roads:
-                lanes += [[l.Lanes[i-l.nLanes][0].x, l.Lanes[i-l.nLanes][0].y, l.Lanes[i-l.nLanes][1].x, l.Lanes[i-l.nLanes][1].y,
-                           (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
-
-            # Just add cars, obstacles, pedestrians and lanes
+            # Just add cars
             state = [
-                np.array([[c.getPos().x, c.getPos().y, c.getAngle(), c.width, c.height] for c in self.cars]),
-                np.array([[o.getPos().x, o.getPos().y, o.width, o.height] for o in self.obstacles]),
-                np.array([[p.getPos().x, p.getPos().y] for p in self.pedestrians]),
-                np.array(lanes)
+                np.array([[normalize(c.getPos().x,normX),normalize(c.getPos().y,normY), c.getAngle(),
+                           normalize(c.width, normW), normalize(c.height, normH)] for c in self.cars]),
             ]
         # Otherwise add self observation separately
         else:
-
-            # Normalization factors
-            normX = 1.0 / self.W
-            normY = 1.0 / self.H
-            normW = 1.0/7.5
-            normH = 1.0/15
-
-            # Get lanes
-            lanes = []
-            for l in self.roads:
-                lanes += [[normalize(l.Lanes[i - l.nLanes][0].x,normX), normalize(l.Lanes[i - l.nLanes][0].y,normY),
-                           normalize(l.Lanes[i - l.nLanes][1].x,normX), normalize(l.Lanes[i - l.nLanes][1].y,normY),
-                           (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
-
             state = [
                 np.array([normalize(car.getPos().x,normX),normalize(car.getPos().y,normY), car.getAngle(),
                           normalize(car.width, normW), normalize(car.height, normH),
                           normalize(car.goal.x,normX),normalize(car.goal.y,normY)]),
                 np.array([[normalize(c.getPos().x,normX),normalize(c.getPos().y,normY), c.getAngle(),
                            normalize(c.width, normW), normalize(c.height, normH)] for c in self.cars if c != car]),
-                np.array([[normalize(o.getPos().x,normX),normalize(o.getPos().y,normY),
-                           normalize(o.width, normW), normalize(o.height, normH)] for o in self.obstacles]),
-                np.array([[normalize(p.getPos().x,normX),normalize(p.getPos().y,normY) ] for p in self.pedestrians]),
-                np.array(lanes)
             ]
+
+        # Add obstacles, pedestrians and lanes
+        state += [
+            np.array([[normalize(o.getPos().x, normX), normalize(o.getPos().y, normY),
+                       normalize(o.width, normW), normalize(o.height, normH)] for o in self.obstacles]),
+            np.array([[normalize(p.getPos().x, normX), normalize(p.getPos().y, normY)] for p in self.pedestrians]),
+            np.array(lanes)
+        ]
 
         return state
 

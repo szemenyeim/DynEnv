@@ -804,13 +804,18 @@ class RoboCupEnvironment(object):
 
     # Get true object state for a robot
     def getFullState(self,robot=None):
+        # Normalization factors
+        normX = 1.0/self.W
+        normY = 1.0/self.H
+
         if robot is None:
-            state = [np.array([self.ball.shape.body.position,self.ballOwned]),
-                     np.array([[rob.getPos(),rob.getAngle(),rob.team,rob.fallen or rob.penalized] for rob in self.robots])]
+            state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],normY),self.ballOwned]),
+                   np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],normY),
+                              rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots])]
         else:
-            # Normalization factors (flip x axis for team -1)
-            normX = robot.team/self.W
-            normY = 1.0/self.H
+            # flip x axis for team -1
+            normX *= robot.team
+
             state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],normY),self.ballOwned*robot.team]),
                    np.array([normalize(robot.getPos()[0],normX),normalize(robot.getPos()[1],normY),int(robot.fallen or robot.penalized)]),
                    np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],normY),
