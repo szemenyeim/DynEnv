@@ -225,7 +225,7 @@ class DrivingEnvironment(object):
                 cv2.waitKey(1)
 
         t2 = time.clock()
-        print((t2 - t1) * 1000)
+        #print((t2 - t1) * 1000)
 
         return self.getFullState(), observations, [self.teamReward,]*2, self.carRewards, finished
 

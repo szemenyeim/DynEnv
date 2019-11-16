@@ -3,6 +3,7 @@
   <component name="ChangeListManager">
     <list default="true" id="eabf3c79-64c3-413b-89cc-e4fe764e6783" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/testNet.py" beforeDir="false" afterPath="$PROJECT_DIR$/testNet.py" afterDir="false" />
     </list>
@@ -121,15 +122,6 @@
     </option>
   </component>
   <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/models.py</url>
-          <line>86</line>
-          <option name="timeStamp" value="29" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
     <watches-manager>
       <configuration name="PythonConfigurationType">
         <watch expression="corners[2]" />
