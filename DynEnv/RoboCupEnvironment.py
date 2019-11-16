@@ -1106,7 +1106,7 @@ class RoboCupEnvironment(object):
             return np.concatenate((topCamImg,bottomCamImg))
 
         # Convert to numpy
-        normX = 2.0/self.W
+        normX = 1.0/self.W
         normY = 1.0/self.H
         ballDets = np.array([[normalize(ball[1].x,normX),normalize(ball[1].y,normY),ball[2],ball[3]] for ball in ballDets])
         robDets = np.array([[normalize(rob[1].x,normX),normalize(rob[1].y,normY),rob[2],rob[3],rob[4],rob[5]] for rob in robDets])
