@@ -77,11 +77,11 @@ Here are some examples of different noise and observation trypes
 
 ### Important functions
 
-`reset()` Resets the environment to a new game and returns initial observations.
-`setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
-`getObservationSize()` Returns information about the observations returned by the envionrment.
-`getActionSize()` Returns information about the actions the environment expects.
-`step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup envs). It returns observations for every 10 simulation steps and full state for the last step.
+- `reset()` Resets the environment to a new game and returns initial observations.
+- `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
+- `getObservationSize()` Returns information about the observations returned by the envionrment.
+- `getActionSize()` Returns information about the actions the environment expects.
+- `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup envs). It returns observations for every 10 simulation steps and full state for the last step.
 
 ### So, what are the actions?
 
