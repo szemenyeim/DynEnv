@@ -182,10 +182,11 @@ class RoboCupEnvironment(object):
     def reset(self):
         self.__init__(self.nPlayers, self.render, self.observationType, self.noiseType, self.noiseMagnitude)
         observations = []
-        if self.observationType == ObservationType.Full:
-            observations.append([self.getFullState(robot) for robot in self.robots])
-        else:
-            observations.append([self.getRobotVision(robot) for robot in self.robots])
+        for i in range(5):
+            if self.observationType == ObservationType.Full:
+                observations.append([self.getFullState(robot) for robot in self.robots])
+            else:
+                observations.append([self.getRobotVision(robot) for robot in self.robots])
         return observations
 
     # Set random seed
