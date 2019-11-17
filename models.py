@@ -6,17 +6,21 @@ import torch.nn.functional as F
 flatten = lambda l: [item for sublist in l for item in sublist]
 
 
+# Concatenate tensors and pad them to size
 def catAndPad(list, size):
     t = torch.cat(list)
     return F.pad(t, pad=[0, 0, 0, size - t.shape[0]], mode='constant', value=0)
 
 
+# Convert maxindices to a binary mask
 def createMask(counts,max):
     mask = torch.zeros((counts.shape[0],max)).bool()
     for i,count in enumerate(counts):
         mask[i, count:] = True
     return mask
 
+
+# Helper object to convert indices in a for loop quickly
 class Indexer(object):
     def __init__(self, arrNum):
         self.prev = np.zeros(arrNum).astype('int64')
@@ -158,6 +162,8 @@ class InputLayer(nn.Module):
 
         return outs,objCounts
 
+
+# Layer for reducing timeStep and Objects dimension via attention
 class AttentionLayer(nn.Module):
     def __init__(self,features,num_heads=1):
         super(AttentionLayer,self).__init__()
@@ -199,14 +205,57 @@ class AttentionLayer(nn.Module):
         return summed.div(lens)
 
 
+# LSTM Layer
+class LSTMLayer(nn.Module):
+    def __init__(self,nPlayers,feature,hidden):
+        super(LSTMLayer,self).__init__()
+
+        # Params
+        self.nPlayers = nPlayers
+        self.feature = feature
+        self.hidden = hidden
+
+        # Init LSTM cell
+        self.reset()
+        self.cell = nn.LSTMCell(feature,hidden)
+
+    # Reset inner state
+    def reset(self):
+        self.h = torch.zeros((self.nPlayers,self.hidden))
+        self.c = torch.zeros((self.nPlayers,self.hidden))
+
+    # Put means and std on the correct device when .cuda() or .cpu() is called
+    def _apply(self, fn):
+        super(LSTMLayer, self)._apply(fn)
+
+        self.h = fn(self.h)
+        self.c = fn(self.c)
+
+        return self
+
+    # Forward
+    def forward(self, x):
+
+        self.h, self.c = self.cell(x,(self.h,self.c))
+
+        return self.h
+
+
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class TestNet(nn.Module):
     def __init__(self,inputs,action,feature):
         super(TestNet,self).__init__()
 
+        nPlayers = inputs[1]
+
         self.InNet = InputLayer(inputs,feature)
         self.AttNet = AttentionLayer(feature)
-        self.OutNet = ActionLayer(feature,action)
+        self.LSTM = LSTMLayer(nPlayers,feature,feature*2)
+        self.OutNet = ActionLayer(feature*2,action)
+
+    # Reset fun for lstm
+    def reset(self):
+        self.LSTM.reset()
 
     def forward(self, x):
         # Get embedded features
@@ -214,6 +263,9 @@ class TestNet(nn.Module):
 
         # Run attention
         features = self.AttNet((features,objCounts))
+
+        # Run LSTM
+        features = self.LSTM(features)
 
         # Get actions
         return self.OutNet(features)

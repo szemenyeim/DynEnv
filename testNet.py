@@ -38,6 +38,7 @@ def doRoboCup():
         # Finished
         if finished:
             observations = env.reset()
+            Net.reset()
 
 def doDrive():
 
@@ -69,10 +70,11 @@ def doDrive():
         # Finished
         if finished:
             observations = env.reset()
+            Net.reset()
 
 if __name__ == '__main__':
 
-    drive = True
+    drive = False
 
     if drive:
         doDrive()
