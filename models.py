@@ -146,17 +146,18 @@ class InputLayer(nn.Module):
         maxCount = torch.max(objCounts).item()
 
         # Object arrays [all objects of the same type]
-        ins = [np.stack(flatten([flatten([sightings[i] for sightings in time if len(sightings[i])]) for time in x])) for
+        inputs = [flatten([flatten([sightings[i] for sightings in time if len(sightings[i])]) for time in x]) for
                i in range(self.nObjects)]
+        inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
 
         # Call embedding block for all object types
-        outs = [block(torch.Tensor(obj).to(device)) for block, obj in zip(self.blocks, ins)]
+        outs = [block(torch.Tensor(obj).to(device)) for block, obj in zip(self.blocks, inputs)]
 
         # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
         outs = torch.stack(
                 [torch.stack(
                 [catAndPad([out[self.indexer.getRange(counts[k],i,j,k)]
-                                                    for k,out in enumerate(outs)],maxCount)
+                                                    for k,out in enumerate(outs) if out is not None],maxCount)
                                          for j in range(self.nPlayers)])
                             for i in range(self.nTime)]).permute(0,2,1,3)
 

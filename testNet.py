@@ -8,7 +8,7 @@ def doRoboCup():
     isCuda =torch.cuda.is_available()
     nPlayers = 5
     env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
-                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0)
 
     # Set random seed and get inital observation
     observations = env.setRandomSeed(42)
