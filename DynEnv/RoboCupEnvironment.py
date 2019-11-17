@@ -63,6 +63,18 @@ class RoboCupEnvironment(object):
         # Bookkeeping for robots inside penalty area for illegal defender
         self.defenders = [[],[]]
 
+        # Penalty spots (for penalized robots)
+        self.penaltySpots = [
+            [
+                [[self.sideLength + (i+1)*Robot.totalRadius*3, self.sideLength] for i in range(7)] +
+                [[self.sideLength + (i+1)*Robot.totalRadius*3, self.H-self.sideLength] for i in range(7)]
+            ], # team  1
+            [
+                [[self.W - self.sideLength - (i+1)*Robot.totalRadius*3, self.sideLength] for i in range(7)] +
+                [[self.W - self.sideLength - (i+1)*Robot.totalRadius*3, self.H-self.sideLength] for i in range(7)]
+            ], # team -1
+        ]
+
         # Reward settings
         self.kickDiscount = 0.5
         self.teamRewards = [0,0]
@@ -495,6 +507,33 @@ class RoboCupEnvironment(object):
             print("Fallen robot", robot.fallCntr, robot.team)
             self.penalize(robot)
 
+    def getFreePenaltySpot(self,robot):
+
+        availableSpots = self.penaltySpots[0][0] if robot.team > 0 else self.penaltySpots[1][0]
+
+        y = self.ball.getPos().y
+
+        angle = math.pi / 2 if y < self.H / 2 else -math.pi / 2
+
+        availableSpots = availableSpots[:7] if y > self.H/2 else availableSpots[7:]
+
+        selectedSpot = availableSpots[0]
+
+        for spot in availableSpots:
+            available = True
+            for rob in self.robots:
+                if rob == robot:
+                    continue
+                dist = (spot-rob.getPos()).length
+                if dist < Robot.totalRadius*3:
+                    available = False
+                    break
+            if available:
+                selectedSpot = spot
+                break
+
+        return selectedSpot, angle
+
     # Penlize robot
     def penalize(self,robot):
 
@@ -510,22 +549,18 @@ class RoboCupEnvironment(object):
         self.penalTimes[teamIdx] += 5000
 
         # Compute robot position
-        pos = robot.getPos()
-        xOffs = (robot.id - teamIdx*self.nPlayers) * 40
-        x = self.W - (self.sideLength + self.penaltyLength + xOffs) if robot.team < 0 else self.sideLength + self.penaltyLength + xOffs
-        print(robot.id,xOffs,x)
-        y = self.sideLength if self.ball.shape.body.position.y < self.H/2 else self.H-self.sideLength
+        pos, angle = self.getFreePenaltySpot(robot)
 
         # Move feet
-        robot.leftFoot.body.position = pymunk.Vec2d(x, y)
-        robot.rightFoot.body.position = pymunk.Vec2d(x, y)
+        robot.leftFoot.body.position = pos
+        robot.leftFoot.body.angle = angle
+        robot.rightFoot.body.position = pos
+        robot.rightFoot.body.angle = angle
 
         # Stop feet, and change color
-        robot.leftFoot.body.angle = math.pi / 2 if y < self.H/2 else -math.pi / 2
         robot.leftFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
         robot.leftFoot.body.angular_velocity = 0.0
         robot.leftFoot.color = (255, 0, 0)
-        robot.rightFoot.body.angle = math.pi / 2 if y < self.H/2 else -math.pi / 2
         robot.rightFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
         robot.rightFoot.body.angular_velocity = 0.0
         robot.rightFoot.color = (255, 0, 0)
@@ -627,18 +662,15 @@ class RoboCupEnvironment(object):
                 robot.fallCntr = 0
                 robot.fallen = False
 
-                ballPos = self.ball.shape.body.position
+                # Get robot position
+                pos, angle = self.getFreePenaltySpot(robot)
 
-                # Put the robot on the right side of the field
-                pos = robot.leftFoot.body.position
-                pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
-                robot.leftFoot.body.angle = math.pi / 2 if ballPos.y > self.H/2 else -math.pi / 2
+                # Move feet
                 robot.leftFoot.body.position = pos
+                robot.leftFoot.body.angle = angle
                 robot.leftFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
-                pos = robot.rightFoot.body.position
-                pos.y = self.sideLength if ballPos.y > self.H/2 else self.H-self.sideLength
-                robot.rightFoot.body.angle = math.pi / 2 if ballPos.y > self.H/2 else -math.pi / 2
                 robot.rightFoot.body.position = pos
+                robot.rightFoot.body.angle = angle
                 robot.rightFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
         else:
             teamIdx = 0 if robot.team > 0 else 1
@@ -796,7 +828,7 @@ class RoboCupEnvironment(object):
                 self.penalize(robot)
             else:
                 print("Ball Free")
-                self.ballOwned = -1
+                self.ballOwned = 0
                 self.gracePeriod = 0
                 self.ballFreeCntr = 0
 

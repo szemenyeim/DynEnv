@@ -3,8 +3,8 @@
   <component name="ChangeListManager">
     <list default="true" id="eabf3c79-64c3-413b-89cc-e4fe764e6783" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/DrivingEnvironment.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DynEnv/RoboCupEnvironment.py" beforeDir="false" afterPath="$PROJECT_DIR$/DynEnv/RoboCupEnvironment.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -44,7 +44,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.testNet">
+  <component name="RunManager" selected="Python.main">
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="DynEnv" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -89,8 +89,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.testNet" />
         <item itemvalue="Python.main" />
+        <item itemvalue="Python.testNet" />
       </list>
     </recent_temporary>
   </component>
