@@ -63,7 +63,7 @@ class DrivingEnvironment(object):
         self.distThreshold = 10
 
         # Time rewards
-        self.maxTime = 2000
+        self.maxTime = 6000
         self.elapsed = 0
         self.allFinished = False
 
