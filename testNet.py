@@ -74,7 +74,7 @@ def doDrive():
 
 if __name__ == '__main__':
 
-    drive = True
+    drive = False
 
     if drive:
         doDrive()
