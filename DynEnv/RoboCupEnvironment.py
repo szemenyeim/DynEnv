@@ -41,6 +41,10 @@ class RoboCupEnvironment(object):
         self.goalPostRadius = 5
         self.ballRadius = 5
 
+        # Normalization variables
+        self.normX = 1.0/self.W
+        self.normY = 1.0/self.H
+
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
@@ -805,21 +809,18 @@ class RoboCupEnvironment(object):
 
     # Get true object state for a robot
     def getFullState(self,robot=None):
-        # Normalization factors
-        normX = 1.0/self.W
-        normY = 1.0/self.H
 
         if robot is None:
-            state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],normY),self.ballOwned]),
-                   np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],normY),
+            state = [np.array([normalize(self.ball.getPos()[0],self.normX),normalize(self.ball.getPos()[1],self.normY),self.ballOwned]),
+                   np.array([[normalize(rob.getPos()[0],self.normX),normalize(rob.getPos()[1],self.normY),
                               rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots])]
         else:
             # flip x axis for team -1
-            normX *= robot.team
+            normX = self.normX*robot.team
 
-            state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],normY),self.ballOwned*robot.team]),
-                   np.array([normalize(robot.getPos()[0],normX),normalize(robot.getPos()[1],normY),int(robot.fallen or robot.penalized)]),
-                   np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],normY),
+            state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],self.normY),self.ballOwned*robot.team]),
+                   np.array([normalize(robot.getPos()[0],normX),normalize(robot.getPos()[1],self.normY),int(robot.fallen or robot.penalized)]),
+                   np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],self.normY),
                               rob.team*robot.team,int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
 
         return state
@@ -1106,15 +1107,13 @@ class RoboCupEnvironment(object):
             return np.concatenate((topCamImg,bottomCamImg))
 
         # Convert to numpy
-        normX = 1.0/self.W
-        normY = 1.0/self.H
-        ballDets = np.array([[normalize(ball[1].x,normX),normalize(ball[1].y,normY),ball[2],ball[3]] for ball in ballDets])
-        robDets = np.array([[normalize(rob[1].x,normX),normalize(rob[1].y,normY),rob[2],rob[3],rob[4],rob[5]] for rob in robDets])
-        goalDets = np.array([[normalize(goal[1].x,normX),normalize(goal[1].y,normY),goal[2]] for goal in goalDets])
-        crossDets = np.array([[normalize(cross[1].x,normX),normalize(cross[1].y,normY),cross[2]] for cross in crossDets])
-        lineDets = np.array([[normalize(line[1].x,normX),normalize(line[1].y,normY),
-                              normalize(line[2].x,normX),normalize(line[2].y,normY)] for line in lineDets])
-        circleDets = np.array([[normalize(circleDets[1].x,normX),normalize(circleDets[1].y,normY),circleDets[2]]]) \
+        ballDets = np.array([[normalize(ball[1].x,self.normX),normalize(ball[1].y,self.normY),ball[2],ball[3]] for ball in ballDets])
+        robDets = np.array([[normalize(rob[1].x,self.normX),normalize(rob[1].y,self.normY),rob[2],rob[3],rob[4],rob[5]] for rob in robDets])
+        goalDets = np.array([[normalize(goal[1].x,self.normX),normalize(goal[1].y,self.normY),goal[2]] for goal in goalDets])
+        crossDets = np.array([[normalize(cross[1].x,self.normX),normalize(cross[1].y,self.normY),cross[2]] for cross in crossDets])
+        lineDets = np.array([[normalize(line[1].x,self.normX),normalize(line[1].y,self.normY),
+                              normalize(line[2].x,self.normX),normalize(line[2].y,self.normY)] for line in lineDets])
+        circleDets = np.array([[normalize(circleDets[1].x,self.normX),normalize(circleDets[1].y,self.normY),circleDets[2]]]) \
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

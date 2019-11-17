@@ -37,6 +37,12 @@ class DrivingEnvironment(object):
         self.W = 1750
         self.H = 1000
 
+        # Normalization parameters
+        self.normX = 1.0/self.W
+        self.normY = 1.0/self.H
+        self.normW = 1.0/7.5
+        self.normH = 1.0/15
+
         # Noise
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
@@ -561,17 +567,11 @@ class DrivingEnvironment(object):
     # Gett correct state
     def getFullState(self,car=None):
 
-        # Normalization factors
-        normX = 1.0 / self.W
-        normY = 1.0 / self.H
-        normW = 1.0/7.5
-        normH = 1.0/15
-
         # Get lanes
         lanes = []
         for l in self.roads:
-            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, normX), normalize(l.Lanes[i - l.nLanes][0].y, normY),
-                       normalize(l.Lanes[i - l.nLanes][1].x, normX), normalize(l.Lanes[i - l.nLanes][1].y, normY),
+            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, self.normX), normalize(l.Lanes[i - l.nLanes][0].y, self.normY),
+                       normalize(l.Lanes[i - l.nLanes][1].x, self.normX), normalize(l.Lanes[i - l.nLanes][1].y, self.normY),
                        (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
 
         # If complete state
@@ -579,24 +579,24 @@ class DrivingEnvironment(object):
 
             # Just add cars
             state = [
-                np.array([[normalize(c.getPos().x,normX),normalize(c.getPos().y,normY), c.getAngle(),
-                           normalize(c.width, normW), normalize(c.height, normH)] for c in self.cars]),
+                np.array([[normalize(c.getPos().x,self.normX),normalize(c.getPos().y,self.normY), c.getAngle(),
+                           normalize(c.width, self.normW), normalize(c.height, self.normH)] for c in self.cars]),
             ]
         # Otherwise add self observation separately
         else:
             state = [
-                np.array([normalize(car.getPos().x,normX),normalize(car.getPos().y,normY), car.getAngle(),
-                          normalize(car.width, normW), normalize(car.height, normH),
-                          normalize(car.goal.x,normX),normalize(car.goal.y,normY)]),
-                np.array([[normalize(c.getPos().x,normX),normalize(c.getPos().y,normY), c.getAngle(),
-                           normalize(c.width, normW), normalize(c.height, normH)] for c in self.cars if c != car]),
+                np.array([normalize(car.getPos().x,self.normX),normalize(car.getPos().y,self.normY), car.getAngle(),
+                          normalize(car.width, self.normW), normalize(car.height, self.normH),
+                          normalize(car.goal.x,self.normX),normalize(car.goal.y,self.normY)]),
+                np.array([[normalize(c.getPos().x,self.normX),normalize(c.getPos().y,self.normY), c.getAngle(),
+                           normalize(c.width, self.normW), normalize(c.height, self.normH)] for c in self.cars if c != car]),
             ]
 
         # Add obstacles, pedestrians and lanes
         state += [
-            np.array([[normalize(o.getPos().x, normX), normalize(o.getPos().y, normY),
-                       normalize(o.width, normW), normalize(o.height, normH)] for o in self.obstacles]),
-            np.array([[normalize(p.getPos().x, normX), normalize(p.getPos().y, normY)] for p in self.pedestrians]),
+            np.array([[normalize(o.getPos().x, self.normX), normalize(o.getPos().y, self.normY),
+                       normalize(o.width, self.normW), normalize(o.height, self.normH)] for o in self.obstacles]),
+            np.array([[normalize(p.getPos().x, self.normX), normalize(p.getPos().y, self.normY)] for p in self.pedestrians]),
             np.array(lanes)
         ]
 
@@ -770,20 +770,16 @@ class DrivingEnvironment(object):
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
 
         # Convert to numpy
-        normX = 1.0/self.W
-        normY = 1.0/self.H
-        normW = 1.0/7.5
-        normH = 1.0/15
-        selfDet = np.array([normalize(selfDet[1].x,normX),normalize(selfDet[1].y,normY),selfDet[2],
-                            normalize(selfDet[4],normW),normalize(selfDet[5],normH),
-                            normalize(selfDet[6].x,normX),normalize(selfDet[6].y,normY)])
-        carDets = np.array([[normalize(car[1].x,normX),normalize(car[1].y,normY),car[2],
-                             normalize(car[4],normW),normalize(car[5],normH)] for car in carDets])
-        obsDets = np.array([[normalize(obs[1].x,normX),normalize(obs[1].y,normY),obs[2],
-                             normalize(obs[4],normW),normalize(obs[5],normH)] for obs in obsDets])
-        pedDets = np.array([[normalize(ped[1].x,normX),normalize(ped[1].y,normY)] for ped in pedDets])
-        laneDets = np.array([[normalize(lane[1].x,normX),normalize(lane[1].y,normY),
-                              normalize(lane[2].x,normX),normalize(lane[2].y,normY), lane[3]] for lane in laneDets])
+        selfDet = np.array([normalize(selfDet[1].x,self.normX),normalize(selfDet[1].y,self.normY),selfDet[2],
+                            normalize(selfDet[4],self.normW),normalize(selfDet[5],self.normH),
+                            normalize(selfDet[6].x,self.normX),normalize(selfDet[6].y,self.normY)])
+        carDets = np.array([[normalize(car[1].x,self.normX),normalize(car[1].y,self.normY),car[2],
+                             normalize(car[4],self.normW),normalize(car[5],self.normH)] for car in carDets])
+        obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],
+                             normalize(obs[4],self.normW),normalize(obs[5],self.normH)] for obs in obsDets])
+        pedDets = np.array([[normalize(ped[1].x,self.normX),normalize(ped[1].y,self.normY)] for ped in pedDets])
+        laneDets = np.array([[normalize(lane[1].x,self.normX),normalize(lane[1].y,self.normY),
+                              normalize(lane[2].x,self.normX),normalize(lane[2].y,self.normY), lane[3]] for lane in laneDets])
 
         # return
         return selfDet,carDets,obsDets,pedDets,laneDets
