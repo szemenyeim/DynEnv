@@ -1,0 +1,4 @@
+# Exclude files and directories
+.idea/
+__pycache__/
+.vscode/

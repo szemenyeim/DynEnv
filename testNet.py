@@ -5,6 +5,7 @@ import torch
 def doRoboCup():
 
     # Create env
+    isCuda =torch.cuda.is_available()
     nPlayers = 5
     env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
@@ -16,7 +17,9 @@ def doRoboCup():
     batch, action = env.getActionSize()
     inputs = env.getObservationSize()
     feature = 128
-    Net = TestNet(inputs,action,feature).cuda()
+    Net = TestNet(inputs,action,feature)
+    if isCuda:
+        Net = Net.cuda()
 
     while True:
 
@@ -39,6 +42,7 @@ def doRoboCup():
 def doDrive():
 
     # Create env
+    isCuda = torch.cuda.is_available()
     nPlayers = 5
     env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
@@ -50,7 +54,9 @@ def doDrive():
     batch, action = env.getActionSize()
     inputs = env.getObservationSize()
     feature = 128
-    Net = TestNet(inputs,action,feature).cuda()
+    Net = TestNet(inputs, action, feature)
+    if isCuda:
+        Net = Net.cuda()
 
     while True:
 
