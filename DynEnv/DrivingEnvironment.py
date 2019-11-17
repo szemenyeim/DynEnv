@@ -770,9 +770,9 @@ class DrivingEnvironment(object):
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
 
         # Convert to numpy
-        selfDet = np.array([normalize(selfDet[1].x,self.normX),normalize(selfDet[1].y,self.normY),selfDet[2],
+        selfDet = np.array([[normalize(selfDet[1].x,self.normX),normalize(selfDet[1].y,self.normY),selfDet[2],
                             normalize(selfDet[4],self.normW),normalize(selfDet[5],self.normH),
-                            normalize(selfDet[6].x,self.normX),normalize(selfDet[6].y,self.normY)])
+                            normalize(selfDet[6].x,self.normX),normalize(selfDet[6].y,self.normY)],])
         carDets = np.array([[normalize(car[1].x,self.normX),normalize(car[1].y,self.normY),car[2],
                              normalize(car[4],self.normW),normalize(car[5],self.normH)] for car in carDets])
         obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],

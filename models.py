@@ -11,6 +11,12 @@ def catAndPad(list, size):
     return F.pad(t, pad=[0, 0, 0, size - t.shape[0]], mode='constant', value=0)
 
 
+def createMask(counts,max):
+    mask = torch.zeros((counts.shape[0],max)).bool()
+    for i,count in enumerate(counts):
+        mask[i, count:] = True
+    return mask
+
 class Indexer(object):
     def __init__(self, arrNum):
         self.prev = np.zeros(arrNum).astype('int64')
@@ -142,37 +148,64 @@ class InputLayer(nn.Module):
         # Call embedding block for all object types
         outs = [block(torch.Tensor(obj).to(device)) for block, obj in zip(self.blocks, ins)]
 
-        # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt]
-        outs = torch.stack([torch.stack(
-            [catAndPad([out[self.indexer.getRange(counts[k], i, j, k)] for k, out in enumerate(outs)], maxCount) for j
-             in range(self.nPlayers)]) for i in range(self.nTime)])
+        # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
+        outs = torch.stack(
+                [torch.stack(
+                [catAndPad([out[self.indexer.getRange(counts[k],i,j,k)]
+                                                    for k,out in enumerate(outs)],maxCount)
+                                         for j in range(self.nPlayers)])
+                            for i in range(self.nTime)]).permute(0,2,1,3)
 
-        return outs, objCounts
+        return outs,objCounts
+
+class AttentionLayer(nn.Module):
+    def __init__(self,features,num_heads=1):
+        super(AttentionLayer,self).__init__()
+
+        # objAtt implements self attention between objects seen in the same timestep
+        self.objAtt = nn.MultiheadAttention(features,num_heads)
+
+        # Temp att attends between sightings at different timesteps
+        self.tempAtt = nn.MultiheadAttention(features,num_heads)
+
+    def forward(self,x):
+
+        # Get device
+        device = next(self.parameters()).device
+
+        # create masks
+        tensor, objCounts = x
+        maxNum = tensor.shape[1]
+        masks = [createMask(counts,maxNum).to(device) for counts in objCounts]
+
+        # Run self-attention
+        attObj = [self.objAtt(objs,objs,objs,mask)[0] for objs,mask in zip(tensor,masks)]
+
+        # Run temporal attention
+        finalAtt = attObj[0]
+        finalMask = masks[0]
+        for i in range(1,len(attObj)):
+            finalAtt = self.tempAtt(finalAtt,attObj[i],attObj[i],masks[i])[0]
+            finalMask = masks[i]
+
+        return torch.mean(finalAtt,0)
 
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class TestNet(nn.Module):
-    def __init__(self, inputs, action, feature):
-        super(TestNet, self).__init__()
+    def __init__(self,inputs,action,feature):
+        super(TestNet,self).__init__()
 
-        self.InNet = InputLayer(inputs, feature)
-        self.OutNet = ActionLayer(feature, action)
-
-        self.isCuda =torch.cuda.is_available()
+        self.InNet = InputLayer(inputs,feature)
+        self.AttNet = AttentionLayer(feature)
+        self.OutNet = ActionLayer(feature,action)
 
     def forward(self, x):
         # Get embedded features
-        features = self.InNet(x)
+        features,objCounts = self.InNet(x)
 
-        # First, average objects seen in the same timestep, then average timesteps
-        # features = [sum([torch.mean(f,dim=0) for f in feature])/len(feature) for feature in features]
-
-        # Convert list containing the internal feature of every robot to tensor (enable batching)
-        # features = torch.stack(features)
-
-        features = torch.randn(10, 128)
-        if self.isCuda:
-            features = features.cuda()
+        # Run attention
+        features = self.AttNet((features,objCounts))
 
         # Get actions
         return self.OutNet(features)
