@@ -184,11 +184,19 @@ class AttentionLayer(nn.Module):
         # Run temporal attention
         finalAtt = attObj[0]
         finalMask = masks[0]
-        for i in range(1,len(attObj)):
-            finalAtt = self.tempAtt(finalAtt,attObj[i],attObj[i],masks[i])[0]
-            finalMask = masks[i]
+        for i in range(0,len(attObj)-1):
+            finalAtt = self.tempAtt(attObj[i+1],finalAtt,finalAtt,finalMask)[0]
+            finalMask = masks[i+1]
 
-        return torch.mean(finalAtt,0)
+        # Mask out final attention results
+        finalMask = finalMask.permute(1,0)
+        finalAtt[finalMask] = 0
+
+        # Masked averaging
+        summed = torch.sum(finalAtt,0)
+        lens = torch.sum(torch.logical_not(finalMask),0).float().unsqueeze(1)
+
+        return summed.div(lens)
 
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
