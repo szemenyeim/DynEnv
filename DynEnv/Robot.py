@@ -64,6 +64,7 @@ class Robot(object):
         self.mightPush = False
         self.fallen = False
         self.fallCntr = 0
+        self.fallTime = 0
 
         # Movement parameters
         self.moveTime = 0

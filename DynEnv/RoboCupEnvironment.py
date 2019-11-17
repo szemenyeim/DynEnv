@@ -79,7 +79,8 @@ class RoboCupEnvironment(object):
         self.kickDiscount = 0.5
         self.teamRewards = [0,0]
         self.RobotRewards = [0,0]*self.nPlayers
-        self.penalTimes = [10000,10000]
+        self.penalTimes = [20000,20000]
+        self.maxTime = 150000
 
         # Simulation settings
         self.space = pymunk.Space()
@@ -248,6 +249,13 @@ class RoboCupEnvironment(object):
 
             # Run simulation
             self.space.step(1 / self.timeStep)
+
+            # Decrease game timer
+            self.maxTime -= 1000.0/self.timeStep
+            if self.maxTime < 0:
+                finished = True
+                self.teamRewards[0] -= 2000
+                self.teamRewards[1] -= 2000
 
             # Get observations every 100 ms
             if i % 10 == 9:
@@ -501,7 +509,7 @@ class RoboCupEnvironment(object):
 
         # Set number of falls and getup time
         robot.fallCntr += 1
-        robot.moveTime = 3000
+        robot.fallTime = 4000
 
         # If the robot fell 3 times, penalize
         if robot.fallCntr > 2:
@@ -547,7 +555,7 @@ class RoboCupEnvironment(object):
         self.robotRewards[robot.id] -= self.penalTimes[teamIdx]/100
 
         # Increase penalty time for team
-        self.penalTimes[teamIdx] += 5000
+        self.penalTimes[teamIdx] += 10000
 
         # Compute robot position
         pos, angle = self.getFreePenaltySpot(robot)
@@ -632,22 +640,26 @@ class RoboCupEnvironment(object):
                 robot.rightFoot.body.velocity = pymunk.Vec2d(0,0)
                 robot.rightFoot.body.angular_velocity = 0.0
 
-                # If the robot fell
-                if robot.fallen:
+        # If the robot fell
+        if robot.fallen:
 
-                    # Is might fall again
-                    r = random.random()
-                    if r > 0.9:
-                        self.fall(robot)
-                        return
+            robot.fallTime -= time
 
-                    print("Getup", robot.team)
+            if robot.fallTime < 0:
 
-                    # Reset color and variables
-                    robot.leftFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
-                    robot.rightFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
-                    robot.fallen = False
-                    robot.fallCntr = 0
+                # Is might fall again
+                r = random.random()
+                if r > 0.9:
+                    self.fall(robot)
+                    return
+
+                print("Getup", robot.team)
+
+                # Reset color and variables
+                robot.leftFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
+                robot.rightFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
+                robot.fallen = False
+                robot.fallCntr = 0
 
         # Handle penalties
         if robot.penalized:
@@ -710,8 +722,6 @@ class RoboCupEnvironment(object):
                       (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
         robot2 = next(robot for robot in self.robots if
                       (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
-
-        print("Robot Collision")
 
         # Get velocities and positions
         v1 = arbiter.shapes[0].body.velocity
@@ -778,8 +788,6 @@ class RoboCupEnvironment(object):
     # Called when robots stop touching
     def separate(self, arbiter, space, data):
 
-        print("Collision Separated")
-
         # Get robot
         robots = [robot for robot in self.robots if
                   (robot.leftFoot in arbiter.shapes or robot.rightFoot in arbiter.shapes)]
@@ -804,7 +812,6 @@ class RoboCupEnvironment(object):
 
         # Set things on first run
         if not robot.touching:
-            print("Goalpost Collision")
             robot.touching = True
             robot.touchCntr = 0
 
