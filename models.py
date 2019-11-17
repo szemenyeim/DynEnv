@@ -1,5 +1,24 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+
+flatten = lambda l: [item for sublist in l for item in sublist]
+
+def catAndPad(list,size):
+    t = torch.cat(list)
+    return F.pad(t,pad=[0,0,0,size-t.shape[0]],mode='constant',value=0)
+
+class Indexer(object):
+    def __init__(self,arrNum):
+        self.prev = np.zeros(arrNum).astype('int64')
+
+    def getRange(self,counts,time,unit,arrIdx):
+        if time == 0 and unit == 0:
+            self.prev[arrIdx] = 0
+        count = counts[time][unit]
+        self.prev[arrIdx] += count
+        return range(self.prev[arrIdx]-count,self.prev[arrIdx])
 
 # Outputs a certain type of action
 class ActionBlock(nn.Module):
@@ -87,6 +106,14 @@ class InputLayer(nn.Module):
         # Number of features of different input object types
         inputNums = inputs[-1]
 
+        # Basic params
+        self.nTime = inputs[0]
+        self.nPlayers = inputs[1]
+        self.nObjects = inputs[2]
+
+        # Helper class for arranging tensor
+        self.indexer = Indexer(self.nObjects)
+
         # Create embedding blocks for them
         self.blocks = nn.ModuleList([EmbedBlock(input,features) for input in inputNums])
 
@@ -95,16 +122,21 @@ class InputLayer(nn.Module):
         # Get device
         device = next(self.parameters()).device
 
-        # Call embedding block for all objects seen by all players in every observation timestep (sadly this can't be batched)
-        outs = [[[block(torch.Tensor(obj).to(device)) for block,obj in zip(self.blocks,player)] for player in time] for time in x]
+        # Object counts [type x timeStep x nPlayer]
+        counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjects)]
+        objCounts = torch.Tensor([[sum([counts[k][i][j] for k in range(self.nObjects)]) for j in range(self.nPlayers)] for i in range(self.nTime)]).long()
+        maxCount = torch.max(objCounts).item()
 
-        # Concatenate object types seen by a signle player in a single timestep (these now have the same number of features)
-        outs = [[torch.cat([t for t in player if t is not None],dim=0) for player in time] for time in outs]
+        # Object arrays [all objects of the same type]
+        ins = [np.stack(flatten([flatten([sightings[i] for sightings in time if len(sightings[i])]) for time in x])) for i in range(self.nObjects)]
 
-        # Change list from [time x nPlayer x objNum x features] to [nPlayers x time x objNum x features]
-        outs = list(map(list, zip(*outs)))
+        # Call embedding block for all object types
+        outs = [block(torch.Tensor(obj).to(device)) for block,obj in zip(self.blocks,ins)]
 
-        return outs
+        # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt]
+        outs = torch.stack([torch.stack([catAndPad([out[self.indexer.getRange(counts[k],i,j,k)] for k,out in enumerate(outs)],maxCount) for j in range(self.nPlayers)]) for i in range(self.nTime)])
+
+        return outs,objCounts
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class TestNet(nn.Module):
@@ -120,10 +152,12 @@ class TestNet(nn.Module):
         features = self.InNet(x)
 
         # First, average objects seen in the same timestep, then average timesteps
-        features = [sum([torch.mean(f,dim=0) for f in feature])/len(feature) for feature in features]
+        #features = [sum([torch.mean(f,dim=0) for f in feature])/len(feature) for feature in features]
 
         # Convert list containing the internal feature of every robot to tensor (enable batching)
-        features = torch.stack(features)
+        #features = torch.stack(features)
+
+        features = torch.randn(10,128).cuda()
 
         # Get actions
         return self.OutNet(features)
