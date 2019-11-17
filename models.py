@@ -217,13 +217,17 @@ class LSTMLayer(nn.Module):
         self.hidden = hidden
 
         # Init LSTM cell
-        self.reset()
         self.cell = nn.LSTMCell(feature,hidden)
+        self.reset()
 
     # Reset inner state
     def reset(self):
-        self.h = torch.zeros((self.nPlayers,self.hidden))
-        self.c = torch.zeros((self.nPlayers,self.hidden))
+        # Get device
+        device = next(self.parameters()).device
+
+        # Reset hidden vars
+        self.h = torch.zeros((self.nPlayers,self.hidden)).to(device)
+        self.c = torch.zeros((self.nPlayers,self.hidden)).to(device)
 
     # Put means and std on the correct device when .cuda() or .cpu() is called
     def _apply(self, fn):
