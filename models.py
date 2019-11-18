@@ -165,7 +165,7 @@ class EmbedBlock(nn.Module):
 
 # Complete input layer
 class InputLayer(nn.Module):
-    def __init__(self, inputs, features):
+    def __init__(self, inputs, features, nEnvs):
         super(InputLayer, self).__init__()
 
         # To be added in the future
@@ -177,7 +177,7 @@ class InputLayer(nn.Module):
 
         # Basic params
         self.nTime = inputs[0]
-        self.nPlayers = inputs[1]
+        self.nPlayers = inputs[1] * nEnvs
         self.nObjects = inputs[2]
 
         # Helper class for arranging tensor
@@ -280,11 +280,11 @@ class AttentionLayer(nn.Module):
 
 # LSTM Layer
 class LSTMLayer(nn.Module):
-    def __init__(self, nPlayers, feature, hidden):
+    def __init__(self, nPlayers, feature, hidden, nEnvs):
         super(LSTMLayer, self).__init__()
 
         # Params
-        self.nPlayers = nPlayers
+        self.nPlayers = nPlayers * nEnvs
         self.feature = feature
         self.hidden = hidden
 
@@ -319,16 +319,16 @@ class LSTMLayer(nn.Module):
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class TestNet(nn.Module):
-    def __init__(self, inputs, action, feature):
+    def __init__(self, inputs, action, feature, nEnvs = 1):
         super(TestNet, self).__init__()
 
-        nPlayers = inputs[1]
+        nPlayers = inputs[1] * nEnvs
 
         # feature encoding
-        self.InNet = InputLayer(inputs, feature)
+        self.InNet = InputLayer(inputs, feature, nEnvs)
         self.AttNet = AttentionLayer(feature)
 
-        self.LSTM = LSTMLayer(nPlayers, feature, feature * 2)
+        self.LSTM = LSTMLayer(nPlayers, feature, feature * 2, nEnvs)
 
         # action prediction
         self.OutNet = ActionLayer(feature * 2, action)
