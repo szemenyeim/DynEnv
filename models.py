@@ -265,7 +265,7 @@ class AttentionLayer(nn.Module):
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
             finalAtt = self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0]
-            finalMask = masks[i + 1]
+            finalMask = masks[i + 1] & finalMask
 
         # Mask out final attention results
         finalMask = finalMask.permute(1, 0)
