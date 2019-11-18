@@ -7,40 +7,61 @@ import torch.nn.functional as F
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
-
-# Concatenate tensors and pad them to size
-def catAndPad(tensor_list: List[torch.Tensor], padded_size: int):
+class ObsMask(object):
     """
-    Given a list containing torch.Tensor instances (1st dimension shall be equal),
-    they will be concatenated and the 0th dimension will be expanded
+    Class for calculating a mask for observations in feature space.
+    `catAndPad` and `createMask` are used for the same purpose, they only use
+    another representation.
 
-    :param tensor_list: list of tensors
-    :param padded_size: target dimension of the concatenated tensors
-    :return:
-    """
-    # convert list of tensors to a single tensor
-    t = torch.cat(tensor_list)
+    `catAndPad`: a list of tensors (in feature space) is given, which is padded
+                and concatenated to have the length of the maximum number of
+                observations
 
-    # pad with zeros to get torch.Size([padded_size, t.shape[1]])
-    return F.pad(t, pad=[0, 0, 0, padded_size - t.shape[0]], mode='constant', value=0)
+    `createMask`: a tensor is given, which indicates the starting index of the padding,
+                  i.e. basically how many observations there are (as in `createMask`, but
+                  here not the length of the list indicates the number of observations,
+                  but a scalar).
+
+    Basically, len(tensor_list[i]) = counts[i] and padded_size = max.
 
 
-# Convert maxindices to a binary mask
-def createMask(counts: torch.Tensor, max: int) -> torch.Tensor:
-    """
-    Given a tensor of indices, a boolean mask is created of dimension
-    torch.Size([counts.shape[0], max), where row i contains for each index j,
-    where j >= counts[i]
-
-    :param counts: tensor of indices
-    :param max: max of counts
-    :return: a torch.Tensor mask
     """
 
-    mask = torch.zeros((counts.shape[0], max)).bool()
-    for i, count in enumerate(counts):
-        mask[i, count:] = True
-    return mask
+    # Concatenate tensors and pad them to size
+    @staticmethod
+    def catAndPad(tensor_list: List[torch.Tensor], padded_size: int):
+        """
+        Given a list containing torch.Tensor instances (1st dimension shall be equal),
+        they will be concatenated and the 0th dimension will be expanded
+
+        :param tensor_list: list of tensors
+        :param padded_size: target dimension of the concatenated tensors
+        :return:
+        """
+        # convert list of tensors to a single tensor
+        t = torch.cat(tensor_list)
+
+        # pad with zeros to get torch.Size([padded_size, t.shape[1]])
+        return F.pad(t, pad=[0, 0, 0, padded_size - t.shape[0]], mode='constant', value=0)
+
+
+    # Convert maxindices to a binary mask
+    @staticmethod
+    def createMask(counts: torch.Tensor, max: int) -> torch.Tensor:
+        """
+        Given a tensor of indices, a boolean mask is created of dimension
+        torch.Size([counts.shape[0], max), where row i contains for each index j,
+        where j >= counts[i]
+
+        :param counts: tensor of indices
+        :param max: max of counts
+        :return: a torch.Tensor mask
+        """
+
+        mask = torch.zeros((counts.shape[0], max)).bool()
+        for i, count in enumerate(counts):
+            mask[i, count:] = True
+        return mask
 
 
 # Helper object to convert indices in a for loop quickly
@@ -205,7 +226,7 @@ class InputLayer(nn.Module):
                 [
                     # in a given timestep, for a given player and object type, get the embeddings,
                     # pad them to match the length of the longest embedding tensor
-                    catAndPad([out[self.indexer.getRange(counts[obj_type], time, player, obj_type)]
+                    ObsMask.catAndPad([out[self.indexer.getRange(counts[obj_type], time, player, obj_type)]
                                for obj_type, out in enumerate(outs) if out is not None
                                ], maxCount)
                     for player in range(self.nPlayers)
@@ -229,13 +250,12 @@ class AttentionLayer(nn.Module):
 
     def forward(self, x):
         # Get device
-        device = next(self.parameters()).device  # todo: ez itt mi?
+        device = next(self.parameters()).device
 
         # create masks
         tensor, objCounts = x
         maxNum = tensor.shape[1]
-        # todo: maxNum == counts.max()
-        masks = [createMask(counts, maxNum).to(device) for counts in objCounts]
+        masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
 
         # Run self-attention
         attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
@@ -304,9 +324,13 @@ class TestNet(nn.Module):
 
         nPlayers = inputs[1]
 
+        # feature encoding
         self.InNet = InputLayer(inputs, feature)
         self.AttNet = AttentionLayer(feature)
+
         self.LSTM = LSTMLayer(nPlayers, feature, feature * 2)
+
+        # action prediction
         self.OutNet = ActionLayer(feature * 2, action)
 
     # Reset fun for lstm
