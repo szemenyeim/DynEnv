@@ -1,24 +1,14 @@
 from typing import List
 
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributions import Categorical
 
+from utils import AttentionType, AttentionTarget
+
 flatten = lambda l: [item for sublist in l for item in sublist]
-
-
-def init(module, weight_init, bias_init, gain=1):
-    """
-
-    :param module: module to initialize
-    :param weight_init: initialization scheme
-    :param bias_init: bias initialization scheme
-    :param gain: gain for weight initialization
-    :return: initialized module
-    """
-    weight_init(module.weight.data, gain=gain)
-    bias_init(module.bias.data)
-    return module
 
 
 class ObsMask(object):
@@ -361,7 +351,7 @@ class LSTMLayer(nn.Module):
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class TestNet(nn.Module):
-    def __init__(self, inputs, action, feature, nEnvs = 1):
+    def __init__(self, inputs, action, feature, nEnvs=1):
         super(TestNet, self).__init__()
 
         nPlayers = inputs[1] * nEnvs
@@ -428,14 +418,6 @@ class DynEnvFeatureExtractor(nn.Module):
         return features
 
 
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-from utils import AttentionType, AttentionTarget
-
-
 class AttentionNet(nn.Module):
 
     def __init__(self, attention_size):
@@ -449,42 +431,100 @@ class AttentionNet(nn.Module):
         return target * F.softmax(self.attention(target if attn is None else attn), dim=-1)
 
 
-
-
-class InverseNet(nn.Module):
-    def __init__(self, num_actions, feat_size=288):
-        """
-        Network for the inverse dynamics
-
-        :param num_actions: number of actions, pass env.action_space.n
-        :param feat_size: dimensionality of the feature space (scalar)
-        """
+# Outputs a certain type of action
+class InverseBlock(nn.Module):
+    def __init__(self, features, actions, action_type, means=None, scale=None):
         super().__init__()
 
-        # constants
-        self.feat_size = feat_size
+        self.action_type = action_type
+        # Initialize
+        self.means = None
+        self.scale = None
+
+        # For continous actions a desired interval can be given [mean-range:mean+range] (otherwise [0:1])
+        if means is not None:
+            self.means = torch.Tensor(means)
+            self.scale = torch.Tensor(scale)
+            assert (len(means) == len(scale) and len(means) == actions)
+
+        # Create layers
         self.fc_hidden = 256
-        self.num_actions = num_actions
+        self.fc1 = nn.Linear(features * 2, self.fc_hidden)
+        self.fc2 = nn.Linear(self.fc_hidden, actions)
+        self.activation = nn.Softmax(dim=1) if action_type == 'cat' else nn.Sigmoid()
 
-        # layers
-        self.fc1 = nn.Linear(self.feat_size * 2, self.fc_hidden)
-        self.fc2 = nn.Linear(self.fc_hidden, self.num_actions)
+    # Put means and std on the correct device when .cuda() or .cpu() is called
+    def _apply(self, fn):
+        super()._apply(fn)
+        if self.means is not None:
+            self.means = fn(self.means)
+            self.scale = fn(self.scale)
+        return self
 
+    # Forward
     def forward(self, x):
-        """
-        In: torch.cat((phi(s_t), phi(s_{t+1}), 1)
-            Current and next states transformed into the feature space,
-            denoted by phi().
 
-        Out: \hat{a}_t
-            Predicted action
+        # Forward
+        x = self.activation(self.fc1(x))
 
-        :param x: input data containing the concatenated current and next states, pass
-                  torch.cat((phi(s_t), phi(s_{t+1}), 1)
-        :return:
-        """
-        return self.fc2(self.fc1(x))
+        # Optional scaling
+        # continuous
+        if self.means is not None:
+            x = (x - 0.5) * self.scale + self.means
+            entropy = 0
 
+        return x
+
+
+# Complete action layer for multiple action groups
+class InverseNet(nn.Module):
+    def __init__(self, features, actions):
+        super().__init__()
+
+        # Create action groups
+        self.blocks = nn.ModuleList(
+            [InverseBlock(features, action[1], action[0], action[2], action[3]) for action in actions])
+
+    # Return list of actions
+    def forward(self, x):
+        outs = [block(x) for block in self.blocks]  # predict each action type
+        return outs
+
+
+# class InverseNet(nn.Module):
+#     def __init__(self, num_actions, feat_size=288):
+#         """
+#         Network for the inverse dynamics
+#
+#         :param num_actions: number of actions, pass env.action_space.n
+#         :param feat_size: dimensionality of the feature space (scalar)
+#         """
+#         super().__init__()
+#
+#         # constants
+#         self.feat_size = feat_size
+#         self.fc_hidden = 256
+#         self.num_actions = num_actions
+#
+#         # layers
+#         self.fc1 = nn.Linear(self.feat_size * 2, self.fc_hidden)
+#         self.fc2 = nn.Linear(self.fc_hidden, self.num_actions)
+#
+#     def forward(self, x):
+#         """
+#         In: torch.cat((phi(s_t), phi(s_{t+1}), 1)
+#             Current and next states transformed into the feature space,
+#             denoted by phi().
+#
+#         Out: \hat{a}_t
+#             Predicted action
+#
+#         :param x: input data containing the concatenated current and next states, pass
+#                   torch.cat((phi(s_t), phi(s_{t+1}), 1)
+#         :return:
+#         """
+#         return self.fc2(self.fc1(x))
+#
 
 class ForwardNet(nn.Module):
 
@@ -498,8 +538,8 @@ class ForwardNet(nn.Module):
 
         # constants
         self.in_size = in_size
-        self.fc_hidden = 256
-        self.out_size = 288
+        self.fc_hidden = 140
+        self.out_size = 256
 
         # layers
 
@@ -523,24 +563,29 @@ class ForwardNet(nn.Module):
 
 
 class AdversarialHead(nn.Module):
-    def __init__(self, feat_size, num_actions, attn_target, attention_type):
+    def __init__(self, feat_size, action_descriptor, attn_target, attention_type):
         """
         Network for exploiting the forward and inverse dynamics
 
         :param attn_target:
         :param attention_type:
         :param feat_size: size of the feature space
-        :param num_actions: size of the action space, pass env.action_space.n
+        :param action_descriptor: size of the action space, pass env.action_space.n
         """
         super().__init__()
 
         # constants
         self.feat_size = feat_size
-        self.num_actions = num_actions
+        self.action_descriptor = action_descriptor
+        # number of discrete actions per type
+        self.action_num_per_type = [action[1] for action in self.action_descriptor]
+
+        # start indx of each action type (i.e. cumsum)
+        self.action_num_per_type_start_idx = np.cumsum([0, *self.action_num_per_type[:-1]])
 
         # networks
-        self.fwd_net = ForwardNet(self.feat_size + self.num_actions)
-        self.inv_net = InverseNet(self.num_actions, self.feat_size)
+        self.fwd_net = ForwardNet(2*self.feat_size + np.array(self.action_num_per_type).sum())
+        self.inv_net = ActorLayer(self.feat_size * 4, self.action_descriptor)
 
         # attention
         self.attention_type = attention_type
@@ -548,37 +593,35 @@ class AdversarialHead(nn.Module):
 
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
-                self.fwd_att = AttentionNet(self.feat_size + self.num_actions)
+                self.fwd_att = AttentionNet(self.feat_size + len(self.action_descriptor))
                 self.inv_att = AttentionNet(2 * self.feat_size)
-            elif self.attention_type == AttentionType.DOUBLE_ATTENTION:
-                self.fwd_feat_att = AttentionNet(self.feat_size)
-                self.fwd_action_att = AttentionNet(self.num_actions)
-                self.inv_cur_feat_att = AttentionNet(self.feat_size)
-                self.inv_next_feat_att = AttentionNet(self.feat_size)
 
-    def forward(self, current_feature, next_feature, action):
+    def forward(self, current_feature, next_feature, actions):
         """
 
         :param current_feature: current encoded state
         :param next_feature: next encoded state
-        :param action: current action
+        :param actions: current action
         :return: next_feature_pred (estimate of the next state in feature space),
                  action_pred (estimate of the current action)
         """
 
         """Forward dynamics"""
-        # predict next encoded state
 
+
+        # one-hot placeholder vector
+        action_one_hot = torch.zeros((actions[0].shape[0], np.array(self.action_num_per_type).sum()))
+
+        # indicate with 1 the action taken by every player
+        for a_type_idx, action_type in enumerate(actions):
+            for a_idx, action in enumerate(action_type):
+                action_one_hot[a_idx, self.action_num_per_type_start_idx[a_type_idx] + action.item()] = 1
         # encode the current action into a one-hot vector
         # set device to that of the underlying network (it does not matter, the device of which layer is queried)
-        action_one_hot = torch.zeros(action.shape[0], self.num_actions, device=self.fwd_net.fc1.weight.device) \
-            .scatter_(1, action.long().view(-1, 1), 1)
 
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
                 fwd_in = self.fwd_att(torch.cat((current_feature, action_one_hot), 1))
-            elif self.attention_type == AttentionType.DOUBLE_ATTENTION:
-                fwd_in = torch.cat((self.fwd_feat_att(current_feature), self.fwd_action_att(action_one_hot)), 1)
         else:
             fwd_in = torch.cat((current_feature, action_one_hot), 1)
 
@@ -600,13 +643,14 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_actions, attn_target, attn_type, in_size, feat_size, num_envs=1):
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, num_envs=1):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
+        :param num_players:
         :param num_envs:
         :param n_stack: number of frames stacked
-        :param num_actions: dimensionality of the action space, pass env.action_space.n
+        :param action_descriptor: dimensionality of the action space, pass env.action_space.n
         :param attn_target:
         :param attn_type:
         :param in_size: input size of the AdversarialHeads
@@ -617,43 +661,41 @@ class ICMNet(nn.Module):
         # constants
         self.in_size = in_size  # pixels i.e. state
         self.feat_size = feat_size
-        self.num_actions = num_actions
+        self.action_descriptor = action_descriptor
+        self.num_actions = len(self.action_descriptor)
         self.num_envs = num_envs
+        self.num_players = num_players
 
         # networks
         self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feat_size, self.num_envs)
-        self.pred_net = AdversarialHead(self.in_size, self.num_actions, attn_target,
+        self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
         self.loss_attn_flag = attn_target is AttentionTarget.ICM_LOSS and attn_type is AttentionType.SINGLE_ATTENTION
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
 
-    def forward(self, num_envs, states, action):
+    def forward(self, states, next_states, action):
         """
 
         feature: current encoded state
         next_feature: next encoded state
 
-        :param num_envs: number of the environments
         :param states: tensor of the states
         :param action: current action
         :return:
         """
 
         """Encode the states"""
+        self.feat_enc_net.reset() #todo: check if correct semantically (needed or the graph will be backprop'ed twice)
         features = self.feat_enc_net(states)
+        self.feat_enc_net.reset() #todo: check if correct semantically (needed or the graph will be backprop'ed twice)
+        next_features = self.feat_enc_net(next_states)
 
-        # slice features
-        # this way, we can spare one forward pass
-        feature = features[0:-num_envs]
-        next_feature = features[num_envs:]
+        """Predict fwd & inv dynamics"""
+        next_feature_pred, action_pred = self.pred_net(features, next_features, action)
 
-        """ HERE COMES THE NEW THING (currently commented out)"""
-        next_feature_pred, action_pred = self.pred_net(feature, next_feature, action)
-        # phi_t1_policy, a_t_policy = self.policy_net(feature, next_feature, a_t)
-
-        return self._calc_loss(next_feature, next_feature_pred, action_pred, action)
+        return self._calc_loss(next_features, next_feature_pred, action_pred, action)
 
     def _calc_loss(self, features, feature_preds, action_preds, actions):
 
@@ -661,23 +703,23 @@ class ICMNet(nn.Module):
         # measure of how good features can be predicted
         if not self.loss_attn_flag:
             loss_fwd = F.mse_loss(feature_preds, features)
-        else:
-            loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
+        # else:
+        #     loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
         # inverse loss
         # how good is the action estimate between states
-        loss_inv = F.cross_entropy(action_preds.view(-1, self.num_actions), actions.long())
+        loss_inv = torch.stack([F.cross_entropy(a_pred, a.long()) for (a_pred, a) in zip(action_preds, actions)]).mean()
 
         return loss_fwd + loss_inv
 
 
 class A2CNet(nn.Module):
-    def __init__(self, n_stack, num_players, num_actions, in_size, feature_size, num_envs=1):
+    def __init__(self, n_stack, num_players, action_descriptor, in_size, feature_size, num_envs=1):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
         :param num_envs: 
         :param n_stack: number of frames stacked
-        :param num_actions: size of the action space, pass env.action_space.n
+        :param action_descriptor: size of the action space, pass env.action_space.n
         :param in_size: input size of the LSTMCell of the FeatureEncoderNet
         """
         super().__init__()
@@ -686,13 +728,13 @@ class A2CNet(nn.Module):
         # constants
         self.in_size = in_size  # in_size
         self.feature_size = feature_size
-        self.num_actions = num_actions
+        self.action_descriptor = action_descriptor
         self.num_players = num_players
         self.num_envs = num_envs
 
         self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs)
 
-        self.actor = ActorLayer(self.feature_size * 2, self.num_actions)
+        self.actor = ActorLayer(self.feature_size * 2, self.action_descriptor)
         self.critic = CriticLayer(self.feature_size * 2, self.num_players)
 
     def set_recurrent_buffers(self, buf_size):

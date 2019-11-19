@@ -38,31 +38,28 @@ class Runner(object):
 
         """Environment reset"""
         obs = self.env.reset()
+        features = None
         # self.storage.states[0].copy_(self.storage.obs2tensor(obs))
 
         for num_update in range(self.params.num_updates):
+            self.net.optimizer.zero_grad()
             """A2C cycle"""
             # get action
             actions, log_probs, entropies, values, features = self.net.a2c.get_action(obs)
 
             # interact
-            state, obs, rewards, finished = self.env.step(torch.stack(actions, dim=1).detach().cpu())
-            self.net.a2c.reset_recurrent_buffers()
-            a2c_loss, rewards = self.a2c_loss(values, entropies, rewards, log_probs)
+            state, new_obs, rewards, finished = self.env.step(torch.stack(actions, dim=1).detach().cpu())
+            # self.net.a2c.reset_recurrent_buffers()
 
-            self.net.optimizer.zero_grad()
+            a2c_loss, rewards = self.a2c_loss(values, entropies, rewards, log_probs)
 
             """ICM prediction """
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_loss = 0  # self.net.icm(
-            # self.params.num_envs,
-            # self.storage.states.view(-1, self.params.n_stack, *self.storage.frame_shape),
-            # self.storage.actions.view(-1))
+            icm_loss = self.net.icm(obs, new_obs, actions)
 
             """Assemble loss"""
-            # a2c_loss, rewards = self.storage.a2c_loss(values, entropies, self.params.value_coeff, log_probs)
 
             loss = a2c_loss + icm_loss
 
@@ -80,6 +77,7 @@ class Runner(object):
             self.net.optimizer.step()
 
             self.net.a2c.reset_recurrent_buffers()
+            obs = new_obs
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset

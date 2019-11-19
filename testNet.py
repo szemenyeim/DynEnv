@@ -15,7 +15,7 @@ class DynEnvType(Enum):
 
 def env_selector(env_type: DynEnvType, nPlayers):
     if env_type is DynEnvType.ROBO_CUP:
-        env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
+        env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
                                         noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
         name = "RoboCup"
     elif env_type is DynEnvType.DRIVE:
