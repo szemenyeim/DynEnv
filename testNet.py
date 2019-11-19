@@ -33,7 +33,7 @@ def doRoboCup():
                             actions[3].squeeze()],dim=1)
 
         # Step
-        state,observations,trewards,rrewads,finished = env.step(actions.detach().cpu())
+        state,observations,rRewards,finished = env.step(actions.detach().cpu())
 
         # Finished
         if finished:
@@ -65,7 +65,7 @@ def doDrive():
         actions = Net(observations)[0]
 
         # Step
-        state, observations, trewards, rrewads, finished = env.step(actions.detach().cpu())
+        state, observations, cRewards, finished = env.step(actions.detach().cpu())
 
         # Finished
         if finished:
@@ -74,7 +74,7 @@ def doDrive():
 
 if __name__ == '__main__':
 
-    drive = False
+    drive = True
 
     if drive:
         doDrive()

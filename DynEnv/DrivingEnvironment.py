@@ -176,7 +176,7 @@ class DrivingEnvironment(object):
 
         # Setup reward and state variables
         self.teamReward = 0
-        self.carRewards = [0,] * self.nPlayers
+        self.carRewards = np.array([0,] * self.nPlayers)
         finished = False
         observations = []
 
@@ -230,10 +230,13 @@ class DrivingEnvironment(object):
                 self.clock.tick(self.timeStep)
                 cv2.waitKey(1)
 
+
+        self.carRewards += self.teamReward
+
         t2 = time.clock()
         #print((t2 - t1) * 1000)
 
-        return self.getFullState(), observations, [self.teamReward,]*2, self.carRewards, finished
+        return self.getFullState(), observations, self.carRewards, finished
 
     def drawStaticObjects(self):
 

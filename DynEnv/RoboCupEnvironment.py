@@ -219,8 +219,8 @@ class RoboCupEnvironment(object):
         t1 = time.clock()
 
         # Setup reward and state variables
-        self.teamRewards = [0, 0]
-        self.robotRewards = [0, 0] * self.nPlayers
+        self.teamRewards = np.array([0, 0])
+        self.robotRewards = np.array([0, 0] * self.nPlayers)
         observations = []
         finished = False
 
@@ -270,10 +270,13 @@ class RoboCupEnvironment(object):
                 self.clock.tick(self.timeStep)
                 cv2.waitKey(1)
 
+        self.robotRewards[:self.nPlayers] += self.teamRewards[0]
+        self.robotRewards[self.nPlayers:] += self.teamRewards[1]
+
         t2 = time.clock()
         #print((t2-t1)*1000)
 
-        return self.getFullState(), observations, self.teamRewards, self.robotRewards, finished
+        return self.getFullState(), observations, self.robotRewards, finished
 
     # Action handler
     def processAction(self, action, robot):
