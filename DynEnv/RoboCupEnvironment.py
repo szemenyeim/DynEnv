@@ -211,7 +211,7 @@ class RoboCupEnvironment(object):
             ['cat',5, None, None],
             ['cat',3, None, None],
             ['cat',3, None, None],
-            ['cont',1,[0,],[12,]],
+            ['cat',13, None, None],
         ]]
 
     # Main step function
@@ -283,6 +283,8 @@ class RoboCupEnvironment(object):
 
         # Get 4 action types
         move, turn, kick, head = action
+        #todo: dirty hack,
+        head -=6
 
         # Sanity check for actions
         if move not in [0, 1, 2, 3, 4]:
