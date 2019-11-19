@@ -398,17 +398,17 @@ class TestNet(nn.Module):
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class DynEnvFeatureExtractor(nn.Module):
-    def __init__(self, inputs, feature):
+    def __init__(self, inputs, feature, num_envs=1):
         super().__init__()
 
         nPlayers = inputs[1]
 
         # feature encoding
-        self.InNet = InputLayer(inputs, feature)
+        self.InNet = InputLayer(inputs, feature, num_envs)
         self.AttNet = AttentionLayer(feature)
 
         self.hidden_size = feature * 2
-        self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size)
+        self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs)
 
     # Reset fun for lstm
     def reset(self):
@@ -600,10 +600,11 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_actions, attn_target, attn_type, in_size, feat_size):
+    def __init__(self, n_stack, num_actions, attn_target, attn_type, in_size, feat_size, num_envs=1):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
+        :param num_envs:
         :param n_stack: number of frames stacked
         :param num_actions: dimensionality of the action space, pass env.action_space.n
         :param attn_target:
@@ -617,9 +618,10 @@ class ICMNet(nn.Module):
         self.in_size = in_size  # pixels i.e. state
         self.feat_size = feat_size
         self.num_actions = num_actions
+        self.num_envs = num_envs
 
         # networks
-        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feat_size)
+        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feat_size, self.num_envs)
         self.pred_net = AdversarialHead(self.in_size, self.num_actions, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
@@ -669,10 +671,11 @@ class ICMNet(nn.Module):
 
 
 class A2CNet(nn.Module):
-    def __init__(self, n_stack, num_players, num_actions, in_size, feature_size):
+    def __init__(self, n_stack, num_players, num_actions, in_size, feature_size, num_envs=1):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
+        :param num_envs: 
         :param n_stack: number of frames stacked
         :param num_actions: size of the action space, pass env.action_space.n
         :param in_size: input size of the LSTMCell of the FeatureEncoderNet
@@ -685,8 +688,9 @@ class A2CNet(nn.Module):
         self.feature_size = feature_size
         self.num_actions = num_actions
         self.num_players = num_players
+        self.num_envs = num_envs
 
-        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size)
+        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs)
 
         self.actor = ActorLayer(self.feature_size * 2, self.num_actions)
         self.critic = CriticLayer(self.feature_size * 2, self.num_players)

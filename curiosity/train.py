@@ -46,9 +46,9 @@ class Runner(object):
             actions, log_probs, entropies, values, features = self.net.a2c.get_action(obs)
 
             # interact
-            state, obs, trewards, rrewards, finished = self.env.step(torch.stack(actions, dim=1).detach().cpu())
+            state, obs, rewards, finished = self.env.step(torch.stack(actions, dim=1).detach().cpu())
             self.net.a2c.reset_recurrent_buffers()
-            a2c_loss, rewards = self.a2c_loss(values, entropies, rrewards, log_probs)
+            a2c_loss, rewards = self.a2c_loss(values, entropies, rewards, log_probs)
 
             self.net.optimizer.zero_grad()
 
