@@ -104,8 +104,8 @@ Both environments return the following variables in the step function:
 
 - **Full state:** The full state variables.
 - **Observations:** Observations for every robot/car. What this is exactly depends on the observationType variable.
-- **Team rewards:** Rewards for every team. The rewards for the two teams are the same for the driving env, since the teams are not competing.
 - **Car/Robot rewards:** Rewards for each car or robot.
+-- **Team rewards:** Shared rewards for every team. These are added to the Car/Robot rewards variables, and are not returned.
 - **Finished:** Game over flag
 
 Position information is normalized between +/-1 in both the observations and the full state.
