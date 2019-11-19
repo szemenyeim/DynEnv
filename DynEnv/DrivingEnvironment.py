@@ -175,8 +175,8 @@ class DrivingEnvironment(object):
         t1 = time.clock()
 
         # Setup reward and state variables
-        self.teamReward = 0
-        self.carRewards = np.array([0,] * self.nPlayers)
+        self.teamReward = 0.0
+        self.carRewards = np.array([0.0,] * self.nPlayers)
         finished = False
         observations = []
 

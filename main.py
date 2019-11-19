@@ -81,12 +81,10 @@ def doRoboCup():
 
         action = np.array([action1, action2] * nPlayers)
         ret = env.step(action)
-        if ret[4]:
-            print("Goal: reward: ", ret[0])
 
 def doDrive():
     nPlayers = 5
-    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
+    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
     env.setRandomSeed(42)
 
@@ -118,7 +116,7 @@ def doDrive():
 
 if __name__ == '__main__':
 
-    drive = False
+    drive = True
 
     pygame.init()
 

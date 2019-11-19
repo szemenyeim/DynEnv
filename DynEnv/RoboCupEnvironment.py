@@ -77,8 +77,8 @@ class RoboCupEnvironment(object):
 
         # Reward settings
         self.kickDiscount = 0.5
-        self.teamRewards = [0,0]
-        self.RobotRewards = [0,0]*self.nPlayers
+        self.teamRewards = np.array([0.0,0.0])
+        self.robotRewards = np.array([0.0,0.0]*self.nPlayers)
         self.penalTimes = [20000,20000]
         self.maxTime = 150000
 
@@ -219,8 +219,8 @@ class RoboCupEnvironment(object):
         t1 = time.clock()
 
         # Setup reward and state variables
-        self.teamRewards = np.array([0, 0])
-        self.robotRewards = np.array([0, 0] * self.nPlayers)
+        self.teamRewards = np.array([0.0,0.0])
+        self.robotRewards = np.array([0.0,0.0]*self.nPlayers)
         observations = []
         finished = False
 
