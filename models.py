@@ -666,8 +666,9 @@ class ICMNet(nn.Module):
         self.num_envs = num_envs
         self.num_players = num_players
 
+        self.prev_features = None
+
         # networks
-        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feat_size, self.num_envs)
         self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
@@ -675,27 +676,21 @@ class ICMNet(nn.Module):
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
 
-    def forward(self, states, next_states, action):
+    def forward(self, features, action):
         """
 
         feature: current encoded state
         next_feature: next encoded state
 
-        :param states: tensor of the states
+        :param features: tensor of the states
         :param action: current action
         :return:
         """
 
-        """Encode the states"""
-        self.feat_enc_net.reset() #todo: check if correct semantically (needed or the graph will be backprop'ed twice)
-        features = self.feat_enc_net(states)
-        self.feat_enc_net.reset() #todo: check if correct semantically (needed or the graph will be backprop'ed twice)
-        next_features = self.feat_enc_net(next_states)
-
         """Predict fwd & inv dynamics"""
-        next_feature_pred, action_pred = self.pred_net(features, next_features, action)
+        next_feature_pred, action_pred = self.pred_net(self.prev_features, features, action)
 
-        return self._calc_loss(next_features, next_feature_pred, action_pred, action)
+        return self._calc_loss(features, next_feature_pred, action_pred, action)
 
     def _calc_loss(self, features, feature_preds, action_preds, actions):
 

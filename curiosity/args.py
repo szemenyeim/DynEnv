@@ -36,7 +36,7 @@ def get_args():
                         help='number of frames stacked')
     parser.add_argument('--rollout-size', type=int, default=1, metavar='ROLLOUT_SIZE',
                         help='rollout size')
-    parser.add_argument('--num-updates', type=int, default=25, metavar='NUM_UPDATES',
+    parser.add_argument('--num-updates', type=int, default=250, metavar='NUM_UPDATES',
                         help='number of updates')
 
     # render

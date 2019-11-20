@@ -57,13 +57,17 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_loss = self.net.icm(obs, new_obs, actions)
+            icm_loss = 0
+            if self.net.icm.prev_features is not None:
+                icm_loss = self.net.icm(features, actions)
+            self.net.icm.prev_features = features
+
 
             """Assemble loss"""
 
             loss = a2c_loss + icm_loss
 
-            loss.backward(retain_graph=False)
+            loss.backward(retain_graph=True)
 
             # gradient clipping
             nn.utils.clip_grad_norm_(self.net.parameters(), self.params.max_grad_norm)

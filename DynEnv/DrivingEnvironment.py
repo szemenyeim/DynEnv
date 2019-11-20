@@ -787,6 +787,10 @@ class DrivingEnvironment(object):
         # return
         return selfDet,carDets,obsDets,pedDets,laneDets
 
+    # For compatibility
+    def close(self):
+        pass
+
     # Print env params
     def __str__(self):
         return "Driving Simulation Environment\n" \

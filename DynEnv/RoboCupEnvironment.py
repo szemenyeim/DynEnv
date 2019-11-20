@@ -1163,6 +1163,10 @@ class RoboCupEnvironment(object):
 
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets
 
+    # For compatibility
+    def close(self):
+        pass
+
     # Print env params
     def __str__(self):
         return "Robot Soccer Simulation Environment\n" \
