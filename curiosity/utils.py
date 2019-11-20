@@ -54,6 +54,7 @@ def set_random_seeds(seed=42):
 
     # 5. set the PyTorch seed + CUDA backend
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 

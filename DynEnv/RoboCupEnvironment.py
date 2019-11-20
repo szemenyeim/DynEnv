@@ -256,10 +256,6 @@ class RoboCupEnvironment(object):
 
             # Decrease game timer
             self.maxTime -= 1000.0/self.timeStep
-            if self.maxTime < 0:
-                finished = True
-                self.teamRewards[0] -= 2000
-                self.teamRewards[1] -= 2000
 
             # Get observations every 100 ms
             if i % 10 == 9:
@@ -279,6 +275,8 @@ class RoboCupEnvironment(object):
 
         t2 = time.clock()
         #print((t2-t1)*1000)
+        if self.maxTime < 0:
+            finished = True
 
         return self.getFullState(), observations, self.robotRewards, finished
 
@@ -354,17 +352,17 @@ class RoboCupEnvironment(object):
             if self.gracePeriod > 0:
                 self.gracePeriod -= time
                 if self.gracePeriod < 0:
-                    print("Grace period over")
+                    #print("Grace period over")
                     self.gracePeriod = 0
                     self.ballFreeCntr = 9999
             elif self.ballFreeCntr > 0:
                 self.ballFreeCntr -= time
                 if self.ballFreeCntr < 0:
-                    print("Ball Free")
+                    #print("Ball Free")
                     self.ballFreeCntr = 0
                     self.ballOwned = 0
         else:
-            print("Free kick", team)
+            #print("Free kick", team)
             self.ballOwned = team
             self.gracePeriod = 14999
             self.ballFreeCntr = 0
@@ -456,7 +454,7 @@ class RoboCupEnvironment(object):
         for robot in self.robots:
             if (robot.getPos() - pos).length < 150:
                 if not robot.penalized and self.ballOwned != robot.team and self.ballFreeCntr > 0:
-                    print("Illegal position", robot.id, robot.team)
+                    #print("Illegal position", robot.id, robot.team)
                     self.penalize(robot)
                 if robot.id not in self.ball.lastKicked:
                     self.robotRewards[int(robot.id)] += min(0, currReward[0] * self.kickDiscount if robot.id < self.nPlayers else
@@ -470,7 +468,7 @@ class RoboCupEnvironment(object):
 
     # Robot falling
     def fall(self,robot):
-        print("Fall", robot.fallCntr, robot.team)
+        #print("Fall", robot.fallCntr, robot.team)
 
         # Get robot position
         pos = robot.getPos()
@@ -504,7 +502,7 @@ class RoboCupEnvironment(object):
                     if len(self.ball.lastKicked) > 4:
                         self.ball.lastKicked = self.ball.lastKicked[:4]
                     if self.ballOwned != 0:
-                        print("Ball Free")
+                        #print("Ball Free")
                         self.gracePeriod = 0
                         self.ballFreeCntr = 0
                         self.ballOwned = 0
@@ -522,7 +520,7 @@ class RoboCupEnvironment(object):
 
         # If the robot fell 3 times, penalize
         if robot.fallCntr > 2:
-            print("Fallen robot", robot.fallCntr, robot.team)
+            #print("Fallen robot", robot.fallCntr, robot.team)
             self.penalize(robot)
 
     def getFreePenaltySpot(self,robot):
@@ -662,7 +660,7 @@ class RoboCupEnvironment(object):
                     self.fall(robot)
                     return
 
-                print("Getup", robot.team)
+                #print("Getup", robot.team)
 
                 # Reset color and variables
                 robot.leftFoot.color = (255, int(127*(1-robot.team)), int(127*(1+robot.team)))
@@ -676,7 +674,7 @@ class RoboCupEnvironment(object):
 
             # If expired
             if robot.penalTime <= 0:
-                print("Unpenalized")
+                #print("Unpenalized")
 
                 # Reset all variables
                 robot.penalTime = 0
@@ -708,7 +706,7 @@ class RoboCupEnvironment(object):
                 # If not in the defenders, add it or penalize if limit is reached
                 if robot.id not in self.defenders[teamIdx]:
                     if len(self.defenders[teamIdx]) >= 2:
-                        print("Illegal defender")
+                        #print("Illegal defender")
                         self.penalize(robot)
                     else:
                         self.defenders[teamIdx].append(robot.id)
@@ -786,11 +784,11 @@ class RoboCupEnvironment(object):
 
         # Penalize robots for pushing
         if robot1.mightPush and not robot2.mightPush and robot2.fallen and robot1.team != robot2.team:
-            print("Robot 1 Pushing")
+            #print("Robot 1 Pushing")
             self.penalize(robot1)
             robot1.touchCntr = 0
         elif robot2.mightPush and not robot1.mightPush and robot1.fallen and robot1.team != robot2.team:
-            print("Robot 2 Pushing")
+            #print("Robot 2 Pushing")
             self.penalize(robot2)
             robot2.touchCntr = 0
 
@@ -844,7 +842,7 @@ class RoboCupEnvironment(object):
             if robot.team != self.ballOwned and not robot.penalized:
                 self.penalize(robot)
             else:
-                print("Ball Free")
+                #print("Ball Free")
                 self.ballOwned = 0
                 self.gracePeriod = 0
                 self.ballFreeCntr = 0

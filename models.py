@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
-from utils import AttentionType, AttentionTarget
+from curiosity.utils import AttentionType, AttentionTarget
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -630,7 +630,8 @@ class AdversarialHead(nn.Module):
 
 
         # one-hot placeholder vector
-        action_one_hot = torch.zeros((actions[0].shape[0], np.array(self.action_num_per_type).sum()))
+        device = current_feature.device
+        action_one_hot = torch.zeros((actions[0].shape[0], np.array(self.action_num_per_type).sum())).to(device)
 
         # indicate with 1 the action taken by every player
         for a_type_idx, action_type in enumerate(actions):

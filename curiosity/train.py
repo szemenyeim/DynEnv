@@ -4,9 +4,9 @@ from time import gmtime, strftime
 import torch
 import torch.nn as nn
 
-from logger import TemporalLogger
-from utils import AgentCheckpointer
-
+from .logger import TemporalLogger
+from .utils import AgentCheckpointer
+import progressbar
 
 class Runner(object):
 
@@ -40,6 +40,8 @@ class Runner(object):
         obs = self.env.reset()
         features = None
         # self.storage.states[0].copy_(self.storage.obs2tensor(obs))
+
+        bar = progressbar.ProgressBar(0, self.params.num_updates, redirect_stdout=False)
 
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
@@ -81,7 +83,11 @@ class Runner(object):
             self.net.optimizer.step()
 
             self.net.a2c.reset_recurrent_buffers()
-            obs = new_obs
+            if finished:
+                self.net.icm.prev_features = None
+                obs = self.env.reset()
+            else:
+                obs = new_obs
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
@@ -94,7 +100,9 @@ class Runner(object):
             #     print("current loss: ", loss.item(), " at update #", num_update)
             #     self.storage.print_reward_stats()
             # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")
+            bar.update(num_update)
 
+        bar.finish()
         self.env.close()
 
         # self.logger.save(*["rewards", "features"])
@@ -107,7 +115,8 @@ class Runner(object):
         # i.e. how good was the estimate of the value of the current state
         # todo: use final value
         # rewards = self._discount_rewards(final_values)
-        rewards = values.__class__(rewards).reshape(values.shape)
+        device = values.device
+        rewards = values.__class__(rewards).reshape(values.shape).to(device)
         advantage = rewards - values
 
         # weight the deviation of the predicted value (of the state) from the

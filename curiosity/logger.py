@@ -8,7 +8,7 @@ import pandas as pd
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 
 
-from utils import make_dir, numpy_ewma_vectorized_v2, plot_postprocess, print_init, series_indexer, \
+from .utils import make_dir, numpy_ewma_vectorized_v2, plot_postprocess, print_init, series_indexer, \
     color4label, label_enum_converter, instance2label
 
 

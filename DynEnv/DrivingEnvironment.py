@@ -235,6 +235,8 @@ class DrivingEnvironment(object):
 
         t2 = time.clock()
         #print((t2 - t1) * 1000)
+        if finished:
+            print("Episode finished")
 
         return self.getFullState(), observations, self.carRewards, finished
 
