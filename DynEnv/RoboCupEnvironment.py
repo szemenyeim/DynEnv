@@ -245,7 +245,11 @@ class RoboCupEnvironment(object):
                 self.tick(robot)
 
             # Process ball position
-            finished = self.isBallOutOfField()
+            isOver = self.isBallOutOfField()
+
+            # uncomment to set finished flag on goal.
+            # Otherwise env will switch to kickoff state
+            #finished = isOver
 
             # Run simulation
             self.space.step(1 / self.timeStep)
