@@ -274,11 +274,19 @@ class AttentionLayer(nn.Module):
     def __init__(self, features, num_heads=1):
         super(AttentionLayer, self).__init__()
 
+        self.features = features
+
         # objAtt implements self attention between objects seen in the same timestep
         self.objAtt = nn.MultiheadAttention(features, num_heads)
 
         # Temp att attends between sightings at different timesteps
         self.tempAtt = nn.MultiheadAttention(features, num_heads)
+
+        # Confidence layer
+        self.confLayer = nn.Sequential(
+            nn.Linear(features,1),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         # Get device
@@ -311,8 +319,11 @@ class AttentionLayer(nn.Module):
         finalMask = finalMask.permute(1, 0)
         finalAtt[finalMask] = 0
 
+        # Predict confidences for objects
+        confs = self.confLayer(finalAtt)
+
         # Masked averaging
-        summed = torch.sum(finalAtt, 0)
+        summed = torch.sum(finalAtt*confs, 0)
         lens = torch.sum(torch.logical_not(finalMask), 0).float().unsqueeze(1)
         lens[lens == 0] = 1.0
 
