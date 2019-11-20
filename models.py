@@ -292,12 +292,20 @@ class AttentionLayer(nn.Module):
         # Run self-attention
         attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
 
+        # Filter nans
+        with torch.no_grad():
+            for att in attObj:
+                att[torch.isnan(att)] = 0
+
         # Run temporal attention
         finalAtt = attObj[0]
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
             finalAtt = self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0]
             finalMask = masks[i + 1] & finalMask
+            # Filter nans
+            with torch.no_grad():
+                finalAtt[torch.isnan(finalAtt)] = 0
 
         # Mask out final attention results
         finalMask = finalMask.permute(1, 0)
@@ -306,6 +314,7 @@ class AttentionLayer(nn.Module):
         # Masked averaging
         summed = torch.sum(finalAtt, 0)
         lens = torch.sum(torch.logical_not(finalMask), 0).float().unsqueeze(1)
+        lens[lens == 0] = 1.0
 
         return summed.div(lens)
 
