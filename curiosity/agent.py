@@ -6,7 +6,7 @@ from models import A2CNet, ICMNet
 
 
 class ICMAgent(nn.Module):
-    def __init__(self, n_stack, num_envs, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, lr=1e-4):
+    def __init__(self, num_envs, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, lr=1e-4):
         """
         Container class of an A2C and an ICM network, the baseline for experimenting with other curiosity-based
         methods.
@@ -23,7 +23,6 @@ class ICMAgent(nn.Module):
         super().__init__()
 
         # constants
-        self.n_stack = n_stack
         self.num_envs = num_envs
         self.num_players = num_players
         self.action_descriptor = action_descriptor
@@ -32,9 +31,9 @@ class ICMAgent(nn.Module):
         self.is_cuda = torch.cuda.is_available()
 
         # networks
-        self.icm = ICMNet(self.n_stack, self.num_players, self.action_descriptor, attn_type, attn_type, self.in_size,
+        self.icm = ICMNet(self.num_envs, self.num_players, self.action_descriptor, attn_type, attn_type, self.in_size,
                           self.feat_size)
-        self.a2c = A2CNet(self.n_stack, self.num_players, self.action_descriptor, self.in_size, self.feat_size)
+        self.a2c = A2CNet(self.num_envs, self.num_players, self.action_descriptor, self.in_size, self.feat_size)
 
         if self.is_cuda:
             self.icm.cuda()

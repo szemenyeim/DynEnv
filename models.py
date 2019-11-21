@@ -150,7 +150,7 @@ class CriticBlock(nn.Module):
 
 # Complete action layer for multiple action groups
 class CriticLayer(nn.Module):
-    def __init__(self, features, num_players):
+    def __init__(self, features):
         super().__init__()
 
         # Create action groups
@@ -416,7 +416,7 @@ class TestNet(nn.Module):
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class DynEnvFeatureExtractor(nn.Module):
-    def __init__(self, inputs, feature, num_envs=1):
+    def __init__(self, inputs, feature, num_envs):
         super().__init__()
 
         nPlayers = inputs[1]
@@ -737,7 +737,7 @@ class ICMNet(nn.Module):
 
 
 class A2CNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, in_size, feature_size, num_envs=1):
+    def __init__(self, num_envs, num_players, action_descriptor, in_size, feature_size):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
@@ -753,13 +753,13 @@ class A2CNet(nn.Module):
         self.in_size = in_size  # in_size
         self.feature_size = feature_size
         self.action_descriptor = action_descriptor
-        self.num_players = num_players
+        self.num_players = num_players*2
         self.num_envs = num_envs
 
         self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs)
 
         self.actor = ActorLayer(self.feature_size * 2, self.action_descriptor)
-        self.critic = CriticLayer(self.feature_size * 2, self.num_players)
+        self.critic = CriticLayer(self.feature_size * 2)
 
     def set_recurrent_buffers(self, buf_size):
         """

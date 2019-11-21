@@ -13,14 +13,16 @@ class DynEnvType(Enum):
     DRIVE = 1
 
 
-def env_selector(env_type: DynEnvType, nPlayers):
+def env_selector(env_type: DynEnvType, nPlayers, nEnvs):
     if env_type is DynEnvType.ROBO_CUP:
-        env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
-                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1)
+        envs = [lambda: DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
+                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1) for i in range(nEnvs)]
+        env = DynEnv.CustomSubprocVecEnv(envs)
         name = "RoboCup"
     elif env_type is DynEnvType.DRIVE:
-        env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
-                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1)
+        envs = [lambda: DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
+                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1) for i in range(nEnvs)]
+        env = DynEnv.CustomSubprocVecEnv(envs)
         name = "Driving"
     else:
         raise ValueError
@@ -37,18 +39,18 @@ if __name__ == '__main__':
 
     # constants
     num_players = 1
-    num_env = 1
+    num_env = 3
     feature_size = 128
     attn_target = AttentionTarget.NONE
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
-    env, env_name = env_selector(DynEnvType.ROBO_CUP, num_players)
-    batch, action_size = env.getActionSize()
-    input_size = env.getObservationSize()
+    env, env_name = env_selector(DynEnvType.DRIVE, num_players, num_env)
+    batch, action_size = env.action_space
+    input_size = env.observation_space
 
     # agent
-    agent = ICMAgent(args.n_stack, args.num_envs, num_players, action_size, attn_target, attn_type,
+    agent = ICMAgent( num_env, num_players, action_size, attn_target, attn_type,
                      input_size, feature_size, lr=args.lr)
 
     # params

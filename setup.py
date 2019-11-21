@@ -24,5 +24,7 @@ setuptools.setup(
        'numpy',
        'pymunk',
        'pygame',
+       'gym',
+       'stable-baselines'
     ],
  )

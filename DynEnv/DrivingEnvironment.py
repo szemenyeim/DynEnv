@@ -21,8 +21,8 @@ class DrivingEnvironment(object):
         # Basic settings
         self.observationType = observationType
         self.noiseType = noiseType
-        self.maxPlayers = 10
-        self.nPlayers = min(nPlayers*2,self.maxPlayers)
+        self.maxPlayers = 5
+        self.nPlayers = min(nPlayers,self.maxPlayers)*2
         self.render = render
         self.numTeams = 2
 
@@ -61,6 +61,22 @@ class DrivingEnvironment(object):
         self.timeStep = 100.0
         self.timeDiff = 10.0
         self.distThreshold = 10
+
+        # Observation space
+        if self.observationType == ObservationType.Full:
+            self.observation_space = [1, self.nPlayers,
+                    [[7, ], [self.nPlayers - 1, 5], [self.obstacleNum, 4], [self.pedestrianNum, 2],
+                     [self.laneNum, 5]]]
+        else:
+            self.observation_space = [1, self.nPlayers, 5, [7, 5, 5, 2, 5]]
+
+        # Action space
+        self.action_space = \
+            [self.nPlayers, [
+                #['cont', 2, [0, 0], [6, 6]],
+                ['cat', 3, None, None],
+                ['cat', 3, None, None],
+            ]]
 
         # Time rewards
         self.maxTime = 6000
@@ -144,7 +160,7 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers,self.render,self.observationType,self.noiseType,self.noiseMagnitude)
+        self.__init__(self.nPlayers//2,self.render,self.observationType,self.noiseType,self.noiseMagnitude)
         observations = []
         if self.observationType == ObservationType.Full:
             observations.append([self.getFullState(car) for car in self.cars])
@@ -156,20 +172,6 @@ class DrivingEnvironment(object):
     def setRandomSeed(self,seed):
         np.random.seed(seed)
         random.seed(seed)
-        return self.reset()
-
-    # Observation space
-    def getObservationSize(self):
-        if self.observationType == ObservationType.Full:
-            return [1,self.nPlayers,[[7,],[self.nPlayers-1,5],[self.obstacleNum,4],[self.pedestrianNum,2],[self.laneNum,5]]]
-        else:
-            return [1,self.nPlayers, 5, [7,5,5,2,5]]
-
-    # Action space
-    def getActionSize(self):
-        return [self.nPlayers,[
-            ['cont',2,[0,0],[6,6]],
-        ]]
 
     def step(self,actions):
         t1 = time.clock()
@@ -235,10 +237,8 @@ class DrivingEnvironment(object):
 
         t2 = time.clock()
         #print((t2 - t1) * 1000)
-        if finished:
-            print("Episode finished")
 
-        return self.getFullState(), observations, self.carRewards, finished
+        return observations, self.carRewards, finished, {'Full State' : self.getFullState()}
 
     def drawStaticObjects(self):
 
@@ -276,8 +276,8 @@ class DrivingEnvironment(object):
     def processAction(self,action,car):
 
         # Get actions
-        acc = action[0]
-        steer = action[1]
+        acc = action[0]-1
+        steer = action[1]-1
 
         # Sanity checks
         if np.abs(acc) > 3:

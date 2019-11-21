@@ -45,6 +45,24 @@ class RoboCupEnvironment(object):
         self.normX = 1.0/self.W
         self.normY = 1.0/self.H
 
+        # Observation and action spaces
+        # Observation space
+        if self.observationType == ObservationType.Full:
+            self.observation_space =  [5, self.nPlayers * 2, [[3, ], [3, ], [self.nPlayers - 1, 4]]]
+        elif self.observationType == ObservationType.Image:
+            self.observation_space = [5, self.nPlayers * 2, [8, 480, 640]]
+        else:
+            self.observation_space = [5, self.nPlayers * 2, 6, [4, 6, 3, 3, 4, 3]]
+
+        # Action space
+        self.action_space =\
+            [self.nPlayers * 2, [
+                ['cat', 5, None, None],
+                ['cat', 3, None, None],
+                ['cat', 3, None, None],
+                # ['cat',13, None, None],
+            ]]
+
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
@@ -194,25 +212,6 @@ class RoboCupEnvironment(object):
     def setRandomSeed(self, seed):
         np.random.seed(seed)
         random.seed(seed)
-        return self.reset()
-
-    # Observation space
-    def getObservationSize(self):
-        if self.observationType == ObservationType.Full:
-            return [5,self.nPlayers*2,[[3,],[3,],[self.nPlayers-1,4]]]
-        elif self.observationType == ObservationType.Image:
-            return [5,self.nPlayers*2,[8,480,640]]
-        else:
-            return [5,self.nPlayers*2,6,[4,6,3,3,4,3]]
-
-    # Action space
-    def getActionSize(self):
-        return [self.nPlayers*2,[
-            ['cat',5, None, None],
-            ['cat',3, None, None],
-            ['cat',3, None, None],
-            #['cat',13, None, None],
-        ]]
 
     # Main step function
     def step(self, actions):
@@ -278,7 +277,7 @@ class RoboCupEnvironment(object):
         if self.maxTime < 0:
             finished = True
 
-        return self.getFullState(), observations, self.robotRewards, finished
+        return observations, self.robotRewards, finished, {'Full State' : self.getFullState()}
 
     # Action handler
     def processAction(self, action, robot):

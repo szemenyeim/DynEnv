@@ -48,7 +48,9 @@ class Runner(object):
             actions, log_probs, entropies, values, features = self.net.a2c.get_action(obs)
 
             # interact
-            state, new_obs, rewards, finished = self.env.step(torch.stack(actions, dim=1).detach().cpu())
+
+            actionsForEnv = (torch.stack(actions, dim=1)).view((self.net.num_envs, self.net.num_players*2, -1)).detach().cpu().numpy()
+            new_obs, rewards, finished, state = self.env.step(actionsForEnv)
             # self.net.a2c.reset_recurrent_buffers()
 
             a2c_loss, rewards = self.a2c_loss(values, entropies, rewards, log_probs)
@@ -81,7 +83,7 @@ class Runner(object):
             self.net.optimizer.step()
 
             self.net.a2c.reset_recurrent_buffers()
-            if finished:
+            if finished.any():
                 self.net.icm.prev_features = None
                 obs = self.env.reset()
             else:
