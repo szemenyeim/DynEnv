@@ -3,10 +3,12 @@ from time import gmtime, strftime
 
 import torch
 import torch.nn as nn
+import numpy as np
+np.set_printoptions(precision=1)
 
 from .logger import TemporalLogger
 from .utils import AgentCheckpointer
-import progressbar
+import time
 
 class Runner(object):
 
@@ -39,6 +41,14 @@ class Runner(object):
         """Environment reset"""
         obs = self.env.reset()
         features = None
+
+        r_loss = 0
+        r_r = 0
+        losses = []
+        rews = []
+
+        t_prev = time.clock()
+
         # self.storage.states[0].copy_(self.storage.obs2tensor(obs))
 
         for num_update in range(self.params.num_updates):
@@ -82,8 +92,22 @@ class Runner(object):
 
             self.net.optimizer.step()
 
+            r_loss += loss.item()
+            #l = [max(rew[0],0.0) for rew in rewards]
+            l = [rew[0] for rew in rewards]
+            r_r += np.array(l)
+
             self.net.a2c.reset_recurrent_buffers()
             if finished.any():
+                r_loss /= (600*self.net.num_envs*self.net.num_players*2)
+                losses.append(r_loss)
+                rews.append(r_r)
+                t_next = time.clock()
+                print("Episode %d finished: Time: %d Iters: %d/%d Loss: %.2f " % (len(losses)-1, (t_next-t_prev), num_update+1, self.params.num_updates, r_loss))
+                print("Rewards: ",  int(r_r.mean())) #r_r.astype('int32'),
+                t_prev = t_next
+                r_loss = 0
+                r_r = 0
                 self.net.icm.prev_features = None
                 obs = self.env.reset()
             else:
@@ -96,7 +120,8 @@ class Runner(object):
             # if len(self.storage.episode_rewards) > 1:
             #     self.checkpointer.checkpoint(loss, self.storage.episode_rewards, self.net)
 
-            # if num_update % 1000 == 0:
+            if num_update % 25000 == 0 and num_update:
+                torch.save(self.net.state_dict(), ("/saved/net%d.pth" % num_update))
             #     print("current loss: ", loss.item(), " at update #", num_update)
             #     self.storage.print_reward_stats()
             # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")

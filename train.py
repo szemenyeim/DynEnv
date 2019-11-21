@@ -38,8 +38,8 @@ if __name__ == '__main__':
     set_random_seeds(args.seed)
 
     # constants
-    num_players = 1
-    num_env = 3
+    num_players = 5
+    num_env = 16
     feature_size = 128
     attn_target = AttentionTarget.NONE
     attn_type = AttentionType.SINGLE_ATTENTION

@@ -182,7 +182,7 @@ class DrivingEnvironment(object):
         finished = False
         observations = []
 
-        # Run simulation for 500 ms (time for every action)
+        # Run simulation for 100 ms (time for every action)
         for i in range(10):
 
             # Draw lines
@@ -214,7 +214,7 @@ class DrivingEnvironment(object):
                     self.allFinised = True
                     self.teamReward += self.maxTime-self.elapsed
                 elif self.elapsed >= self.maxTime:
-                    self.teamReward -= 2000
+                    self.teamReward -= 0
 
             if self.elapsed >= self.maxTime:
                 finished = True
@@ -319,11 +319,13 @@ class DrivingEnvironment(object):
 
             # crash for leaving road
             if car.position == LanePosition.OffRoad:
-                car.crash()
-                self.carRewards[index] -= 2000
+                if not (car.crashed or car.finished):
+                    car.crash()
+                    self.carRewards[index] -= 2000
             # Add small punichment for being in opposite lane
             elif car.position == LanePosition.InOpposingLane:
-                self.carRewards[index] -= 10
+                if not (car.crashed or car.finished):
+                    self.carRewards[index] -= 10
 
     # Update function for pedestrians
     def move(self,pedestrian):
@@ -491,21 +493,20 @@ class DrivingEnvironment(object):
         car1 = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
         car2 = next(car for car in self.cars if (car.shape == arbiter.shapes[1]))
 
-        # Crash them
-        car1.crash()
-        car2.crash()
-
         # Punish
         index1 = self.cars.index(car1)
         index2 = self.cars.index(car2)
-        self.carRewards[index1] -= 2000
-        self.carRewards[index2] -= 2000
+
+        if not car1.crashed:
+            self.carRewards[index1] -= 2000
+        if not car2.crashed:
+            self.carRewards[index2] -= 2000
 
         # Punish car in the wrong lane extra
-        if car1.position != LanePosition.InRightLane:
+        if car1.position != LanePosition.InRightLane and not car1.crashed:
             self.carRewards[index1] -= 2000
 
-        if car2.position != LanePosition.InRightLane:
+        if car2.position != LanePosition.InRightLane and not car2.crashed:
             self.carRewards[index2] -= 2000
 
         # If both in the rights lane
@@ -519,11 +520,15 @@ class DrivingEnvironment(object):
             dp = p1 - p2
 
             # Car is responsible if moving towards the other one
-            if v1.length > 1 and math.cos(angle(dp) - angle(v1)) < -0.4:
+            if v1.length > 1 and math.cos(angle(dp) - angle(v1)) < -0.4 and not car1.crashed:
                 self.carRewards[index1] -= 2000
 
-            if v2.length > 1 and math.cos(angle(dp) - angle(v2)) > 0.4:
+            if v2.length > 1 and math.cos(angle(dp) - angle(v2)) > 0.4 and not car2.crashed:
                 self.carRewards[index2] -= 2000
+
+        # Crash them
+        car1.crash()
+        car2.crash()
 
         return True
 
@@ -547,7 +552,7 @@ class DrivingEnvironment(object):
             dp = p1 - p2
 
             # Crash car if it actually hit pedestrian
-            if math.cos(angle(dp) - angle(v1)) < -0.4:
+            if math.cos(angle(dp) - angle(v1)) < -0.4 and not (car.crashed or car.finished):
                 car.crash()
                 index = self.cars.index(car)
                 self.carRewards[index] -= 5000
@@ -560,12 +565,13 @@ class DrivingEnvironment(object):
         # Get car
         car = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
 
-        # crash car
-        car.crash()
-
         # Punish
         index = self.cars.index(car)
-        self.carRewards[index] -= 5000
+        if not (car.crashed or car.finished):
+            self.carRewards[index] -= 5000
+
+        # crash car
+        car.crash()
 
         return True
 

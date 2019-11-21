@@ -98,7 +98,7 @@ class RoboCupEnvironment(object):
         self.teamRewards = np.array([0.0,0.0])
         self.robotRewards = np.array([0.0,0.0]*self.nPlayers)
         self.penalTimes = [20000,20000]
-        self.maxTime = 150000
+        self.maxTime = 300000
 
         # Simulation settings
         self.space = pymunk.Space()
