@@ -211,7 +211,7 @@ class RoboCupEnvironment(object):
             ['cat',5, None, None],
             ['cat',3, None, None],
             ['cat',3, None, None],
-            ['cat',13, None, None],
+            #['cat',13, None, None],
         ]]
 
     # Main step function
@@ -232,8 +232,8 @@ class RoboCupEnvironment(object):
                 self.drawStaticObjects()
 
             # Sanity check
-            if actions.shape != (len(self.robots),4):
-                raise Exception("Error: There must be four actions for every robot")
+            if actions.shape != (len(self.robots),4) and actions.shape != (len(self.robots),3):
+                raise Exception("Error: There must be 3 or 4 actions for every robot")
 
             # Robot loop
             for action, robot in zip(actions, self.robots):
@@ -284,9 +284,13 @@ class RoboCupEnvironment(object):
     def processAction(self, action, robot):
 
         # Get 4 action types
-        move, turn, kick, head = action
-        #todo: dirty hack,
-        head -=6
+        if len(action) < 4:
+            move, turn, kick = action
+            head = 0
+        else:
+            move, turn, kick, head = action
+            #todo: dirty hack,
+            head -=6
 
         # Sanity check for actions
         if move not in [0, 1, 2, 3, 4]:
@@ -656,7 +660,7 @@ class RoboCupEnvironment(object):
 
                 # Is might fall again
                 r = random.random()
-                if r > 0.9:
+                if r > 0.9 and not robot.penalized:
                     self.fall(robot)
                     return
 

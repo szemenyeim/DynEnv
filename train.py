@@ -16,11 +16,11 @@ class DynEnvType(Enum):
 def env_selector(env_type: DynEnvType, nPlayers):
     if env_type is DynEnvType.ROBO_CUP:
         env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
-                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1)
         name = "RoboCup"
     elif env_type is DynEnvType.DRIVE:
         env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
-                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1)
         name = "Driving"
     else:
         raise ValueError
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     set_random_seeds(args.seed)
 
     # constants
-    num_players = 5
+    num_players = 1
     num_env = 1
     feature_size = 128
     attn_target = AttentionTarget.NONE

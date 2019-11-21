@@ -42,6 +42,10 @@ class ObsMask(object):
         :param padded_size: target dimension of the concatenated tensors
         :return:
         """
+        # If robot had no sightings
+        if tensor_list is None or len(tensor_list) == 0:
+            return torch.empty((0,128))
+
         # convert list of tensors to a single tensor
         t = torch.cat(tensor_list)
 
@@ -264,7 +268,8 @@ class InputLayer(nn.Module):
                     for player in range(self.nPlayers)
                 ])
                 for time in range(self.nTime)
-            ]).permute(0, 2, 1, 3)
+            ])
+        outs = outs.permute(0, 2, 1, 3)
 
         return outs, objCounts
 
@@ -320,6 +325,9 @@ class AttentionLayer(nn.Module):
         finalAtt[finalMask] = 0
 
         # Predict confidences for objects
+        if finalAtt.shape[0] == 0:
+            return torch.sum(finalAtt, 0)
+
         confs = self.confLayer(finalAtt)
 
         # Masked averaging

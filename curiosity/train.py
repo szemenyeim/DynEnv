@@ -41,8 +41,6 @@ class Runner(object):
         features = None
         # self.storage.states[0].copy_(self.storage.obs2tensor(obs))
 
-        bar = progressbar.ProgressBar(0, self.params.num_updates, redirect_stdout=False)
-
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
             """A2C cycle"""
@@ -100,9 +98,7 @@ class Runner(object):
             #     print("current loss: ", loss.item(), " at update #", num_update)
             #     self.storage.print_reward_stats()
             # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")
-            bar.update(num_update)
 
-        bar.finish()
         self.env.close()
 
         # self.logger.save(*["rewards", "features"])
