@@ -181,8 +181,11 @@ class EmbedBlock(nn.Module):
     def __init__(self, inputs, features):
         super(EmbedBlock, self).__init__()
 
-        self.Layer = nn.Linear(inputs, features)
+        self.Layer1 = nn.Linear(inputs, features//2,bias=False)
         self.relu = nn.LeakyReLU(0.1)
+        self.bn1 = nn.BatchNorm1d(features//2,affine=True)
+        self.Layer2 = nn.Linear(features//2,features,bias=False)
+        self.bn2 = nn.BatchNorm1d(features,affine=True)
 
     def forward(self, x):
 
@@ -196,7 +199,10 @@ class EmbedBlock(nn.Module):
             # Unsqueeze to add batch dimension
             x = x.unsqueeze(0)
 
-        return self.relu(self.Layer(x))
+        x = self.bn1(self.relu(self.Layer1(x)))
+        x = self.bn2(self.relu(self.Layer2(x)))
+
+        return x
 
 
 # Complete input layer

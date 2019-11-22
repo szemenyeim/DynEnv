@@ -52,8 +52,10 @@ class Runner(object):
 
         r_loss = 0
         r_r = 0
+        r_p = 0
         losses = []
         rews = []
+        rewps = []
 
         t_prev = time.clock()
 
@@ -94,9 +96,10 @@ class Runner(object):
             self.net.optimizer.step()
 
             r_loss += loss.item()
-            #l = [max(rew[0],0.0) for rew in rewards]
+            l_p = [max(rew[0],0.0) for rew in rewards]
             l = [rew[0] for rew in rewards]
             r_r += np.array(l)
+            r_p +=  np.array(l_p)
 
             self.net.a2c.reset_recurrent_buffers()
 
@@ -105,9 +108,11 @@ class Runner(object):
                 r_loss /= (600*self.net.num_envs*self.net.num_players*2)
                 losses.append(r_loss)
                 rews.append(r_r)
+                rewps.append(r_p)
                 t_next = time.clock()
-                print("Episode %d finished: Time: %d Iters: %d/%d Loss: %.2f " % (len(losses)-1, (t_next-t_prev), num_update+1, self.params.num_updates, r_loss))
-                print("Rewards: ",  int(r_r.mean())) #r_r.astype('int32'),
+                print("Episode %d finished: Time: %d Iters: %d/%d Loss: %.2f "
+                      % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss),
+                      "Rewards: [",  int(r_r.mean()), ",", int(r_p.mean()), "]") #r_r.astype('int32'),
                 t_prev = t_next
                 r_loss = 0
                 r_r = 0
@@ -123,13 +128,17 @@ class Runner(object):
             # if len(self.storage.episode_rewards) > 1:
             #     self.checkpointer.checkpoint(loss, self.storage.episode_rewards, self.net)
 
-            if num_update % 25000 == 0 and num_update:
-                torch.save(self.net.state_dict(), ("/saved/net%d.pth" % num_update))
+            if (num_update + 1) % 30000 == 0:
+                torch.save(self.net.state_dict(), ("saved/net%d.pth" % num_update))
             #     print("current loss: ", loss.item(), " at update #", num_update)
             #     self.storage.print_reward_stats()
             # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")
 
         self.env.close()
+
+        torch.save(torch.tensor(losses),"saved/losses.pth")
+        torch.save(torch.tensor(rews),"saved/rewards.pth")
+        torch.save(torch.tensor(rewps),"saved/rewards_pos.pth")
 
         # self.logger.save(*["rewards", "features"])
         # self.params.save(self.logger.data_dir, self.timestamp)
