@@ -39,18 +39,17 @@ if __name__ == '__main__':
 
     # constants
     num_players = 5
-    num_env = 16
     feature_size = 128
     attn_target = AttentionTarget.NONE
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
-    env, env_name = env_selector(DynEnvType.DRIVE, num_players, num_env)
+    env, env_name = env_selector(DynEnvType.DRIVE, num_players, args.num_envs)
     batch, action_size = env.action_space
     input_size = env.observation_space
 
     # agent
-    agent = ICMAgent( num_env, num_players, action_size, attn_target, attn_type,
+    agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type,
                      input_size, feature_size, lr=args.lr)
 
     # params

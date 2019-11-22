@@ -8,6 +8,7 @@ np.set_printoptions(precision=1)
 
 from .logger import TemporalLogger
 from .utils import AgentCheckpointer
+from .storage import RolloutStorage
 import time
 
 class Runner(object):
@@ -30,16 +31,23 @@ class Runner(object):
         """Environment"""
         self.env = env
 
+
         """Network"""
         self.net = net
 
         if self.is_cuda:
             self.net = self.net.cuda()
 
+        """Storage"""
+        self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
+                                      len(self.net.action_descriptor), self.params.n_stack, 2*self.net.feat_size, is_cuda=self.is_cuda)
+
+
     def train(self):
 
         """Environment reset"""
         obs = self.env.reset()
+        self.storage.states.append(obs)
         features = None
 
         r_loss = 0
@@ -53,29 +61,22 @@ class Runner(object):
 
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
+
             """A2C cycle"""
-            # get action
-            actions, log_probs, entropies, values, features = self.net.a2c.get_action(obs)
-
-            # interact
-
-            actionsForEnv = (torch.stack(actions, dim=1)).view((self.net.num_envs, self.net.num_players*2, -1)).detach().cpu().numpy()
-            new_obs, rewards, finished, state = self.env.step(actionsForEnv)
-            # self.net.a2c.reset_recurrent_buffers()
-
-            a2c_loss, rewards = self.a2c_loss(values, entropies, rewards, log_probs)
+            final_value, entropy = self.episode_rollout()
 
             """ICM prediction """
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_loss = 0
-            if self.net.icm.prev_features is not None:
-                icm_loss = self.net.icm(features, actions)
-            self.net.icm.prev_features = features
+            # if self.net.icm.prev_features is not None:
+            icm_loss = self.net.icm(self.storage.features, self.storage.actions)
+            # self.net.icm.prev_features = features
 
 
             """Assemble loss"""
+            a2c_loss, rewards = self.storage.a2c_loss(final_value, entropy, self.params.value_coeff,
+                                                      self.params.entropy_coeff)
 
             loss = a2c_loss + icm_loss
 
@@ -98,6 +99,8 @@ class Runner(object):
             r_r += np.array(l)
 
             self.net.a2c.reset_recurrent_buffers()
+
+            #todo: ezt át kellene írni
             if finished.any():
                 r_loss /= (600*self.net.num_envs*self.net.num_players*2)
                 losses.append(r_loss)
@@ -131,27 +134,35 @@ class Runner(object):
         # self.logger.save(*["rewards", "features"])
         # self.params.save(self.logger.data_dir, self.timestamp)
 
-    def a2c_loss(self, values, entropies, rewards, log_probs):
-        # due to the fact that batches can be shorter (e.g. if an env is finished already)
-        # MEAN is used instead of SUM
-        # calculate advantage
-        # i.e. how good was the estimate of the value of the current state
-        # todo: use final value
-        # rewards = self._discount_rewards(final_values)
-        device = values.device
-        rewards = values.__class__(rewards).reshape(values.shape).to(device)
-        advantage = rewards - values
 
-        # weight the deviation of the predicted value (of the state) from the
-        # actual reward (=advantage) with the negative log probability of the action taken
-        policy_loss = torch.stack([(-log_prob * advantage.detach()).mean() for log_prob in log_probs]).mean()
+    def episode_rollout(self):
+        episode_entropy = 0
+        for step in range(self.params.rollout_size):
+            """Interact with the environments """
+            # call A2C
+            actions, log_probs, entropies, values, features = self.net.a2c.get_action(self.storage.get_state(step))
+            # accumulate episode entropy
+            episode_entropy += torch.stack(entropies, dim=-1)
 
-        # the value loss weights the squared difference between the actual
-        # and predicted rewards
-        value_loss = advantage.pow(2).mean()
+            # interact
+            actionsForEnv = (torch.stack(actions, dim=1)).view(
+                (self.net.num_envs, self.net.num_players * 2, -1)).detach().cpu().numpy()
+            new_obs, rewards, dones, state = self.env.step(actionsForEnv)
 
-        # construct loss
-        loss = policy_loss + self.params.value_coeff * value_loss - self.params.entropy_coeff * torch.stack(
-            entropies).mean()
+            # save episode reward
+            # self.storage.log_episode_rewards(infos)
 
-        return loss, rewards.detach().cpu().numpy()
+            self.storage.insert(step, rewards, new_obs, actions, log_probs, values, dones, features)
+            self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
+
+        # Note:
+        # get the estimate of the final reward
+        # that's why we have the CRITIC --> estimate final reward
+        # detach, as the final value will only be used as a
+        with torch.no_grad():
+            _, _, _, final_value, final_features = self.net.a2c.get_action(self.storage.get_state(step + 1))
+
+        self.storage.features[step + 1].copy_(final_features)
+
+        return final_value, episode_entropy
+

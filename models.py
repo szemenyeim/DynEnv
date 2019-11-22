@@ -635,24 +635,27 @@ class AdversarialHead(nn.Module):
         """
 
         """Forward dynamics"""
-
+        num_frames, num_action_types, num_actions = actions.shape
 
         # one-hot placeholder vector
         device = current_feature.device
-        action_one_hot = torch.zeros((actions[0].shape[0], np.array(self.action_num_per_type).sum())).to(device)
+        action_one_hot = torch.zeros((num_frames, num_actions, np.array(self.action_num_per_type).sum())).to(device)
 
         # indicate with 1 the action taken by every player
-        for a_type_idx, action_type in enumerate(actions):
-            for a_idx, action in enumerate(action_type):
-                action_one_hot[a_idx, self.action_num_per_type_start_idx[a_type_idx] + action.item()] = 1
+        for frame_idx in range(num_frames):
+            for a_type_idx in range(num_action_types):
+                for a_idx, action in enumerate(actions[frame_idx, a_type_idx]):
+                    action_one_hot[frame_idx, a_idx, int(self.action_num_per_type_start_idx[a_type_idx] + action.item())] = 1
+
+
         # encode the current action into a one-hot vector
         # set device to that of the underlying network (it does not matter, the device of which layer is queried)
 
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
-                fwd_in = self.fwd_att(torch.cat((current_feature, action_one_hot), 1))
+                fwd_in = self.fwd_att(torch.cat((current_feature, action_one_hot), 2))
         else:
-            fwd_in = torch.cat((current_feature, action_one_hot), 1)
+            fwd_in = torch.cat((current_feature, action_one_hot), 2)
 
         next_feature_pred = self.fwd_net(fwd_in)
 
@@ -660,11 +663,11 @@ class AdversarialHead(nn.Module):
         # predict the action between s_t and s_t1
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
-                inv_in = self.inv_att(torch.cat((current_feature, next_feature), 1))
+                inv_in = self.inv_att(torch.cat((current_feature, next_feature), 2))
             elif self.attention_type == AttentionType.DOUBLE_ATTENTION:
                 inv_in = torch.cat((self.inv_cur_feat_att(current_feature), self.inv_next_feat_att(next_feature)), 1)
         else:
-            inv_in = torch.cat((current_feature, next_feature), 1)
+            inv_in = torch.cat((current_feature, next_feature), 2)
 
         action_pred = self.inv_net(inv_in)
 
@@ -717,9 +720,12 @@ class ICMNet(nn.Module):
         """
 
         """Predict fwd & inv dynamics"""
-        next_feature_pred, action_pred = self.pred_net(self.prev_features, features, action)
+        current_features = features[:-1,:,:]
+        next_features =features[1:,:,:]
+        next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
-        return self._calc_loss(features, next_feature_pred, action_pred, action)
+
+        return self._calc_loss(next_features, next_feature_pred, action_pred, action)
 
     def _calc_loss(self, features, feature_preds, action_preds, actions):
 
@@ -731,7 +737,8 @@ class ICMNet(nn.Module):
         #     loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
         # inverse loss
         # how good is the action estimate between states
-        loss_inv = torch.stack([F.cross_entropy(a_pred, a.long()) for (a_pred, a) in zip(action_preds, actions)]).mean()
+        actions = actions.permute(1,2,0)
+        loss_inv = torch.stack([F.cross_entropy(a_pred.permute(1,2,0), a.long()) for (a_pred, a) in zip(action_preds, actions)]).mean()
 
         return loss_fwd + loss_inv
 

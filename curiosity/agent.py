@@ -31,7 +31,7 @@ class ICMAgent(nn.Module):
         self.is_cuda = torch.cuda.is_available()
 
         # networks
-        self.icm = ICMNet(self.num_envs, self.num_players, self.action_descriptor, attn_type, attn_type, self.in_size,
+        self.icm = ICMNet(self.num_envs, self.num_players, self.action_descriptor, attn_target, attn_type, self.in_size,
                           self.feat_size)
         self.a2c = A2CNet(self.num_envs, self.num_players, self.action_descriptor, self.in_size, self.feat_size)
 
