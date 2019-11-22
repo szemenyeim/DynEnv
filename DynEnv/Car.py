@@ -55,6 +55,10 @@ class Car(object):
     def accelerate(self,dir):
         if not self.finished:
 
+            # Break is nor powerful
+            if dir < 0:
+                dir*=2
+
             # Get velocity
             velocity = Vec2d(self.powers[self.type]*dir,0)
             velocity.rotate(self.shape.body.angle)
@@ -82,7 +86,7 @@ class Car(object):
 
     # Crash
     def crash(self):
-        self.shape.color = (255, 0, 0)
+        self.shape.color = (255, 10, 10)
         self.finished = True
         self.crashed = True
 

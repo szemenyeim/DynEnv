@@ -83,12 +83,14 @@ def doRoboCup():
         ret = env.step(action)
 
 def doDrive():
-    nPlayers = 5
+    nPlayers = 1
     env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
     env.setRandomSeed(42)
+    env.reset()
 
-    action1 = [0, 0]
+    action1 = [1, 1]
+    action = np.array([action1,]*(nPlayers*2))
 
     while True:
         for event in pygame.event.get():
@@ -100,18 +102,18 @@ def doDrive():
                 elif event.key == K_RETURN:
                     env.reset()
                 elif event.key == K_w:
-                    action1[0] = 1
+                    action[(0,0)] = 2
                 elif event.key == K_s:
-                    action1[0] = -1
+                    action[(0,0)] = 0
                 elif event.key == K_d:
-                    action1[1] = -1
+                    action[(0,1)] = 0
                 elif event.key == K_a:
-                    action1[1] = 1
+                    action[(0,1)] = 2
 
             elif event.type == KEYUP:
-                action1 = [0, 0]
+                action[(0,0)] = 1
+                action[(0,1)] = 1
 
-        action =  np.array([action1,]*(nPlayers*2))
         ret = env.step(action)
 
 if __name__ == '__main__':

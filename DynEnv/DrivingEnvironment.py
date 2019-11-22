@@ -3,7 +3,7 @@ from .Car import Car
 from .Pedestrian import Pedestrian
 from .Obstacle import Obstacle
 from .Road import Road
-from .utils import ObservationType, NoiseType, CollisionType
+from .utils import ObservationType, NoiseType, CollisionType, friction_car_crashed
 from .cutils import *
 import cv2
 import math
@@ -60,7 +60,7 @@ class DrivingEnvironment(object):
         self.space.gravity = (0.0, 0.0)
         self.timeStep = 100.0
         self.timeDiff = 10.0
-        self.distThreshold = 10
+        self.distThreshold = 100
 
         # Observation space
         if self.observationType == ObservationType.Full:
@@ -208,10 +208,10 @@ class DrivingEnvironment(object):
             self.space.step(1 / self.timeStep)
 
             self.elapsed += 1
-            allFinised = all([car.finished and not car.crashed for car in self.cars])
+            allFinished = all([car.finished and not car.crashed for car in self.cars])
             if not self.allFinished:
-                if allFinised:
-                    self.allFinised = True
+                if allFinished:
+                    self.allFinished = True
                     self.teamReward += self.maxTime-self.elapsed
                 elif self.elapsed >= self.maxTime:
                     self.teamReward -= 0
@@ -277,7 +277,7 @@ class DrivingEnvironment(object):
 
         # Get actions
         acc = action[0]-1
-        steer = action[1]-1
+        steer = (action[1]-1)*2
 
         # Sanity checks
         if np.abs(acc) > 3:
@@ -303,29 +303,30 @@ class DrivingEnvironment(object):
             rPos = road.isPointOnRoad(car.getPos(),car.getAngle())
             car.position = min(car.position,rPos)
 
-        # If reached goal finish and add reward
-        if (car.getPos() - car.goal).length < self.distThreshold:
-            car.position = LanePosition.AtGoal
-            car.finished = True
-            car.shape.color = (255,255,255)
-            self.carRewards[index] += 1000
-        else:
-            # REward for getting closer
-            diff = (car.prevPos-car.goal).length - (car.getPos()-car.goal).length
+        # Reward for getting closer
+        diff = (car.prevPos-car.goal).length - (car.getPos()-car.goal).length
+        if not car.finished:
             self.carRewards[index] += diff
 
-            # Update previous position
-            car.prevPos = car.getPos()
+        # Update previous position
+        car.prevPos = car.getPos()
 
-            # crash for leaving road
-            if car.position == LanePosition.OffRoad:
-                if not (car.crashed or car.finished):
+        # crash for leaving road
+        if car.position == LanePosition.OffRoad:
+            if not car.finished:
+                # If reached goal finish and add reward
+                if (car.getPos() - car.goal).length < self.distThreshold:
+                    car.position = LanePosition.AtGoal
+                    car.finished = True
+                    self.carRewards[index] += 1000
+                    car.shape.body.velocity_func = friction_car_crashed
+                else:
                     car.crash()
                     self.carRewards[index] -= 500
-            # Add small punichment for being in opposite lane
-            elif car.position == LanePosition.InOpposingLane:
-                if not (car.crashed or car.finished):
-                    self.carRewards[index] -= 1
+        # Add small punichment for being in opposite lane
+        elif car.position == LanePosition.InOpposingLane:
+            if not car.finished:
+                self.carRewards[index] -= 0.2
 
     # Update function for pedestrians
     def move(self,pedestrian):
@@ -539,12 +540,12 @@ class DrivingEnvironment(object):
         car = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
         ped = next(ped for ped in self.pedestrians if (ped.shape == arbiter.shapes[1]))
 
-        # Blergh
-        ped.die()
-
         # Get velocity
         v1 = arbiter.shapes[0].body.velocity
         if v1.length > 1:
+
+            # Blergh
+            ped.die()
 
             # Get relative positions
             p1 = car.getPos()
@@ -552,10 +553,12 @@ class DrivingEnvironment(object):
             dp = p1 - p2
 
             # Crash car if it actually hit pedestrian
-            if math.cos(angle(dp) - angle(v1)) < -0.4 and not (car.crashed or car.finished):
+            if math.cos(angle(dp) - angle(v1)) < -0.4 and not car.finished:
                 car.crash()
                 index = self.cars.index(car)
                 self.carRewards[index] -= 1000
+        else:
+            return False
 
         return True
 
@@ -567,7 +570,7 @@ class DrivingEnvironment(object):
 
         # Punish
         index = self.cars.index(car)
-        if not (car.crashed or car.finished):
+        if not car.finished:
             self.carRewards[index] -= 1000
 
         # crash car
