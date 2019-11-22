@@ -214,7 +214,7 @@ class HyperparamScheduler(object):
 class NetworkParameters(object):
     def __init__(self, env_name: str, num_envs: int, n_stack: int, rollout_size: int = 5, num_updates: int = 2500000,
                  max_grad_norm: float = 0.5,
-                 icm_beta: float = 0.2, value_coeff: float = 0.5, entropy_coeff: float = 0.02,
+                 icm_beta: float = 0.2, value_coeff: float = 0.5, forward_coeff = 1e+3, entropy_coeff: float = 0.02,
                  attention_target: AttentionTarget = AttentionTarget.NONE,
                  attention_type: AttentionType = AttentionType.SINGLE_ATTENTION,
                  reward_type: RewardType = RewardType.INTRINSIC_ONLY):
@@ -226,6 +226,7 @@ class NetworkParameters(object):
         self.max_grad_norm = max_grad_norm
         self.icm_beta = icm_beta
         self.value_coeff = value_coeff
+        self.forward_coeff = forward_coeff
         self.entropy_coeff = entropy_coeff
         self.attention_target = attention_target
         self.attention_type = attention_type

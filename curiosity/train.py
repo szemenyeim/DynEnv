@@ -51,11 +51,18 @@ class Runner(object):
         features = None
 
         r_loss = 0
+        p_loss = 0
+        v_loss = 0
+        e_loss = 0
+        f_loss = 0
+        i_loss = 0
         r_r = 0
         r_p = 0
         losses = []
         rews = []
         rewps = []
+        mean_rews = []
+        mean_rewps = []
 
         t_prev = time.clock()
 
@@ -72,13 +79,16 @@ class Runner(object):
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
             # if self.net.icm.prev_features is not None:
-            icm_loss = self.net.icm(self.storage.features, self.storage.actions)
+            icm_losses = self.net.icm(self.storage.features, self.storage.actions)
+            icm_loss = sum(icm_losses)
             # self.net.icm.prev_features = features
 
 
             """Assemble loss"""
-            a2c_loss, rewards = self.storage.a2c_loss(final_value, entropy, self.params.value_coeff,
+            a2c_losses, rewards = self.storage.a2c_loss(final_value, entropy, self.params.value_coeff,
                                                       self.params.entropy_coeff)
+
+            a2c_loss = sum(a2c_losses)
 
             loss = a2c_loss + icm_loss
 
@@ -97,26 +107,49 @@ class Runner(object):
 
             rewards = rewards.view((-1, 1))
             r_loss += loss.item()
+            p_loss += a2c_losses[0].item()
+            v_loss += a2c_losses[1].item()
+            e_loss += a2c_losses[2].item()
+            f_loss += icm_losses[0].item()
+            i_loss += icm_losses[1].item()
             l_p = [max(rew.item(),0.0) for rew in rewards]
             l = [rew.item() for rew in rewards]
             r_r += np.array(l)
-            r_p +=  np.array(l_p)
+            r_p += np.array(l_p)
 
             dones = self.storage.dones[-1].bool()
 
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
-                r_loss /= (60*self.net.num_envs*self.net.num_players*2)
+                r_loss /= (60)
+                p_loss /= (60)
+                v_loss /= (60)
+                e_loss /= (60)
+                f_loss /= (60)
+                i_loss /= (60)
                 losses.append(r_loss)
                 rews.append(r_r)
                 rewps.append(r_p)
+                mean_rews.append(r_r.mean()*self.params.rollout_size)
+                mean_rewps.append(r_p.mean()*self.params.rollout_size)
+
+                avg_r = sum(mean_rews)/len(mean_rews) if len(mean_rews) < 10 else sum(mean_rews[-10:])/10.0
+                avg_rp = sum(mean_rewps)/len(mean_rewps) if len(mean_rewps) < 10 else sum(mean_rewps[-10:])/10.0
+
                 t_next = time.clock()
-                print("Episode %d finished: Time: %d Iters: %d/%d Loss: %.2f "
-                      % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss),
-                      "Rewards: [",  int(r_r.mean()*self.params.rollout_size), ",", int(r_p.mean()*self.params.rollout_size), "]") #r_r.astype('int32'),
+                print("Ep %d: Time: %d Iters: %d/%d Loss: (%.2f,%.2f,%.2f,%.2f,%.2f,%.2f) "
+                      % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss, p_loss, v_loss, e_loss, f_loss, i_loss),
+                      "Rewards: [",  int(mean_rews[-1]), ",", int(mean_rewps[-1]), "] ",
+                      "Avg: [",  int(avg_r), ",", int(avg_rp), "]") #r_r.astype('int32'),
                 t_prev = t_next
                 r_loss = 0
+                p_loss = 0
+                v_loss = 0
+                e_loss = 0
+                f_loss = 0
+                i_loss = 0
                 r_r = 0
+                r_p = 0
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset

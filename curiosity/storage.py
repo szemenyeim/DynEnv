@@ -172,10 +172,7 @@ class RolloutStorage(object):
         # and predicted rewards
         value_loss = advantage.pow(2).mean()
 
-        # construct loss
-        loss = policy_loss + value_coeff * value_loss - entropy_coeff * entropies.mean()
-
-        return loss, self.rewards.detach().cpu()
+        return (policy_loss, value_coeff * value_loss, -entropy_coeff * entropies.mean()), self.rewards.detach().cpu()
 
     def log_episode_rewards(self, infos):
         """

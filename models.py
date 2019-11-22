@@ -672,7 +672,7 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, num_envs=1):
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, forward_coeff, num_envs=1):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -694,6 +694,8 @@ class ICMNet(nn.Module):
         self.num_actions = len(self.action_descriptor)
         self.num_envs = num_envs
         self.num_players = num_players
+
+        self.forward_coeff = forward_coeff
 
         self.prev_features = None
 
@@ -737,7 +739,7 @@ class ICMNet(nn.Module):
         actions = actions.permute(1,2,0)
         loss_inv = torch.stack([F.cross_entropy(a_pred.permute(1,2,0), a.long()) for (a_pred, a) in zip(action_preds, actions)]).mean()
 
-        return loss_fwd + loss_inv
+        return (loss_fwd * self.forward_coeff, loss_inv)
 
 
 class A2CNet(nn.Module):
