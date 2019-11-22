@@ -38,19 +38,17 @@ if __name__ == '__main__':
     set_random_seeds(args.seed)
 
     # constants
-    num_players = 1
-    num_env = 32
     feature_size = 128
     attn_target = AttentionTarget.NONE
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
-    env, env_name = env_selector(DynEnvType.DRIVE, num_players, args.num_envs)
+    env, env_name = env_selector(DynEnvType.DRIVE, args.num_players, args.num_envs)
     batch, action_size = env.action_space
     input_size = env.observation_space
 
     # agent
-    agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type,
+    agent = ICMAgent(args.num_envs, args.num_players, action_size, attn_target, attn_type,
                      input_size, feature_size, lr=args.lr)
 
     # params

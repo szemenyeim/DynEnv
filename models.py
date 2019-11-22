@@ -346,78 +346,69 @@ class AttentionLayer(nn.Module):
 
 # LSTM Layer
 class LSTMLayer(nn.Module):
-    def __init__(self, nPlayers, feature, hidden, nEnvs):
+    def __init__(self, nPlayers, feature, hidden, nEnvs, nSteps = 10):
         super(LSTMLayer, self).__init__()
 
         # Params
-        self.nPlayers = nPlayers * nEnvs
+        self.nPlayers = nPlayers
+        self.nEnvs = nEnvs
         self.feature = feature
         self.hidden = hidden
+
+        self.h = [torch.zeros((self.nPlayers*self.nEnvs, self.hidden)) for i in range(nSteps)]
+        self.c = [torch.zeros((self.nPlayers*self.nEnvs, self.hidden)) for i in range(nSteps)]
+        self.x = [torch.zeros((self.nPlayers*self.nEnvs, self.feature)) for i in range(nSteps)]
 
         # Init LSTM cell
         self.cell = nn.LSTMCell(feature, hidden)
         self.reset()
 
-    # Reset inner state
-    def reset(self):
-        # Get device
-        device = next(self.parameters()).device
+        # Reset inner state
+        def reset(self, reset_indices=None):
+            device = next(self.parameters()).device
 
-        # Reset hidden vars
-        self.h = torch.zeros((self.nPlayers, self.hidden)).to(device)
-        self.c = torch.zeros((self.nPlayers, self.hidden)).to(device)
+            '''with torch.no_grad():
+                if reset_indices is not None and reset_indices.any():
+                    indices = torch.tensor(np.stack([reset_indices.cpu(),]*self.nPlayers)).permute(1,0).reshape(-1,1).squeeze()
+                    # Reset hidden vars
+                    self.h[-1][indices] = 0.0
+                    self.c[-1][indices] = 0.0
+                else:
+                    self.h[-1][:] = 0.0
+                    self.c[-1][:] = 0.0'''
 
-    # Put means and std on the correct device when .cuda() or .cpu() is called
-    def _apply(self, fn):
-        super(LSTMLayer, self)._apply(fn)
+            nSteps = len(self.h)
+            with torch.no_grad():
+                self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
+                self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
+                self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature)).to(device) for i in range(nSteps)]
 
-        self.h = fn(self.h)
-        self.c = fn(self.c)
+        # Put means and std on the correct device when .cuda() or .cpu() is called
+        def _apply(self, fn):
+            super(LSTMLayer, self)._apply(fn)
 
-        return self
+            self.h = [fn(h) for h in self.h]
+            self.c = [fn(c) for c in self.c]
 
-    # Forward
-    def forward(self, x):
-        self.h, self.c = self.cell(x, (self.h, self.c))
+            return self
 
-        return self.h
+        # Forward
+        def forward(self, x):
+            h, c = self.cell(x, (self.h[-1], self.c[-1]))
 
+            self.h[0].detach_()
+            self.c[0].detach_()
+            self.x[0].detach_()
 
-# Example network implementing an entire agent by simply averaging all obvervations for all timesteps
-class TestNet(nn.Module):
-    def __init__(self, inputs, action, feature, nEnvs=1):
-        super(TestNet, self).__init__()
+            self.h.pop(0)
+            self.c.pop(0)
+            self.x.pop(0)
 
-        nPlayers = inputs[1] * nEnvs
+            self.h.append(h)
+            self.c.append(c)
+            self.x.append(x)
 
-        # feature encoding
-        self.InNet = InputLayer(inputs, feature, nEnvs)
-        self.AttNet = AttentionLayer(feature)
-
-        self.LSTM = LSTMLayer(nPlayers, feature, feature * 2, nEnvs)
-
-        # action prediction
-        self.OutNet = ActorLayer(feature * 2, action)
-        self.critic = CriticLayer(feature * 2, nPlayers)
-
-    # Reset fun for lstm
-    def reset(self):
-        self.LSTM.reset()
-
-    def forward(self, x):
-        # Get embedded features
-        features, objCounts = self.InNet(x)
-
-        # Run attention
-        features = self.AttNet((features, objCounts))
-
-        # Run LSTM
-        features = self.LSTM(features)
-
-        value = self.critic(features)
-
-        # Get actions
-        return self.OutNet(features)
+            return self.h[-1]
 
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
@@ -435,8 +426,8 @@ class DynEnvFeatureExtractor(nn.Module):
         self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs)
 
     # Reset fun for lstm
-    def reset(self):
-        self.LSTM.reset()
+    def reset(self,reset_indices=None):
+        self.LSTM.reset(reset_indices)
 
     def forward(self, x):
         # Get embedded features
@@ -792,7 +783,7 @@ class A2CNet(nn.Module):
         :return:
         """
 
-        self.feat_enc_net.reset()
+        self.feat_enc_net.reset(reset_indices)
 
     def forward(self, state):
         """

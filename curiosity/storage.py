@@ -18,6 +18,8 @@ class RolloutStorage(object):
         """
         super().__init__()
 
+        self.states = []
+
         self.rollout_size = rollout_size
         self.num_envs = num_envs
         self.num_players = num_players
@@ -60,8 +62,6 @@ class RolloutStorage(object):
         :return:
         """
         self.rewards = self._generate_buffer((self.rollout_size, self.num_envs, self.num_actions*self.num_players))
-
-        self.states = []
 
         # the features are needed for the curiosity loss, an addtion to the A2C+ICM structure
         # +1 element is needed, as the MSE to the prediction of the next state is calculated
@@ -175,7 +175,7 @@ class RolloutStorage(object):
         # construct loss
         loss = policy_loss + value_coeff * value_loss - entropy_coeff * entropies.mean()
 
-        return loss, self.rewards.detach().cpu().numpy()
+        return loss, self.rewards.detach().cpu()
 
     def log_episode_rewards(self, infos):
         """

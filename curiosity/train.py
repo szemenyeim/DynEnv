@@ -82,7 +82,7 @@ class Runner(object):
 
             loss = a2c_loss + icm_loss
 
-            loss.backward(retain_graph=True)
+            loss.backward(retain_graph=False)
 
             # gradient clipping
             nn.utils.clip_grad_norm_(self.net.parameters(), self.params.max_grad_norm)
@@ -95,41 +95,38 @@ class Runner(object):
 
             self.net.optimizer.step()
 
+            rewards = rewards.view((-1, 1))
             r_loss += loss.item()
-            l_p = [max(rew[0],0.0) for rew in rewards]
-            l = [rew[0] for rew in rewards]
+            l_p = [max(rew.item(),0.0) for rew in rewards]
+            l = [rew.item() for rew in rewards]
             r_r += np.array(l)
             r_p +=  np.array(l_p)
 
-            self.net.a2c.reset_recurrent_buffers()
+            dones = self.storage.dones[-1].bool()
 
-            #todo: ezt át kellene írni
-            if finished.any():
-                r_loss /= (600*self.net.num_envs*self.net.num_players*2)
+            if dones.any():
+                self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
+                r_loss /= (60*self.net.num_envs*self.net.num_players*2)
                 losses.append(r_loss)
                 rews.append(r_r)
                 rewps.append(r_p)
                 t_next = time.clock()
                 print("Episode %d finished: Time: %d Iters: %d/%d Loss: %.2f "
                       % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss),
-                      "Rewards: [",  int(r_r.mean()), ",", int(r_p.mean()), "]") #r_r.astype('int32'),
+                      "Rewards: [",  int(r_r.mean()*self.params.rollout_size), ",", int(r_p.mean()*self.params.rollout_size), "]") #r_r.astype('int32'),
                 t_prev = t_next
                 r_loss = 0
                 r_r = 0
-                self.net.icm.prev_features = None
-                obs = self.env.reset()
-            else:
-                obs = new_obs
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
-            # self.storage.after_update()
+            self.storage.after_update()
 
             # if len(self.storage.episode_rewards) > 1:
             #     self.checkpointer.checkpoint(loss, self.storage.episode_rewards, self.net)
 
             if (num_update + 1) % 30000 == 0:
-                torch.save(self.net.state_dict(), ("saved/net%d.pth" % num_update))
+                torch.save(self.net.state_dict(), ("saved/net%d.pth" % (num_update+1)))
             #     print("current loss: ", loss.item(), " at update #", num_update)
             #     self.storage.print_reward_stats()
             # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")
@@ -162,7 +159,6 @@ class Runner(object):
             # self.storage.log_episode_rewards(infos)
 
             self.storage.insert(step, rewards, new_obs, actions, log_probs, values, dones, features)
-            self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
 
         # Note:
         # get the estimate of the final reward
