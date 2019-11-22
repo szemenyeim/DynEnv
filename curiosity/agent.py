@@ -6,7 +6,8 @@ from models import A2CNet, ICMNet
 
 
 class ICMAgent(nn.Module):
-    def __init__(self, num_envs, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, forward_coeff, lr=1e-4):
+    def __init__(self, num_envs, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size,
+                 forward_coeff, lr=1e-4):
         """
         Container class of an A2C and an ICM network, the baseline for experimenting with other curiosity-based
         methods.
@@ -45,4 +46,3 @@ class ICMAgent(nn.Module):
         # optimizer
         self.lr = lr
         self.optimizer = optim.Adam(list(self.icm.parameters()) + list(self.a2c.parameters()), self.lr)
-        # self.optimizer = optim.Adam(list(self.a2c.parameters()) , self.lr)

@@ -44,7 +44,7 @@ class ObsMask(object):
         """
         # If robot had no sightings
         if tensor_list is None or len(tensor_list) == 0:
-            return torch.empty((0,128))
+            return torch.empty((0, 128))
 
         # convert list of tensors to a single tensor
         t = torch.cat(tensor_list)
@@ -183,11 +183,11 @@ class EmbedBlock(nn.Module):
     def __init__(self, inputs, features):
         super(EmbedBlock, self).__init__()
 
-        self.Layer1 = nn.Linear(inputs, features//2,bias=False)
+        self.Layer1 = nn.Linear(inputs, features // 2, bias=False)
         self.relu = nn.LeakyReLU(0.1)
-        self.bn1 = nn.GroupNorm(4,features//2,affine=True)
-        self.Layer2 = nn.Linear(features//2,features,bias=False)
-        self.bn2 = nn.GroupNorm(4,features,affine=True)
+        self.bn1 = nn.GroupNorm(4, features // 2, affine=True)
+        self.Layer2 = nn.Linear(features // 2, features, bias=False)
+        self.bn2 = nn.GroupNorm(4, features, affine=True)
 
     def forward(self, x):
 
@@ -297,7 +297,7 @@ class AttentionLayer(nn.Module):
 
         # Confidence layer
         self.confLayer = nn.Sequential(
-            nn.Linear(features,1),
+            nn.Linear(features, 1),
             nn.Sigmoid()
         )
 
@@ -339,7 +339,7 @@ class AttentionLayer(nn.Module):
         confs = self.confLayer(finalAtt)
 
         # Masked averaging
-        summed = torch.sum(finalAtt*confs, 0)
+        summed = torch.sum(finalAtt * confs, 0)
         lens = torch.sum(torch.logical_not(finalMask), 0).float().unsqueeze(1)
         lens[lens == 0] = 1.0
 
@@ -348,7 +348,7 @@ class AttentionLayer(nn.Module):
 
 # LSTM Layer
 class LSTMLayer(nn.Module):
-    def __init__(self, nPlayers, feature, hidden, nEnvs, nSteps = 10):
+    def __init__(self, nPlayers, feature, hidden, nEnvs, nSteps=10):
         super(LSTMLayer, self).__init__()
 
         # Params
@@ -357,12 +357,11 @@ class LSTMLayer(nn.Module):
         self.feature = feature
         self.hidden = hidden
 
-        self.h = [torch.zeros((self.nPlayers*self.nEnvs, self.hidden)) for i in range(nSteps)]
-        self.c = [torch.zeros((self.nPlayers*self.nEnvs, self.hidden)) for i in range(nSteps)]
-        self.x = [torch.zeros((self.nPlayers*self.nEnvs, self.feature)) for i in range(nSteps)]
-
         # Init LSTM cell
         self.cell = nn.LSTMCell(feature, hidden)
+
+        # first call buffer generator, as reset needs the self.h buffer
+        self._generate_buffers(next(self.parameters()).device, nSteps)
         self.reset()
 
     # Reset inner state
@@ -381,9 +380,12 @@ class LSTMLayer(nn.Module):
 
         nSteps = len(self.h)
         with torch.no_grad():
-            self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
-            self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
-            self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature)).to(device) for i in range(nSteps)]
+            self._generate_buffers(device, nSteps)
+
+    def _generate_buffers(self, device, nSteps):
+        self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for _ in range(nSteps)]
+        self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for _ in range(nSteps)]
+        self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature)).to(device) for _ in range(nSteps)]
 
     # Put means and std on the correct device when .cuda() or .cpu() is called
     def _apply(self, fn):
@@ -428,7 +430,7 @@ class DynEnvFeatureExtractor(nn.Module):
         self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs)
 
     # Reset fun for lstm
-    def reset(self,reset_indices=None):
+    def reset(self, reset_indices=None):
         self.LSTM.reset(reset_indices)
 
     def forward(self, x):
@@ -503,56 +505,6 @@ class InverseBlock(nn.Module):
         return x
 
 
-# Complete action layer for multiple action groups
-class InverseNet(nn.Module):
-    def __init__(self, features, actions):
-        super().__init__()
-
-        # Create action groups
-        self.blocks = nn.ModuleList(
-            [InverseBlock(features, action[1], action[0], action[2], action[3]) for action in actions])
-
-    # Return list of actions
-    def forward(self, x):
-        outs = [block(x) for block in self.blocks]  # predict each action type
-        return outs
-
-
-# class InverseNet(nn.Module):
-#     def __init__(self, num_actions, feat_size=288):
-#         """
-#         Network for the inverse dynamics
-#
-#         :param num_actions: number of actions, pass env.action_space.n
-#         :param feat_size: dimensionality of the feature space (scalar)
-#         """
-#         super().__init__()
-#
-#         # constants
-#         self.feat_size = feat_size
-#         self.fc_hidden = 256
-#         self.num_actions = num_actions
-#
-#         # layers
-#         self.fc1 = nn.Linear(self.feat_size * 2, self.fc_hidden)
-#         self.fc2 = nn.Linear(self.fc_hidden, self.num_actions)
-#
-#     def forward(self, x):
-#         """
-#         In: torch.cat((phi(s_t), phi(s_{t+1}), 1)
-#             Current and next states transformed into the feature space,
-#             denoted by phi().
-#
-#         Out: \hat{a}_t
-#             Predicted action
-#
-#         :param x: input data containing the concatenated current and next states, pass
-#                   torch.cat((phi(s_t), phi(s_{t+1}), 1)
-#         :return:
-#         """
-#         return self.fc2(self.fc1(x))
-#
-
 class ForwardNet(nn.Module):
 
     def __init__(self, in_size):
@@ -611,7 +563,7 @@ class AdversarialHead(nn.Module):
         self.action_num_per_type_start_idx = np.cumsum([0, *self.action_num_per_type[:-1]])
 
         # networks
-        self.fwd_net = ForwardNet(2*self.feat_size + np.array(self.action_num_per_type).sum())
+        self.fwd_net = ForwardNet(2 * self.feat_size + np.array(self.action_num_per_type).sum())
         self.inv_net = ActorLayer(self.feat_size * 4, self.action_descriptor)
 
         # attention
@@ -636,7 +588,8 @@ class AdversarialHead(nn.Module):
         """Forward dynamics"""
         num_frames, num_action_types, num_actions = actions.shape
 
-        # one-hot placeholder vector
+        # encode the current action into a one-hot vector
+        # set device to that of the underlying network (it does not matter, the device of which layer is queried)
         device = current_feature.device
         action_one_hot = torch.zeros((num_frames, num_actions, np.array(self.action_num_per_type).sum())).to(device)
 
@@ -644,11 +597,9 @@ class AdversarialHead(nn.Module):
         for frame_idx in range(num_frames):
             for a_type_idx in range(num_action_types):
                 for a_idx, action in enumerate(actions[frame_idx, a_type_idx]):
-                    action_one_hot[frame_idx, a_idx, int(self.action_num_per_type_start_idx[a_type_idx] + action.item())] = 1
+                    action_one_hot[
+                        frame_idx, a_idx, int(self.action_num_per_type_start_idx[a_type_idx] + action.item())] = 1
 
-
-        # encode the current action into a one-hot vector
-        # set device to that of the underlying network (it does not matter, the device of which layer is queried)
 
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
@@ -674,7 +625,8 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size, forward_coeff, num_envs=1):
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size,
+                 forward_coeff, num_envs=1):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -719,10 +671,9 @@ class ICMNet(nn.Module):
         """
 
         """Predict fwd & inv dynamics"""
-        current_features = features[:-1,:,:]
-        next_features =features[1:,:,:]
+        current_features = features[:-1, :, :]
+        next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
-
 
         return self._calc_loss(next_features, next_feature_pred, action_pred, action)
 
@@ -736,9 +687,9 @@ class ICMNet(nn.Module):
         #     loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
         # inverse loss
         # how good is the action estimate between states
-        actions = actions.permute(1,2,0)
-        #print(torch.min(action_preds[0]),torch.max(action_preds[0]))
-        losses = [F.cross_entropy(a_pred.permute(1,2,0), a.long()) for (a_pred, a) in zip(action_preds, actions)]
+        actions = actions.permute(1, 2, 0)
+        # print(torch.min(action_preds[0]),torch.max(action_preds[0]))
+        losses = [F.cross_entropy(a_pred.permute(1, 2, 0), a.long()) for (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
         return (loss_fwd, loss_inv)
@@ -761,7 +712,7 @@ class A2CNet(nn.Module):
         self.in_size = in_size  # in_size
         self.feature_size = feature_size
         self.action_descriptor = action_descriptor
-        self.num_players = num_players*2
+        self.num_players = num_players * 2
         self.num_envs = num_envs
 
         self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs)

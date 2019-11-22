@@ -2,7 +2,7 @@ from collections import deque
 
 import numpy as np
 import torch
-from copy import deepcopy
+
 
 class RolloutStorage(object):
     def __init__(self, rollout_size, num_envs, num_players, num_actions, n_stack, feature_size=288,
@@ -61,17 +61,21 @@ class RolloutStorage(object):
          avoiding memory leak
         :return:
         """
-        self.rewards = self._generate_buffer((self.rollout_size, self.num_envs, self.num_actions*self.num_players))
+        self.rewards = self._generate_buffer((self.rollout_size, self.num_envs, self.num_actions * self.num_players))
 
         # the features are needed for the curiosity loss, an addtion to the A2C+ICM structure
         # +1 element is needed, as the MSE to the prediction of the next state is calculated
-        self.features = self._generate_buffer((self.rollout_size + 1, 2*self.num_envs*self.num_players, self.feature_size))
+        self.features = self._generate_buffer(
+            (self.rollout_size + 1, 2 * self.num_envs * self.num_players, self.feature_size))
 
-        self.actions = self._generate_buffer((self.rollout_size, self.num_actions, 2*self.num_envs*self.num_players))
-        self.log_probs = self._generate_buffer((self.rollout_size, self.num_actions, 2*self.num_envs*self.num_players))
-        self.values = self._generate_buffer((self.rollout_size, 2*self.num_envs*self.num_players))
+        self.actions = self._generate_buffer(
+            (self.rollout_size, self.num_actions, 2 * self.num_envs * self.num_players))
+        self.log_probs = self._generate_buffer(
+            (self.rollout_size, self.num_actions, 2 * self.num_envs * self.num_players))
+        self.values = self._generate_buffer((self.rollout_size, 2 * self.num_envs * self.num_players))
 
         self.dones = self._generate_buffer((self.rollout_size, self.num_envs))
+
     def after_update(self):
         """
         Cleaning up buffers after a rollout is finished and
@@ -166,7 +170,8 @@ class RolloutStorage(object):
 
         # weight the deviation of the predicted value (of the state) from the
         # actual reward (=advantage) with the negative log probability of the action taken
-        policy_loss = torch.stack([(-log_prob * advantage.detach()).mean() for log_prob in self.log_probs.permute(1,0,2)]).mean()
+        policy_loss = torch.stack(
+            [(-log_prob * advantage.detach()).mean() for log_prob in self.log_probs.permute(1, 0, 2)]).mean()
 
         # the value loss weights the squared difference between the actual
         # and predicted rewards

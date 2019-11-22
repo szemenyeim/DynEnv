@@ -1,15 +1,17 @@
 from os.path import abspath
 from time import gmtime, strftime
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 np.set_printoptions(precision=1)
 
 from .logger import TemporalLogger
 from .utils import AgentCheckpointer
 from .storage import RolloutStorage
 import time
+
 
 class Runner(object):
 
@@ -31,7 +33,6 @@ class Runner(object):
         """Environment"""
         self.env = env
 
-
         """Network"""
         self.net = net
 
@@ -40,15 +41,15 @@ class Runner(object):
 
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
-                                      len(self.net.action_descriptor), self.params.n_stack, 2*self.net.feat_size, is_cuda=self.is_cuda)
-
+                                      len(self.net.action_descriptor), self.params.n_stack, 2 * self.net.feat_size,
+                                      is_cuda=self.is_cuda)
 
     def train(self):
 
         """Environment reset"""
         obs = self.env.reset()
         self.storage.states.append(obs)
-        features = None
+
 
         r_loss = 0
         p_loss = 0
@@ -66,7 +67,6 @@ class Runner(object):
 
         t_prev = time.clock()
 
-        # self.storage.states[0].copy_(self.storage.obs2tensor(obs))
 
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
@@ -78,15 +78,12 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            # if self.net.icm.prev_features is not None:
             icm_losses = self.net.icm(self.storage.features, self.storage.actions)
             icm_loss = sum(icm_losses)
-            # self.net.icm.prev_features = features
-
 
             """Assemble loss"""
             a2c_losses, rewards = self.storage.a2c_loss(final_value, entropy, self.params.value_coeff,
-                                                      self.params.entropy_coeff)
+                                                        self.params.entropy_coeff)
 
             a2c_loss = sum(a2c_losses)
 
@@ -112,7 +109,7 @@ class Runner(object):
             e_loss += a2c_losses[2].item()
             f_loss += icm_losses[0].item()
             i_loss += icm_losses[1].item()
-            l_p = [max(rew.item(),0.0) for rew in rewards]
+            l_p = [max(rew.item(), 0.0) for rew in rewards]
             l = [rew.item() for rew in rewards]
             r_r += np.array(l)
             r_p += np.array(l_p)
@@ -122,25 +119,26 @@ class Runner(object):
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
                 r_loss /= (60)
-                #p_loss /= (60)
-                #v_loss /= (60)
-                #e_loss /= (60)
-                #f_loss /= (60)
+                # p_loss /= (60)
+                # v_loss /= (60)
+                # e_loss /= (60)
+                # f_loss /= (60)
                 i_loss /= (60)
                 losses.append(r_loss)
                 rews.append(r_r)
                 rewps.append(r_p)
-                mean_rews.append(r_r.sum()*self.params.rollout_size)
-                mean_rewps.append(r_p.sum()*self.params.rollout_size)
+                mean_rews.append(r_r.sum() * self.params.rollout_size)
+                mean_rewps.append(r_p.sum() * self.params.rollout_size)
 
-                avg_r = sum(mean_rews)/len(mean_rews) if len(mean_rews) < 10 else sum(mean_rews[-10:])/10.0
-                avg_rp = sum(mean_rewps)/len(mean_rewps) if len(mean_rewps) < 10 else sum(mean_rewps[-10:])/10.0
+                avg_r = sum(mean_rews) / len(mean_rews) if len(mean_rews) < 10 else sum(mean_rews[-10:]) / 10.0
+                avg_rp = sum(mean_rewps) / len(mean_rewps) if len(mean_rewps) < 10 else sum(mean_rewps[-10:]) / 10.0
 
                 t_next = time.clock()
                 print("Ep %d: Time: %d Iters: %d/%d Loss: (%.2f,%.2f,%.2f,%.2f,%.2f,%.2f) "
-                      % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss, p_loss*100, v_loss*100, e_loss*100, f_loss*100, i_loss),
-                      "Rewards: [",  int(mean_rews[-1]), ",", int(mean_rewps[-1]), "] ",
-                      "Avg: [",  int(avg_r), ",", int(avg_rp), "]") #r_r.astype('int32'),
+                      % (len(losses), (t_next - t_prev), num_update + 1, self.params.num_updates, r_loss, p_loss * 100,
+                         v_loss * 100, e_loss * 100, f_loss * 100, i_loss),
+                      "Rewards: [", int(mean_rews[-1]), ",", int(mean_rewps[-1]), "] ",
+                      "Avg: [", int(avg_r), ",", int(avg_rp), "]")  # r_r.astype('int32'),
                 t_prev = t_next
                 r_loss = 0
                 p_loss = 0
@@ -159,20 +157,19 @@ class Runner(object):
             #     self.checkpointer.checkpoint(loss, self.storage.episode_rewards, self.net)
 
             if (num_update + 1) % 30000 == 0:
-                torch.save(self.net.state_dict(), ("saved/net%d.pth" % (num_update+1)))
+                torch.save(self.net.state_dict(), ("saved/net%d.pth" % (num_update + 1)))
             #     print("current loss: ", loss.item(), " at update #", num_update)
             #     self.storage.print_reward_stats()
             # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")
 
         self.env.close()
 
-        torch.save(torch.tensor(losses),"saved/losses.pth")
-        torch.save(torch.tensor(rews),"saved/rewards.pth")
-        torch.save(torch.tensor(rewps),"saved/rewards_pos.pth")
+        torch.save(torch.tensor(losses), "saved/losses.pth")
+        torch.save(torch.tensor(rews), "saved/rewards.pth")
+        torch.save(torch.tensor(rewps), "saved/rewards_pos.pth")
 
         # self.logger.save(*["rewards", "features"])
         # self.params.save(self.logger.data_dir, self.timestamp)
-
 
     def episode_rollout(self):
         episode_entropy = 0
@@ -203,4 +200,3 @@ class Runner(object):
         self.storage.features[step + 1].copy_(final_features)
 
         return final_value, episode_entropy
-
