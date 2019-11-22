@@ -14,7 +14,7 @@ def get_args():
                         help='train flag (False->load model)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='CUDA flag')
-    parser.add_argument('--log-dir', type=str, default="../log",
+    parser.add_argument('--log-dir', type=str, default="./log",
                         help='log directory')
     parser.add_argument('--seed', type=int, default=42, metavar='SEED',
                         help='random seed')
@@ -41,13 +41,6 @@ def get_args():
     parser.add_argument('--num-updates', type=int, default=240000, metavar='NUM_UPDATES',
                         help='number of updates')
 
-    # render
-    parser.add_argument('--variant', type=int, default=0, metavar='VARIANT',
-                        help='variant of the environment')
-    parser.add_argument('--env', type=str, default="pong", metavar='ENV',
-                        help='environment name')
-    parser.add_argument('--num-frames', type=int, default=200, metavar='N_FRAMES',
-                        help='number of frames')
 
     # model coefficients
     parser.add_argument('--icm-beta', type=float, default=2e-1, metavar='ICM_BETA',

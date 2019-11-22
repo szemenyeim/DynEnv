@@ -27,7 +27,7 @@ class Runner(object):
         self.params = params
 
         """Logger"""
-        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["rewards", "features"])
+        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["r_r", "r_p"])
         self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp)
 
         """Environment"""
@@ -50,7 +50,6 @@ class Runner(object):
         obs = self.env.reset()
         self.storage.states.append(obs)
 
-
         r_loss = 0
         p_loss = 0
         v_loss = 0
@@ -66,7 +65,6 @@ class Runner(object):
         mean_rewps = []
 
         t_prev = time.clock()
-
 
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
@@ -115,6 +113,9 @@ class Runner(object):
             r_p += np.array(l_p)
 
             dones = self.storage.dones[-1].bool()
+
+            # logger test
+            self.logger.log(**{"r_r": r_r, "r_p": r_p})
 
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
@@ -168,8 +169,8 @@ class Runner(object):
         torch.save(torch.tensor(rews), "saved/rewards.pth")
         torch.save(torch.tensor(rewps), "saved/rewards_pos.pth")
 
-        # self.logger.save(*["rewards", "features"])
-        # self.params.save(self.logger.data_dir, self.timestamp)
+        self.logger.save(*["r_r", "r_p"])
+        self.params.save(self.logger.data_dir, self.timestamp)
 
     def episode_rollout(self):
         episode_entropy = 0
