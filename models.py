@@ -183,9 +183,9 @@ class EmbedBlock(nn.Module):
 
         self.Layer1 = nn.Linear(inputs, features//2,bias=False)
         self.relu = nn.LeakyReLU(0.1)
-        self.bn1 = nn.BatchNorm1d(features//2,affine=True)
+        self.bn1 = nn.GroupNorm(4,features//2,affine=True)
         self.Layer2 = nn.Linear(features//2,features,bias=False)
-        self.bn2 = nn.BatchNorm1d(features,affine=True)
+        self.bn2 = nn.GroupNorm(4,features,affine=True)
 
     def forward(self, x):
 
