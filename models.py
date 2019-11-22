@@ -459,52 +459,6 @@ class AttentionNet(nn.Module):
     def forward(self, target, attn=None):
         return target * F.softmax(self.attention(target if attn is None else attn), dim=-1)
 
-
-# Outputs a certain type of action
-class InverseBlock(nn.Module):
-    def __init__(self, features, actions, action_type, means=None, scale=None):
-        super().__init__()
-
-        self.action_type = action_type
-        # Initialize
-        self.means = None
-        self.scale = None
-
-        # For continous actions a desired interval can be given [mean-range:mean+range] (otherwise [0:1])
-        if means is not None:
-            self.means = torch.Tensor(means)
-            self.scale = torch.Tensor(scale)
-            assert (len(means) == len(scale) and len(means) == actions)
-
-        # Create layers
-        self.fc_hidden = 256
-        self.fc1 = nn.Linear(features * 2, self.fc_hidden)
-        self.fc2 = nn.Linear(self.fc_hidden, actions)
-        self.activation = nn.Softmax(dim=1) if action_type == 'cat' else nn.Sigmoid()
-
-    # Put means and std on the correct device when .cuda() or .cpu() is called
-    def _apply(self, fn):
-        super()._apply(fn)
-        if self.means is not None:
-            self.means = fn(self.means)
-            self.scale = fn(self.scale)
-        return self
-
-    # Forward
-    def forward(self, x):
-
-        # Forward
-        x = self.activation(self.fc1(x))
-
-        # Optional scaling
-        # continuous
-        if self.means is not None:
-            x = (x - 0.5) * self.scale + self.means
-            entropy = 0
-
-        return x
-
-
 class ForwardNet(nn.Module):
 
     def __init__(self, in_size):

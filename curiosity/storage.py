@@ -24,6 +24,7 @@ class RolloutStorage(object):
         self.num_envs = num_envs
         self.num_players = num_players
         self.num_actions = num_actions
+        self.num_all_players =2*self.num_envs*self.num_players # sum of players over all envs
         self.n_stack = n_stack
         self.feature_size = feature_size
         self.is_cuda = is_cuda
@@ -61,18 +62,18 @@ class RolloutStorage(object):
          avoiding memory leak
         :return:
         """
-        self.rewards = self._generate_buffer((self.rollout_size, self.num_envs, self.num_actions * self.num_players))
+        self.rewards = self._generate_buffer((self.rollout_size, self.num_all_players))
 
         # the features are needed for the curiosity loss, an addtion to the A2C+ICM structure
         # +1 element is needed, as the MSE to the prediction of the next state is calculated
         self.features = self._generate_buffer(
-            (self.rollout_size + 1, 2 * self.num_envs * self.num_players, self.feature_size))
+            (self.rollout_size + 1, self.num_all_players, self.feature_size))
 
         self.actions = self._generate_buffer(
-            (self.rollout_size, self.num_actions, 2 * self.num_envs * self.num_players))
+            (self.rollout_size, self.num_actions,self.num_all_players))
         self.log_probs = self._generate_buffer(
-            (self.rollout_size, self.num_actions, 2 * self.num_envs * self.num_players))
-        self.values = self._generate_buffer((self.rollout_size, 2 * self.num_envs * self.num_players))
+            (self.rollout_size, self.num_actions, self.num_all_players))
+        self.values = self._generate_buffer((self.rollout_size, self.num_all_players))
 
         self.dones = self._generate_buffer((self.rollout_size, self.num_envs))
 
@@ -111,7 +112,7 @@ class RolloutStorage(object):
         """
         self.states.append(obs)
 
-        self.rewards[step].copy_(torch.from_numpy(reward))
+        self.rewards[step].copy_(torch.from_numpy(reward).view(-1))
         self.features[step].copy_(features)
         self.actions[step].copy_(torch.stack(action, dim=0))
         self.log_probs[step].copy_(torch.stack(log_prob, dim=0))
@@ -132,7 +133,8 @@ class RolloutStorage(object):
 
         """Setup"""
         # placeholder tensor to avoid dynamic allocation with insert
-        r_discounted = self._generate_buffer((self.rollout_size, self.num_envs))
+
+        r_discounted = self._generate_buffer((self.rollout_size, self.num_all_players))
 
         """Calculate discounted rewards"""
         # setup the reward chain
@@ -142,7 +144,9 @@ class RolloutStorage(object):
 
         # masked_scatter_ copies from #1 where #0 is 1 -> but we need scattering, where
         # the episode is not finished, thus the (1-x)
-        R = self._generate_buffer(self.num_envs).masked_scatter((1 - self.dones[-1]).bool(), final_value)
+        # .T is needed of consecutiveness (i.e. the proper order of dones) is broken
+        dones4players = torch.stack(2*self.num_players*[self.dones[-1]]).T.reshape(-1)
+        R = self._generate_buffer(self.num_all_players).masked_scatter((1 - dones4players).bool(), final_value.view(-1))
 
         for i in reversed(range(self.rollout_size)):
             # the reward can only change if we are within the episode
@@ -150,10 +154,10 @@ class RolloutStorage(object):
             # NOTE: this update rule also can handle, if a new episode has started during the rollout
             # in that case an intermediate value will be 0
             # todo: add GAE
-            R = self._generate_buffer(self.num_envs).masked_scatter((1 - self.dones[-1]).bool(),
+            R = self._generate_buffer(self.num_all_players).masked_scatter((1 - dones4players).bool(),
                                                                     self.rewards[i] + discount * R)
 
-            r_discounted[i] = R
+            r_discounted[i].copy_(R)
 
         return r_discounted
 
@@ -162,11 +166,8 @@ class RolloutStorage(object):
         # MEAN is used instead of SUM
         # calculate advantage
         # i.e. how good was the estimate of the value of the current state
-        # todo: use final value
-        # rewards = self._discount_rewards(final_values)
-        # device = values.device
-        # rewards = values.__class__(rewards).reshape(values.shape).to(device)
-        advantage = self.rewards.view_as(self.values) - self.values
+        rewards = self._discount_rewards(final_values)
+        advantage = rewards - self.values
 
         # weight the deviation of the predicted value (of the state) from the
         # actual reward (=advantage) with the negative log probability of the action taken
