@@ -30,7 +30,7 @@ class Pedestrian(object):
         self.moving = 0
         self.direction = road.direction
         self.normal = road.normal
-        self.speed = random.randint(4,10)
+        self.speed = random.randint(3,6)
 
         # Flags for crossing
         self.crossing = False

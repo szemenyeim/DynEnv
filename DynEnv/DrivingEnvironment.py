@@ -104,7 +104,7 @@ class DrivingEnvironment(object):
         endSel = np.random.randint(0,2,self.nPlayers)
         goals = [self.roads[rd].points[end] for rd,end in zip(roadSel,endSel)]
         teams = np.random.randint(0,self.numTeams+1,self.nPlayers)
-        types = np.random.randint(0,len(Car.powers),self.nPlayers)
+        types = np.random.randint(0,1,self.nPlayers)#len(Car.powers)
         spots = self.getUniqueSpots()
         self.cars = [Car(spot[0],spot[1],tp,team,goal) for spot,tp,team,goal in zip(spots,types,teams,goals)]
         for car in self.cars:
@@ -286,8 +286,7 @@ class DrivingEnvironment(object):
             raise Exception("Error: Steering must be between +/-3")
 
         # Apply actions to car
-        if acc != 0:
-            car.accelerate(acc.item())
+        car.accelerate(acc.item())
         if steer != 0:
             car.turn(steer.item())
 
@@ -325,8 +324,8 @@ class DrivingEnvironment(object):
                     self.carRewards[index] -= 500
         # Add small punichment for being in opposite lane
         elif car.position == LanePosition.InOpposingLane:
-            if not car.finished:
-                self.carRewards[index] -= 0.2
+            if not car.finished and car.shape.body.velocity.length > 0:
+                self.carRewards[index] -= 0.1*0
 
     # Update function for pedestrians
     def move(self,pedestrian):
@@ -384,8 +383,8 @@ class DrivingEnvironment(object):
                     # If pedestrian is out, choose direction towards the middle
                     elif isOut:
                         dir = -pedestrian.direction if self.isOut(pedestrian.getPos()+pedestrian.direction) else pedestrian.direction
-                    # Otherwise cross the road with 10% chance
-                    elif random.random() < 0.1:
+                    # Otherwise cross the road with 5% chance
+                    elif random.random() < 0.05:
 
                         # Setup normal crossing
                         pedestrian.crossing = True

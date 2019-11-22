@@ -55,19 +55,29 @@ class Car(object):
     def accelerate(self,dir):
         if not self.finished:
 
-            # Break is nor powerful
+            power = dir
+
+            # Reverse is less powerful
             if dir < 0:
-                dir*=2
+                power = dir*0.75
+
+            moveDir = self.shape.body.velocity.dot(self.direction)
+            if dir == 0:
+                power = 0 if not moveDir else (-2 if moveDir > 0 else 2)
+            elif dir < 0 and moveDir > 0:
+                return
+            elif dir > 0 and moveDir < 0:
+                return
 
             # Get velocity
-            velocity = Vec2d(self.powers[self.type]*dir,0)
+            velocity = Vec2d(self.powers[self.type]*power,0)
             velocity.rotate(self.shape.body.angle)
 
             # Add to previous
             self.shape.body.velocity = self.shape.body.velocity + velocity
 
             # Prevent the car from moving backwards
-            if self.shape.body.velocity.dot(self.direction) < 0:
+            if dir == 0 and self.shape.body.velocity.dot(self.direction)*moveDir < 0:
                 self.shape.body.velocity = Vec2d(0,0)
 
     # Turn
