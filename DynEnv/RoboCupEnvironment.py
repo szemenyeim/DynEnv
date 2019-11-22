@@ -98,7 +98,8 @@ class RoboCupEnvironment(object):
         self.teamRewards = np.array([0.0,0.0])
         self.robotRewards = np.array([0.0,0.0]*self.nPlayers)
         self.penalTimes = [20000,20000]
-        self.maxTime = 300000
+        self.maxTime = 6000
+        self.elapsed = 0
 
         # Simulation settings
         self.space = pymunk.Space()
@@ -254,7 +255,7 @@ class RoboCupEnvironment(object):
             self.space.step(1 / self.timeStep)
 
             # Decrease game timer
-            self.maxTime -= 1000.0/self.timeStep
+            self.elapsed += 1
 
             # Get observations every 100 ms
             if i % 10 == 9:
@@ -274,7 +275,7 @@ class RoboCupEnvironment(object):
 
         t2 = time.clock()
         #print((t2-t1)*1000)
-        if self.maxTime < 0:
+        if self.elapsed >= self.maxTime:
             finished = True
 
         return observations, self.robotRewards, finished, {'Full State' : self.getFullState()}

@@ -111,7 +111,7 @@ class DrivingEnvironment(object):
             self.space.add(car.shape.body,car.shape)
 
         # Add random pedestrians
-        self.pedestrianNum = random.randint(15,30)
+        self.pedestrianNum = random.randint(10,20)
         self.pedestrians = self.createRandomPedestrians()
         for ped in self.pedestrians:
             self.space.add(ped.shape.body,ped.shape)
@@ -216,9 +216,6 @@ class DrivingEnvironment(object):
                 elif self.elapsed >= self.maxTime:
                     self.teamReward -= 0
 
-            if self.elapsed >= self.maxTime:
-                finished = True
-
             # Get observations every 100 ms
             if i % 10 == 9:
                 if self.observationType == ObservationType.Full:
@@ -234,6 +231,9 @@ class DrivingEnvironment(object):
 
 
         self.carRewards += self.teamReward
+
+        if self.elapsed >= self.maxTime:
+            finished = True
 
         t2 = time.clock()
         #print((t2 - t1) * 1000)
@@ -308,7 +308,7 @@ class DrivingEnvironment(object):
             car.position = LanePosition.AtGoal
             car.finished = True
             car.shape.color = (255,255,255)
-            self.carRewards[index] += 5000
+            self.carRewards[index] += 1000
         else:
             # REward for getting closer
             diff = (car.prevPos-car.goal).length - (car.getPos()-car.goal).length
@@ -321,11 +321,11 @@ class DrivingEnvironment(object):
             if car.position == LanePosition.OffRoad:
                 if not (car.crashed or car.finished):
                     car.crash()
-                    self.carRewards[index] -= 2000
+                    self.carRewards[index] -= 500
             # Add small punichment for being in opposite lane
             elif car.position == LanePosition.InOpposingLane:
                 if not (car.crashed or car.finished):
-                    self.carRewards[index] -= 10
+                    self.carRewards[index] -= 1
 
     # Update function for pedestrians
     def move(self,pedestrian):
@@ -498,16 +498,16 @@ class DrivingEnvironment(object):
         index2 = self.cars.index(car2)
 
         if not car1.crashed:
-            self.carRewards[index1] -= 2000
+            self.carRewards[index1] -= 500
         if not car2.crashed:
-            self.carRewards[index2] -= 2000
+            self.carRewards[index2] -= 500
 
         # Punish car in the wrong lane extra
         if car1.position != LanePosition.InRightLane and not car1.crashed:
-            self.carRewards[index1] -= 2000
+            self.carRewards[index1] -= 500
 
         if car2.position != LanePosition.InRightLane and not car2.crashed:
-            self.carRewards[index2] -= 2000
+            self.carRewards[index2] -= 500
 
         # If both in the rights lane
         if car1.position == LanePosition.InRightLane and car2.position == LanePosition.InRightLane:
@@ -521,10 +521,10 @@ class DrivingEnvironment(object):
 
             # Car is responsible if moving towards the other one
             if v1.length > 1 and math.cos(angle(dp) - angle(v1)) < -0.4 and not car1.crashed:
-                self.carRewards[index1] -= 2000
+                self.carRewards[index1] -= 500
 
             if v2.length > 1 and math.cos(angle(dp) - angle(v2)) > 0.4 and not car2.crashed:
-                self.carRewards[index2] -= 2000
+                self.carRewards[index2] -= 500
 
         # Crash them
         car1.crash()
@@ -555,7 +555,7 @@ class DrivingEnvironment(object):
             if math.cos(angle(dp) - angle(v1)) < -0.4 and not (car.crashed or car.finished):
                 car.crash()
                 index = self.cars.index(car)
-                self.carRewards[index] -= 5000
+                self.carRewards[index] -= 1000
 
         return True
 
@@ -568,7 +568,7 @@ class DrivingEnvironment(object):
         # Punish
         index = self.cars.index(car)
         if not (car.crashed or car.finished):
-            self.carRewards[index] -= 5000
+            self.carRewards[index] -= 1000
 
         # crash car
         car.crash()
