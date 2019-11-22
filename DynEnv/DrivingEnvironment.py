@@ -160,6 +160,9 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
+
+        self.setRandomSeed(42)
+
         self.__init__(self.nPlayers//2,self.render,self.observationType,self.noiseType,self.noiseMagnitude)
         observations = []
         if self.observationType == ObservationType.Full:

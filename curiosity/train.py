@@ -121,12 +121,12 @@ class Runner(object):
 
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
-                r_loss /= (60)
+                '''r_loss /= (60)
                 p_loss /= (60)
                 v_loss /= (60)
                 e_loss /= (60)
                 f_loss /= (60)
-                i_loss /= (60)
+                i_loss /= (60)'''
                 losses.append(r_loss)
                 rews.append(r_r)
                 rewps.append(r_p)

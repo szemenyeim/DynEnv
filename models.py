@@ -110,7 +110,7 @@ class ActorBlock(nn.Module):
 
         # Create layers
         self.Layer = nn.Linear(features, actions)
-        self.activation = nn.Softmax(dim=1) if action_type == 'cat' else nn.Sigmoid()
+        self.activation = None if action_type == 'cat' else nn.Sigmoid()
 
     # Put means and std on the correct device when .cuda() or .cpu() is called
     def _apply(self, fn):
@@ -124,7 +124,9 @@ class ActorBlock(nn.Module):
     def forward(self, x):
 
         # Forward
-        x = self.activation(self.Layer(x))
+        x = self.Layer(x)
+        if self.activation is not None:
+            x = self.activation(x)
 
         # Optional scaling
         # continuous
@@ -697,8 +699,6 @@ class ICMNet(nn.Module):
 
         self.forward_coeff = forward_coeff
 
-        self.prev_features = None
-
         # networks
         self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
@@ -737,9 +737,11 @@ class ICMNet(nn.Module):
         # inverse loss
         # how good is the action estimate between states
         actions = actions.permute(1,2,0)
-        loss_inv = torch.stack([F.cross_entropy(a_pred.permute(1,2,0), a.long()) for (a_pred, a) in zip(action_preds, actions)]).mean()
+        #print(torch.min(action_preds[0]),torch.max(action_preds[0]))
+        losses = [F.cross_entropy(a_pred.permute(1,2,0), a.long()) for (a_pred, a) in zip(action_preds, actions)]
+        loss_inv = torch.stack(losses).mean()
 
-        return (loss_fwd * self.forward_coeff, loss_inv)
+        return (loss_fwd * self.forward_coeff, 0.1*loss_inv)
 
 
 class A2CNet(nn.Module):
