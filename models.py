@@ -363,52 +363,52 @@ class LSTMLayer(nn.Module):
         self.cell = nn.LSTMCell(feature, hidden)
         self.reset()
 
-        # Reset inner state
-        def reset(self, reset_indices=None):
-            device = next(self.parameters()).device
+    # Reset inner state
+    def reset(self, reset_indices=None):
+        device = next(self.parameters()).device
 
-            '''with torch.no_grad():
-                if reset_indices is not None and reset_indices.any():
-                    indices = torch.tensor(np.stack([reset_indices.cpu(),]*self.nPlayers)).permute(1,0).reshape(-1,1).squeeze()
-                    # Reset hidden vars
-                    self.h[-1][indices] = 0.0
-                    self.c[-1][indices] = 0.0
-                else:
-                    self.h[-1][:] = 0.0
-                    self.c[-1][:] = 0.0'''
+        '''with torch.no_grad():
+            if reset_indices is not None and reset_indices.any():
+                indices = torch.tensor(np.stack([reset_indices.cpu(),]*self.nPlayers)).permute(1,0).reshape(-1,1).squeeze()
+                # Reset hidden vars
+                self.h[-1][indices] = 0.0
+                self.c[-1][indices] = 0.0
+            else:
+                self.h[-1][:] = 0.0
+                self.c[-1][:] = 0.0'''
 
-            nSteps = len(self.h)
-            with torch.no_grad():
-                self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
-                self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
-                self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature)).to(device) for i in range(nSteps)]
+        nSteps = len(self.h)
+        with torch.no_grad():
+            self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
+            self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for i in range(nSteps)]
+            self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature)).to(device) for i in range(nSteps)]
 
-        # Put means and std on the correct device when .cuda() or .cpu() is called
-        def _apply(self, fn):
-            super(LSTMLayer, self)._apply(fn)
+    # Put means and std on the correct device when .cuda() or .cpu() is called
+    def _apply(self, fn):
+        super(LSTMLayer, self)._apply(fn)
 
-            self.h = [fn(h) for h in self.h]
-            self.c = [fn(c) for c in self.c]
+        self.h = [fn(h) for h in self.h]
+        self.c = [fn(c) for c in self.c]
 
-            return self
+        return self
 
-        # Forward
-        def forward(self, x):
-            h, c = self.cell(x, (self.h[-1], self.c[-1]))
+    # Forward
+    def forward(self, x):
+        h, c = self.cell(x, (self.h[-1], self.c[-1]))
 
-            self.h[0].detach_()
-            self.c[0].detach_()
-            self.x[0].detach_()
+        self.h[0].detach_()
+        self.c[0].detach_()
+        self.x[0].detach_()
 
-            self.h.pop(0)
-            self.c.pop(0)
-            self.x.pop(0)
+        self.h.pop(0)
+        self.c.pop(0)
+        self.x.pop(0)
 
-            self.h.append(h)
-            self.c.append(c)
-            self.x.append(x)
+        self.h.append(h)
+        self.c.append(c)
+        self.x.append(x)
 
-            return self.h[-1]
+        return self.h[-1]
 
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
