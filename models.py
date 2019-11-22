@@ -741,7 +741,7 @@ class ICMNet(nn.Module):
         losses = [F.cross_entropy(a_pred.permute(1,2,0), a.long()) for (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
-        return (loss_fwd * self.forward_coeff, 0.1*loss_inv)
+        return (loss_fwd, loss_inv)
 
 
 class A2CNet(nn.Module):

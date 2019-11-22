@@ -121,24 +121,24 @@ class Runner(object):
 
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
-                '''r_loss /= (60)
-                p_loss /= (60)
-                v_loss /= (60)
-                e_loss /= (60)
-                f_loss /= (60)
-                i_loss /= (60)'''
+                r_loss /= (60)
+                #p_loss /= (60)
+                #v_loss /= (60)
+                #e_loss /= (60)
+                #f_loss /= (60)
+                i_loss /= (60)
                 losses.append(r_loss)
                 rews.append(r_r)
                 rewps.append(r_p)
-                mean_rews.append(r_r.mean()*self.params.rollout_size)
-                mean_rewps.append(r_p.mean()*self.params.rollout_size)
+                mean_rews.append(r_r.sum()*self.params.rollout_size)
+                mean_rewps.append(r_p.sum()*self.params.rollout_size)
 
                 avg_r = sum(mean_rews)/len(mean_rews) if len(mean_rews) < 10 else sum(mean_rews[-10:])/10.0
                 avg_rp = sum(mean_rewps)/len(mean_rewps) if len(mean_rewps) < 10 else sum(mean_rewps[-10:])/10.0
 
                 t_next = time.clock()
                 print("Ep %d: Time: %d Iters: %d/%d Loss: (%.2f,%.2f,%.2f,%.2f,%.2f,%.2f) "
-                      % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss, p_loss, v_loss, e_loss, f_loss, i_loss),
+                      % (len(losses), (t_next-t_prev), num_update+1, self.params.num_updates, r_loss, p_loss*100, v_loss*100, e_loss*100, f_loss*100, i_loss),
                       "Rewards: [",  int(mean_rews[-1]), ",", int(mean_rewps[-1]), "] ",
                       "Avg: [",  int(avg_r), ",", int(avg_rp), "]") #r_r.astype('int32'),
                 t_prev = t_next

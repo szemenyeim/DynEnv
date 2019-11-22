@@ -52,9 +52,9 @@ def get_args():
     # model coefficients
     parser.add_argument('--icm-beta', type=float, default=2e-1, metavar='ICM_BETA',
                         help='beta for the ICM module')
-    parser.add_argument('--value-coeff', type=float, default=2e-3, metavar='VALUE_COEFF',
+    parser.add_argument('--value-coeff', type=float, default=1e-2, metavar='VALUE_COEFF',
                         help='value loss weight factor in the A2C loss')
-    parser.add_argument('--entropy-coeff', type=float, default=1e-3, metavar='ENTROPY_COEFF',
+    parser.add_argument('--entropy-coeff', type=float, default=1e-4, metavar='ENTROPY_COEFF',
                         help='entropy loss weight factor in the A2C loss')
     parser.add_argument('--forward-coeff', type=float, default=1e+3, metavar='FORWARD_COEFF',
                         help='forward loss weight factor in the ICM loss')

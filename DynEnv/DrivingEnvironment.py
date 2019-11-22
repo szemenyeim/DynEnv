@@ -65,10 +65,10 @@ class DrivingEnvironment(object):
         # Observation space
         if self.observationType == ObservationType.Full:
             self.observation_space = [1, self.nPlayers,
-                    [[7, ], [self.nPlayers - 1, 5], [self.obstacleNum, 4], [self.pedestrianNum, 2],
+                    [[8, ], [self.nPlayers - 1, 6], [self.obstacleNum, 4], [self.pedestrianNum, 2],
                      [self.laneNum, 5]]]
         else:
-            self.observation_space = [1, self.nPlayers, 5, [7, 5, 5, 2, 5]]
+            self.observation_space = [1, self.nPlayers, 5, [8, 6, 5, 2, 5]]
 
         # Action space
         self.action_space = \
@@ -160,9 +160,6 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
-
-        self.setRandomSeed(42)
-
         self.__init__(self.nPlayers//2,self.render,self.observationType,self.noiseType,self.noiseMagnitude)
         observations = []
         if self.observationType == ObservationType.Full:
@@ -215,7 +212,7 @@ class DrivingEnvironment(object):
             if not self.allFinished:
                 if allFinished:
                     self.allFinished = True
-                    self.teamReward += self.maxTime-self.elapsed
+                    self.teamReward += (self.maxTime-self.elapsed)/100
                 elif self.elapsed >= self.maxTime:
                     self.teamReward -= 0
 
@@ -308,7 +305,7 @@ class DrivingEnvironment(object):
         # Reward for getting closer
         diff = (car.prevPos-car.goal).length - (car.getPos()-car.goal).length
         if not car.finished:
-            self.carRewards[index] += diff
+            self.carRewards[index] += diff/50
 
         # Update previous position
         car.prevPos = car.getPos()
@@ -320,11 +317,11 @@ class DrivingEnvironment(object):
                 if (car.getPos() - car.goal).length < self.distThreshold:
                     car.position = LanePosition.AtGoal
                     car.finished = True
-                    self.carRewards[index] += 1000
+                    self.carRewards[index] += 10
                     car.shape.body.velocity_func = friction_car_crashed
                 else:
                     car.crash()
-                    self.carRewards[index] -= 500
+                    self.carRewards[index] -= 5
         # Add small punichment for being in opposite lane
         elif car.position == LanePosition.InOpposingLane:
             if not car.finished and car.shape.body.velocity.length > 0:
@@ -501,16 +498,16 @@ class DrivingEnvironment(object):
         index2 = self.cars.index(car2)
 
         if not car1.crashed:
-            self.carRewards[index1] -= 500
+            self.carRewards[index1] -= 5
         if not car2.crashed:
-            self.carRewards[index2] -= 500
+            self.carRewards[index2] -= 5
 
         # Punish car in the wrong lane extra
         if car1.position != LanePosition.InRightLane and not car1.crashed:
-            self.carRewards[index1] -= 500
+            self.carRewards[index1] -= 5
 
         if car2.position != LanePosition.InRightLane and not car2.crashed:
-            self.carRewards[index2] -= 500
+            self.carRewards[index2] -= 5
 
         # If both in the rights lane
         if car1.position == LanePosition.InRightLane and car2.position == LanePosition.InRightLane:
@@ -524,10 +521,10 @@ class DrivingEnvironment(object):
 
             # Car is responsible if moving towards the other one
             if v1.length > 1 and math.cos(angle(dp) - angle(v1)) < -0.4 and not car1.crashed:
-                self.carRewards[index1] -= 500
+                self.carRewards[index1] -= 5
 
             if v2.length > 1 and math.cos(angle(dp) - angle(v2)) > 0.4 and not car2.crashed:
-                self.carRewards[index2] -= 500
+                self.carRewards[index2] -= 5
 
         # Crash them
         car1.crash()
@@ -558,7 +555,7 @@ class DrivingEnvironment(object):
             if math.cos(angle(dp) - angle(v1)) < -0.4 and not car.finished:
                 car.crash()
                 index = self.cars.index(car)
-                self.carRewards[index] -= 1000
+                self.carRewards[index] -= 10
         else:
             return False
 
@@ -573,7 +570,7 @@ class DrivingEnvironment(object):
         # Punish
         index = self.cars.index(car)
         if not car.finished:
-            self.carRewards[index] -= 1000
+            self.carRewards[index] -= 10
 
         # crash car
         car.crash()
@@ -596,16 +593,16 @@ class DrivingEnvironment(object):
             # Just add cars
             state = [
                 np.array([[normalize(c.getPos().x,self.normX),normalize(c.getPos().y,self.normY), c.getAngle(),
-                           normalize(c.width, self.normW), normalize(c.height, self.normH)] for c in self.cars]),
+                           normalize(c.width, self.normW), normalize(c.height, self.normH), c.finished] for c in self.cars]),
             ]
         # Otherwise add self observation separately
         else:
             state = [
                 np.array([normalize(car.getPos().x,self.normX),normalize(car.getPos().y,self.normY), car.getAngle(),
                           normalize(car.width, self.normW), normalize(car.height, self.normH),
-                          normalize(car.goal.x,self.normX),normalize(car.goal.y,self.normY)]),
+                          normalize(car.goal.x,self.normX),normalize(car.goal.y,self.normY), car.finished]),
                 np.array([[normalize(c.getPos().x,self.normX),normalize(c.getPos().y,self.normY), c.getAngle(),
-                           normalize(c.width, self.normW), normalize(c.height, self.normH)] for c in self.cars if c != car]),
+                           normalize(c.width, self.normW), normalize(c.height, self.normH), c.finished] for c in self.cars if c != car]),
             ]
 
         # Add obstacles, pedestrians and lanes
@@ -622,8 +619,9 @@ class DrivingEnvironment(object):
     def getCarVision(self,car):
 
         # Get detections within radius
-        selfDet = [SightingType.Normal, car.getPos(), car.getAngle(), car.getPoints(), car.width, car.height, car.goal]
-        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) + [c.width, c.height] for c in self.cars if c != car]
+        selfDet = [SightingType.Normal, car.getPos(), car.getAngle(), car.getPoints(), car.width, car.height, car.goal, car.finished]
+        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1])
+                   + [c.width, c.height] +  [c.finished,] for c in self.cars if c != car]
         obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) + [o.width, o.height] for o in self.obstacles]
         buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],selfDet[2],20000000,20000000) for b in self.buildings] # Buildings are always seen
         pedDets = [isSeenInRadius(p.getPos(),None,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
@@ -670,7 +668,7 @@ class DrivingEnvironment(object):
                 obsDets.append((SightingType.Normal,c[1],c[2],c[3],c[4],c[5]))
         for obs in obsDets:
             if obs[0] == SightingType.Misclassified:
-                carDets.append((SightingType.Normal,obs[1],obs[2],obs[3],obs[4],obs[5]))
+                carDets.append((SightingType.Normal,obs[1],obs[2],obs[3],obs[4],obs[5],False))
 
         # Random false positives
         for i in range(10):
@@ -703,7 +701,7 @@ class DrivingEnvironment(object):
                     # Add objects
                     if c == 0:
                         carDets.insert(len(carDets),
-                                   [SightingType.Normal,pos,angle,obs,w,h])
+                                   [SightingType.Normal,pos,angle,obs,w,h,False])
                     else:
                         obsDets.insert(len(obsDets),
                                    [SightingType.Normal,pos,angle,obs,w,h])
@@ -788,9 +786,9 @@ class DrivingEnvironment(object):
         # Convert to numpy
         selfDet = np.array([[normalize(selfDet[1].x,self.normX),normalize(selfDet[1].y,self.normY),selfDet[2],
                             normalize(selfDet[4],self.normW),normalize(selfDet[5],self.normH),
-                            normalize(selfDet[6].x,self.normX),normalize(selfDet[6].y,self.normY)],])
-        carDets = np.array([[normalize(car[1].x,self.normX),normalize(car[1].y,self.normY),car[2],
-                             normalize(car[4],self.normW),normalize(car[5],self.normH)] for car in carDets])
+                            normalize(selfDet[6].x,self.normX),normalize(selfDet[6].y,self.normY),selfDet[7]],])
+        carDets = np.array([[normalize(c[1].x,self.normX),normalize(c[1].y,self.normY),c[2],
+                             normalize(c[4],self.normW),normalize(c[5],self.normH), c[6]] for c in carDets])
         obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],
                              normalize(obs[4],self.normW),normalize(obs[5],self.normH)] for obs in obsDets])
         pedDets = np.array([[normalize(ped[1].x,self.normX),normalize(ped[1].y,self.normY)] for ped in pedDets])
