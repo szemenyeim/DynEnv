@@ -30,13 +30,15 @@ def get_args():
                         help='number of trainings to run')
     parser.add_argument('--env-name', type=str, default='PongNoFrameskip-v4',
                         help='environment name')
-    parser.add_argument('--num-envs', type=int, default=3, metavar='NUM_ENVS',
+    parser.add_argument('--num-envs', type=int, default=8, metavar='NUM_ENVS',
                         help='number of parallel environments')
+    parser.add_argument('--num-players', type=int, default=1, metavar='NUM_PLAYERS',
+                        help='number of players in the environment')
     parser.add_argument('--n-stack', type=int, default=1, metavar='N_STACK',
                         help='number of frames stacked')
-    parser.add_argument('--rollout-size', type=int, default=4, metavar='ROLLOUT_SIZE',
+    parser.add_argument('--rollout-size', type=int, default=10, metavar='ROLLOUT_SIZE',
                         help='rollout size')
-    parser.add_argument('--num-updates', type=int, default=25000, metavar='NUM_UPDATES',
+    parser.add_argument('--num-updates', type=int, default=240000, metavar='NUM_UPDATES',
                         help='number of updates')
 
     # render
