@@ -28,7 +28,7 @@ class RolloutStorage(object):
         self.n_stack = n_stack
         self.feature_size = feature_size
         self.is_cuda = is_cuda
-        self.episode_rewards = deque(maxlen=10)
+        self.episode_rewards = deque(maxlen=num_envs*10)
 
         # initialize the buffers with zeros
         self.reset_buffers()
@@ -63,6 +63,7 @@ class RolloutStorage(object):
         :return:
         """
         self.rewards = self._generate_buffer((self.rollout_size, self.num_all_players))
+        self.carFinished = self._generate_buffer((self.rollout_size, self.num_all_players)).bool()
 
         # the features are needed for the curiosity loss, an addtion to the A2C+ICM structure
         # +1 element is needed, as the MSE to the prediction of the next state is calculated
@@ -96,7 +97,7 @@ class RolloutStorage(object):
         """
         return self.states[step]
 
-    def insert(self, step, reward, obs, action, log_prob, value, dones, features):
+    def insert(self, step, reward, carFinished, obs, action, log_prob, value, dones, features):
         """
         Inserts new data into the log for each environment at index step
 
@@ -113,6 +114,7 @@ class RolloutStorage(object):
         self.states.append(obs)
 
         self.rewards[step].copy_(torch.from_numpy(reward).view(-1))
+        self.carFinished[step].copy_(carFinished.view(-1))
         self.features[step].copy_(features)
         self.actions[step].copy_(torch.stack(action, dim=0))
         self.log_probs[step].copy_(torch.stack(log_prob, dim=0))
@@ -189,8 +191,8 @@ class RolloutStorage(object):
         """
 
         for info in infos:
-            if 'episode' in info.keys():
-                self.episode_rewards.append(info['episode']['r'])
+            if 'episode_r' in info.keys():
+                self.episode_rewards.append(info['episode_r'])
 
     def print_reward_stats(self):
         if len(self.episode_rewards) > 1:
