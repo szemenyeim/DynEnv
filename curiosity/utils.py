@@ -329,6 +329,8 @@ class AgentCheckpointer(object):
     def checkpoint(self, loss, reward, agent, step):
         mean_reward = np.array(reward).mean()
 
+        self.update_cntr += step
+
         # save agent with lowest loss
         '''if loss < self.best_loss:
             self.best_loss = loss.item()
@@ -343,8 +345,6 @@ class AgentCheckpointer(object):
         if self.update_cntr in self.log_points.keys():
             torch.save(agent.state_dict(),
                        join(self.data_dir, f"agent_step_{self.log_points[self.update_cntr]}_{self.timestamp}"))
-
-        self.update_cntr += step
 
 
 from matplotlib import rc
