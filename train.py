@@ -1,5 +1,8 @@
 from enum import Enum
-
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+import pymunkoptions
+pymunkoptions.options["debug"] = False
 import DynEnv
 from curiosity.agent import ICMAgent
 from curiosity.args import get_args
@@ -49,13 +52,13 @@ if __name__ == '__main__':
 
     # agent
     agent = ICMAgent(args.num_envs, args.num_players, action_size, attn_target, attn_type,
-                     input_size, feature_size, args.forward_coeff, lr=args.lr)
+                     input_size, feature_size, args.forward_coeff, args.icm_beta, lr=args.lr)
 
     # params
     param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,
                               args.num_updates, args.max_grad_norm, args.icm_beta,
                               args.value_coeff, args.forward_coeff, args.entropy_coeff, attn_target, attn_type,
-                              RewardType.INTRINSIC_AND_EXTRINSIC)
+                              RewardType.INTRINSIC_AND_EXTRINSIC, args.note)
 
     # runner object & training
     runner = Runner(agent, env, param, args.cuda, args.seed, args.log_dir)
