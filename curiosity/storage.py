@@ -1,8 +1,17 @@
 from collections import deque
+import itertools
 
 import numpy as np
 import torch
 
+
+class sliceable_deque(deque):
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            start = index.start + self.__len__() if index.start < 0 else index.start
+            return type(self)(itertools.islice(self, start,
+                                               index.stop, index.step))
+        return deque.__getitem__(self, index)
 
 class RolloutStorage(object):
     def __init__(self, rollout_size, num_envs, num_players, num_actions, n_stack, feature_size=288,
@@ -28,7 +37,7 @@ class RolloutStorage(object):
         self.n_stack = n_stack
         self.feature_size = feature_size
         self.is_cuda = is_cuda
-        self.episode_rewards = deque(maxlen=num_envs*10)
+        self.episode_rewards = sliceable_deque(maxlen=num_envs*10)
 
         # initialize the buffers with zeros
         self.reset_buffers()
