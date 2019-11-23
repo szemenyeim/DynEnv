@@ -217,7 +217,8 @@ class NetworkParameters(object):
                  icm_beta: float = 0.2, value_coeff: float = 0.5, forward_coeff = 1e+3, entropy_coeff: float = 0.02,
                  attention_target: AttentionTarget = AttentionTarget.NONE,
                  attention_type: AttentionType = AttentionType.SINGLE_ATTENTION,
-                 reward_type: RewardType = RewardType.INTRINSIC_ONLY):
+                 reward_type: RewardType = RewardType.INTRINSIC_ONLY,
+                 note: str = 'None'):
         self.env_name = env_name
         self.num_envs = num_envs
         self.n_stack = n_stack
@@ -231,6 +232,7 @@ class NetworkParameters(object):
         self.attention_target = attention_target
         self.attention_type = attention_type
         self.reward_type = reward_type
+        self.note = note
 
     def save(self, data_dir, timestamp):
         param_dict = {**self.__dict__, "timestamp": timestamp}
@@ -306,7 +308,7 @@ def numpy_ewma_vectorized_v2(data, window):
 
 class AgentCheckpointer(object):
 
-    def __init__(self, env_name, num_updates, timestamp, log_dir=None, log_points=(.25, .5, .75, .99)) -> None:
+    def __init__(self, env_name, num_updates, timestamp, log_dir=None, log_points=(.25, .5, .75, 1)) -> None:
         super().__init__()
 
         # constants
@@ -324,13 +326,13 @@ class AgentCheckpointer(object):
         make_dir(self.base_dir)
         make_dir(self.data_dir)
 
-    def checkpoint(self, loss, reward, agent):
+    def checkpoint(self, loss, reward, agent, step):
         mean_reward = np.array(reward).mean()
 
         # save agent with lowest loss
-        if loss < self.best_loss:
+        '''if loss < self.best_loss:
             self.best_loss = loss.item()
-            torch.save(agent.state_dict(), join(self.data_dir, f"agent_best_loss_{self.timestamp}"))
+            torch.save(agent.state_dict(), join(self.data_dir, f"agent_best_loss_{self.timestamp}"))'''
 
         # save agent with highest mean reward
         if mean_reward > self.best_reward:
@@ -342,7 +344,7 @@ class AgentCheckpointer(object):
             torch.save(agent.state_dict(),
                        join(self.data_dir, f"agent_step_{self.log_points[self.update_cntr]}_{self.timestamp}"))
 
-        self.update_cntr += 1
+        self.update_cntr += step
 
 
 from matplotlib import rc
