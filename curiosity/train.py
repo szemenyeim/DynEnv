@@ -170,7 +170,7 @@ class Runner(object):
             # call A2C
             actions, log_probs, entropies, values, features = self.net.a2c.get_action(self.storage.get_state(step))
             # accumulate episode entropy
-            episode_entropy += torch.stack(entropies, dim=-1)
+            episode_entropy += entropies
 
             # interact
             actionsForEnv = (torch.stack(actions, dim=1)).view(

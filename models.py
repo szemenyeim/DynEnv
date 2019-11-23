@@ -185,9 +185,9 @@ class EmbedBlock(nn.Module):
 
         self.Layer1 = nn.Linear(inputs, features // 2, bias=False)
         self.relu = nn.LeakyReLU(0.1)
-        self.bn1 = nn.GroupNorm(4, features // 2, affine=True)
+        self.bn1 = nn.LayerNorm(features // 2)
         self.Layer2 = nn.Linear(features // 2, features, bias=False)
-        self.bn2 = nn.GroupNorm(4, features, affine=True)
+        self.bn2 = nn.LayerNorm(features)
 
     def forward(self, x):
 
@@ -296,7 +296,6 @@ class AttentionLayer(nn.Module):
         self.tempAtt = nn.MultiheadAttention(features, num_heads)
 
         # Relu and group norm
-        self.relu = nn.LeakyReLU(0.1)
         self.bn1 = nn.LayerNorm(features)
         self.bn2 = nn.LayerNorm(features)
 
@@ -316,10 +315,9 @@ class AttentionLayer(nn.Module):
         masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
 
         # Run self-attention
-        attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
+        attObj = [self.bn1(self.objAtt(objs, objs, objs, mask)[0]) for objs, mask in zip(tensor, masks)]
 
         #shape = attObj[0].shape
-        attObj = [self.bn1(self.relu(obj)) for obj in attObj]
 
         # Filter nans
         with torch.no_grad():
@@ -330,8 +328,7 @@ class AttentionLayer(nn.Module):
         finalAtt = attObj[0]
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
-            finalAtt = self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0]
-            finalAtt = self.bn2(self.relu(finalAtt))
+            finalAtt = self.bn2(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
             finalMask = masks[i + 1] & finalMask
             # Filter nans
             with torch.no_grad():
@@ -745,7 +742,7 @@ class A2CNet(nn.Module):
         cats = [Categorical(a_prob) for a_prob in action_probs]
         actions = [cat.sample() for cat in cats]
         log_probs = [cat.log_prob(a) for (cat, a) in zip(cats, actions)]
-        entropies = [cat.entropy().mean() for cat in cats]
+        entropies = Categorical(torch.stack(action_probs)).entropy()
 
         return (actions, log_probs, entropies, values,
                 features)  # ide is jön egy feature bypass a self(state-ből)
