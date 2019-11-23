@@ -295,6 +295,11 @@ class AttentionLayer(nn.Module):
         # Temp att attends between sightings at different timesteps
         self.tempAtt = nn.MultiheadAttention(features, num_heads)
 
+        # Relu and group norm
+        self.relu = nn.LeakyReLU(0.1)
+        self.bn1 = nn.GroupNorm(4, features, affine=True)
+        self.bn2 = nn.GroupNorm(4, features, affine=True)
+
         # Confidence layer
         self.confLayer = nn.Sequential(
             nn.Linear(features, 1),
@@ -580,7 +585,7 @@ class AdversarialHead(nn.Module):
 
 class ICMNet(nn.Module):
     def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size,
-                 forward_coeff, num_envs=1):
+                 forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -603,6 +608,7 @@ class ICMNet(nn.Module):
         self.num_envs = num_envs
         self.num_players = num_players
 
+        self.icm_beta = icm_beta
         self.forward_coeff = forward_coeff
 
         # networks
@@ -613,7 +619,7 @@ class ICMNet(nn.Module):
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
 
-    def forward(self, features, action):
+    def forward(self, features, action, carFinished):
         """
 
         feature: current encoded state
@@ -629,24 +635,29 @@ class ICMNet(nn.Module):
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
-        return self._calc_loss(next_features, next_feature_pred, action_pred, action)
+        carFinishedMask = torch.logical_not(carFinished)
 
-    def _calc_loss(self, features, feature_preds, action_preds, actions):
+        return self._calc_loss(next_features, next_feature_pred, action_pred, action, carFinishedMask)
+
+    def _calc_loss(self, features, feature_preds, action_preds, actions, carFinished):
+
+        if not carFinished.any():
+            return torch.tensor([0,0]).to(features.device)
 
         # forward loss
         # measure of how good features can be predicted
         if not self.loss_attn_flag:
-            loss_fwd = F.mse_loss(feature_preds, features)
+            loss_fwd = F.mse_loss(feature_preds[carFinished], features[carFinished])
         # else:
         #     loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
         # inverse loss
         # how good is the action estimate between states
-        actions = actions.permute(1, 2, 0)
+        actions = actions.permute(1, 0, 2)
         # print(torch.min(action_preds[0]),torch.max(action_preds[0]))
-        losses = [F.cross_entropy(a_pred.permute(1, 2, 0), a.long()) for (a_pred, a) in zip(action_preds, actions)]
+        losses = [F.cross_entropy(a_pred.permute(0, 2, 1), a.long(), reduction='none')[carFinished].mean() for (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
-        return (loss_fwd, loss_inv)
+        return (self.forward_coeff * loss_fwd, self.icm_beta*loss_inv)
 
 
 class A2CNet(nn.Module):
