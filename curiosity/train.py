@@ -50,15 +50,14 @@ class Runner(object):
         obs = self.env.reset()
         self.storage.states.append(obs)
 
-        entropyLossScale = 1.0/(100*self.params.entropy_coeff)
-
         epLen = self.env.get_attr('stepNum')[0]
         updatesPerEpisode = epLen/self.params.rollout_size
 
         r_loss = 0
         p_loss = 0
         v_loss = 0
-        e_loss = 0
+        be_loss = 0
+        te_loss = 0
         f_loss = 0
         i_loss = 0
 
@@ -72,7 +71,7 @@ class Runner(object):
             self.net.optimizer.zero_grad()
 
             """A2C cycle"""
-            final_value, entropy = self.episode_rollout()
+            final_value, action_probs = self.episode_rollout()
 
             """ICM prediction """
             # tensors for the curiosity-based loss
@@ -82,7 +81,7 @@ class Runner(object):
             icm_loss = sum(icm_losses)
 
             """Assemble loss"""
-            a2c_losses, rewards = self.storage.a2c_loss(final_value, entropy, self.params.value_coeff,
+            a2c_losses, rewards = self.storage.a2c_loss(final_value, action_probs, self.params.value_coeff,
                                                         self.params.entropy_coeff)
 
             a2c_loss = sum(a2c_losses)
@@ -101,7 +100,8 @@ class Runner(object):
             r_loss += loss.item()
             p_loss += a2c_losses[0].item()
             v_loss += a2c_losses[1].item()
-            e_loss += a2c_losses[2].item()
+            be_loss += a2c_losses[2].item()
+            te_loss += a2c_losses[3].item()
             f_loss += icm_losses[0].item()
             i_loss += icm_losses[1].item()
 
@@ -128,16 +128,17 @@ class Runner(object):
                 avg_r = sum(mean_rews) / len(mean_rews) if len(mean_rews) < 10 else sum(mean_rews[-10:]) / 10.0
 
                 t_next = time.clock()
-                print("Ep %d: %d sec (%d/%d) Loss: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f) "
+                print("Ep %d: %d sec (%d/%d) Loss: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f) "
                       % (len(rews), (t_next - t_prev), num_update + 1, self.params.num_updates, r_loss, p_loss,
-                         v_loss, e_loss*entropyLossScale, f_loss, i_loss),
+                         v_loss, be_loss*20, te_loss*20, f_loss, i_loss),
                       "Rewards: [", int(mean_rews[-1]), ",", int(avg_r), "] [",
                       "{0:.2f}".format(last_r), ",", "{0:.2f}".format(last_avg_r), "]")  # r_r.astype('int32'),
                 t_prev = t_next
                 r_loss = 0
                 p_loss = 0
                 v_loss = 0
-                e_loss = 0
+                be_loss = 0
+                te_loss = 0
                 f_loss = 0
                 i_loss = 0
                 r_r = 0
@@ -164,13 +165,13 @@ class Runner(object):
         self.params.save(self.logger.data_dir, self.timestamp)
 
     def episode_rollout(self):
-        episode_entropy = 0
+        episode_action_probs = []
         for step in range(self.params.rollout_size):
             """Interact with the environments """
             # call A2C
-            actions, log_probs, entropies, values, features = self.net.a2c.get_action(self.storage.get_state(step))
+            actions, log_probs, action_probs, values, features = self.net.a2c.get_action(self.storage.get_state(step))
             # accumulate episode entropy
-            episode_entropy += entropies
+            episode_action_probs.append(action_probs)
 
             # interact
             actionsForEnv = (torch.stack(actions, dim=1)).view(
@@ -192,4 +193,4 @@ class Runner(object):
 
         self.storage.features[step + 1].copy_(final_features)
 
-        return final_value, episode_entropy
+        return final_value, episode_action_probs

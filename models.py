@@ -742,7 +742,7 @@ class A2CNet(nn.Module):
         cats = [Categorical(a_prob) for a_prob in action_probs]
         actions = [cat.sample() for cat in cats]
         log_probs = [cat.log_prob(a) for (cat, a) in zip(cats, actions)]
-        entropies = Categorical(torch.stack(action_probs)).entropy()
+        #entropies = Categorical(torch.stack(action_probs)).entropy()
 
-        return (actions, log_probs, entropies, values,
+        return (actions, log_probs, action_probs, values,
                 features)  # ide is jön egy feature bypass a self(state-ből)

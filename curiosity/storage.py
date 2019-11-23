@@ -3,6 +3,7 @@ import itertools
 
 import numpy as np
 import torch
+from torch.distributions import Categorical
 
 
 class sliceable_deque(deque):
@@ -172,7 +173,7 @@ class RolloutStorage(object):
 
         return r_discounted
 
-    def a2c_loss(self, final_values, entropies, value_coeff, entropy_coeff):
+    def a2c_loss(self, final_values, action_probs, value_coeff, entropy_coeff):
         # due to the fact that batches can be shorter (e.g. if an env is finished already)
         # MEAN is used instead of SUM
         # calculate advantage
@@ -189,7 +190,16 @@ class RolloutStorage(object):
         # and predicted rewards
         value_loss = advantage.pow(2).mean()
 
-        return (policy_loss, value_coeff * value_loss, -entropy_coeff * entropies.mean()), self.rewards.detach().cpu()
+        action_probs = [torch.stack([action_probs[time][a] for time in range(self.rollout_size)]) for a in range(len(action_probs[0]))]
+
+        temp_actions = [action_prob.mean(dim=0) for action_prob in action_probs]
+        batch_actions = [action_prob.mean(dim=1) for action_prob in action_probs]
+        tempEntropies = torch.stack([Categorical(temp_action).entropy() for temp_action in temp_actions])
+        batchEntropies = torch.stack([Categorical(batch_action).entropy() for batch_action in batch_actions])
+        tempEntropy = tempEntropies.mean()
+        batchEntropy = batchEntropies.mean()
+
+        return (policy_loss, value_coeff * value_loss, -entropy_coeff * batchEntropy, entropy_coeff*tempEntropy), self.rewards.detach().cpu()
 
     def log_episode_rewards(self, infos):
         """
