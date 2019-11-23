@@ -297,8 +297,8 @@ class AttentionLayer(nn.Module):
 
         # Relu and group norm
         self.relu = nn.LeakyReLU(0.1)
-        self.bn1 = nn.GroupNorm(4, features, affine=True)
-        self.bn2 = nn.GroupNorm(4, features, affine=True)
+        self.bn1 = nn.InstanceNorm1d(features, affine=True)
+        self.bn2 = nn.InstanceNorm1d(features, affine=True)
 
         # Confidence layer
         self.confLayer = nn.Sequential(
@@ -318,6 +318,9 @@ class AttentionLayer(nn.Module):
         # Run self-attention
         attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
 
+        #shape = attObj[0].shape
+        attObj = [self.bn1(self.relu(obj.permute(0,2,1))).permute(0,2,1) for obj in attObj]
+
         # Filter nans
         with torch.no_grad():
             for att in attObj:
@@ -328,6 +331,7 @@ class AttentionLayer(nn.Module):
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
             finalAtt = self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0]
+            finalAtt = self.bn2(self.relu(finalAtt.permute(0,2,1))).permute(0,2,1)
             finalMask = masks[i + 1] & finalMask
             # Filter nans
             with torch.no_grad():
