@@ -157,7 +157,8 @@ class RolloutStorage(object):
         # masked_scatter_ copies from #1 where #0 is 1 -> but we need scattering, where
         # the episode is not finished, thus the (1-x)
         # .T is needed of consecutiveness (i.e. the proper order of dones) is broken
-        dones4players = torch.stack(2*self.num_players*[self.dones[-1]]).T.reshape(-1)
+        #dones4players = torch.stack(2*self.num_players*[self.dones[-1]]).T.reshape(-1)
+        dones4players = torch.zeros(2*self.num_players*self.num_envs).to(final_value.device)
         R = self._generate_buffer(self.num_all_players).masked_scatter((1 - dones4players).bool(), final_value.view(-1))
 
         for i in reversed(range(self.rollout_size)):
@@ -180,7 +181,9 @@ class RolloutStorage(object):
         # i.e. how good was the estimate of the value of the current state
         rewards = self._discount_rewards(final_values)
         advantage = rewards - self.values
-
+        '''print("Means: %.2f, %.2f, %.2f, Stds: %.2f, %.2f, %.2f, " %
+              (rewards.mean().item(), self.values.mean().item(), advantage.mean().item(),
+               rewards.std().item(), self.values.std().item(), advantage.std().item()))'''
         # weight the deviation of the predicted value (of the state) from the
         # actual reward (=advantage) with the negative log probability of the action taken
         policy_loss = torch.stack(
@@ -196,7 +199,7 @@ class RolloutStorage(object):
         batch_actions = [action_prob.mean(dim=1) for action_prob in action_probs]
         tempEntropies = torch.stack([Categorical(temp_action).entropy() for temp_action in temp_actions])
         batchEntropies = torch.stack([Categorical(batch_action).entropy() for batch_action in batch_actions])
-        tempEntropy = tempEntropies.mean()
+        tempEntropy = tempEntropies.mean().detach()
         batchEntropy = batchEntropies.mean()
 
         return (policy_loss, value_coeff * value_loss, -entropy_coeff * batchEntropy, entropy_coeff*tempEntropy), self.rewards.detach().cpu()
