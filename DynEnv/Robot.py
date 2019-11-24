@@ -56,6 +56,9 @@ class Robot(object):
         self.id = id
         self.headAngle = 0
 
+        # Previous position
+        self.prevPos = self.getPos()
+
         # Penalty and pushing parametes
         self.penalized = False
         self.penalTime = 0

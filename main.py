@@ -8,13 +8,13 @@ import random
 # Launch game, allow user controls
 
 def doRoboCup():
-    nPlayers = 5
+    nPlayers = 1
     env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
     env.setRandomSeed(42)
 
-    action1 = [0, 0, 0, 0]
-    action2 = [0, 0, 0, 0]
+    action1 = [0, 0, 0]
+    action2 = [0, 0, 0]
 
     while True:
         for event in pygame.event.get():
@@ -39,24 +39,6 @@ def doRoboCup():
                     action1[2] = 1
                 elif event.key == K_f:
                     action1[2] = 2
-                elif event.key == K_1:
-                    action1[3] = -6
-                elif event.key == K_2:
-                    action1[3] = -4
-                elif event.key == K_3:
-                    action1[3] = -2
-                elif event.key == K_4:
-                    action1[3] = -1
-                elif event.key == K_5:
-                    action1[3] = 0
-                elif event.key == K_6:
-                    action1[3] = 1
-                elif event.key == K_7:
-                    action1[3] = 2
-                elif event.key == K_8:
-                    action1[3] = 4
-                elif event.key == K_9:
-                    action1[3] = 6
                 elif event.key == K_UP:
                     action2[0] = 1
                 elif event.key == K_DOWN:
@@ -76,8 +58,8 @@ def doRoboCup():
                 elif event.key == K_RETURN:
                     env.reset()
             elif event.type == KEYUP:
-                action1 = [0, 0, 0, 0]
-                action2 = [0, 0, 0, 0]
+                action1 = [0, 0, 0]
+                action2 = [0, 0, 0]
 
         action = np.array([action1, action2] * nPlayers)
         ret = env.step(action)
@@ -121,7 +103,7 @@ def doDrive():
 
 if __name__ == '__main__':
 
-    drive = True
+    drive = False
 
     pygame.init()
 

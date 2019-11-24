@@ -21,6 +21,7 @@ class RoboCupEnvironment(object):
         self.maxPlayers = 5
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
+        self.sizeNorm = 10.0/noiseMagnitude
 
         # Which robot's observation to visualize
         self.visId = 0#random.randint(0,self.nPlayers*2-1)
@@ -42,8 +43,9 @@ class RoboCupEnvironment(object):
         self.ballRadius = 5
 
         # Normalization variables
-        self.normX = 1.0/self.W
-        self.normY = 1.0/self.H
+        self.mean = 1.0
+        self.normX = self.mean*2/self.W
+        self.normY = self.mean*2/self.H
 
         # Observation and action spaces
         # Observation space
@@ -78,6 +80,8 @@ class RoboCupEnvironment(object):
         self.ballFreeCntr = 9999
         self.gracePeriod = 0
 
+        self.episodeRewards = 0
+
         # Bookkeeping for robots inside penalty area for illegal defender
         self.defenders = [[],[]]
 
@@ -105,6 +109,7 @@ class RoboCupEnvironment(object):
         self.space = pymunk.Space()
         self.space.gravity = (0.0, 0.0)
         self.timeStep = 100.0
+        self.timeSingle = 1000.0/self.timeStep
 
         self.lines = [
             # Outer lines
@@ -136,17 +141,17 @@ class RoboCupEnvironment(object):
 
         self.robotSpots = [
             # Kickoff team
-            (centX-(self.ballRadius*2+Robot.totalRadius),self.H/2+(10 if random.random() > 0.5 else -10)),
-            (centX-(Robot.totalRadius+self.lineWidth/2),self.sideLength + (self.fieldH/4-20 if random.random() > 0.5 else 3*self.fieldH/4+20)),
-            (centX-(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/4),
-            (centX-(self.sideLength + self.fieldW/4),self.sideLength + 3*self.fieldH/4),
-            ((self.sideLength), self.H/2),
+            (centX-(self.ballRadius*2+Robot.totalRadius)-random.random()*50, self.H/2 + (random.random()-0.5)*50),
+            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/2 + (random.random()-0.5)*50),
+            (centX-(self.sideLength + self.fieldW/4)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
+            (centX-(self.sideLength + self.fieldW/4)-random.random()*50, self.sideLength + 3*self.fieldH/4 + (random.random()-0.5)*50),
+            (self.sideLength, self.H/2 + (random.random()-0.5)*50),
             # Opposing team
-            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2),self.H/2),
-            (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + self.fieldH/4),
-            (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius),self.sideLength + 3*self.fieldH/4),
-            (centX+(self.sideLength + self.fieldW/4),self.sideLength + self.fieldH/2 + self.fieldH/4*random.random()),
-            (self.W - (self.sideLength), self.H/2),
+            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2)+random.random()*50, self.H/2 + (random.random()-0.5)*50),
+            (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius)+random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
+            (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius)+random.random()*50, self.sideLength + 3*self.fieldH/4 + (random.random()-0.5)*50),
+            (centX+(self.sideLength + self.fieldW/4)+random.random()*50, self.sideLength + self.fieldH/2 + (random.random()-0.5)*50),
+            (self.W - (self.sideLength), self.H/2 + (random.random()-0.5)*50),
         ]
 
         # Add robots
@@ -272,13 +277,18 @@ class RoboCupEnvironment(object):
 
         self.robotRewards[:self.nPlayers] += self.teamRewards[0]
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
+        self.episodeRewards += self.robotRewards
+
+        info = {'Full State': self.getFullState()}
 
         t2 = time.clock()
         #print((t2-t1)*1000)
         if self.elapsed >= self.maxTime:
             finished = True
+            info['episode_r'] = self.episodeRewards
+            #print(self.episodeRewards)
 
-        return observations, self.robotRewards, finished, {'Full State' : self.getFullState()}
+        return observations, self.robotRewards, finished, info
 
     # Action handler
     def processAction(self, action, robot):
@@ -409,11 +419,11 @@ class RoboCupEnvironment(object):
                 if pos.y < self.H/2 + self.goalWidth and pos.y > self.H/2 - self.goalWidth:
                     finished = True
                     if pos.x < outMin:
-                        currReward[0] += -1000
-                        currReward[1] += 1000
+                        currReward[0] += -10
+                        currReward[1] += 10
                     else:
-                        currReward[0] += 1000
-                        currReward[1] += -1000
+                        currReward[0] += 10
+                        currReward[1] += -10
                 # If simply out
                 else:
                     # Handle two ends differently
@@ -444,8 +454,8 @@ class RoboCupEnvironment(object):
 
         # Add ball movement to the reward
         if not finished:
-            currReward[0] += self.ball.shape.body.position.x - self.ball.prevPos.x
-            currReward[1] -= self.ball.shape.body.position.x - self.ball.prevPos.x
+            currReward[0] += (self.ball.shape.body.position.x - self.ball.prevPos.x)/50
+            currReward[1] -= (self.ball.shape.body.position.x - self.ball.prevPos.x)/50
 
         # Update previous position
         self.ball.prevPos = self.ball.shape.body.position
@@ -459,14 +469,15 @@ class RoboCupEnvironment(object):
             if (robot.getPos() - pos).length < 150:
                 if not robot.penalized and self.ballOwned != robot.team and self.ballFreeCntr > 0:
                     #print("Illegal position", robot.id, robot.team)
-                    self.penalize(robot)
+                    if False: # Disable this for now
+                        self.penalize(robot)
                 if robot.id not in self.ball.lastKicked:
                     self.robotRewards[int(robot.id)] += min(0, currReward[0] * self.kickDiscount if robot.id < self.nPlayers else
                     currReward[1] * self.kickDiscount)
 
         # Update team rewards
-        self.teamRewards[0] += currReward[0]
-        self.teamRewards[1] += currReward[1]
+        self.teamRewards[0] += currReward[0]/5
+        self.teamRewards[1] += currReward[1]/5
 
         return finished
 
@@ -482,7 +493,7 @@ class RoboCupEnvironment(object):
         shapes = self.space.point_query(pos,40,filter)
 
         # Punish robots for falling
-        self.robotRewards[robot.id] -= 100
+        self.robotRewards[robot.id] -= 1
 
         # For closeby objects (that are not the robot)
         for query in shapes:
@@ -502,7 +513,8 @@ class RoboCupEnvironment(object):
 
                 # If the fallen robots touched the ball, update the last touched variable
                 if query.shape == self.ball.shape:
-                    self.ball.lastKicked = [robot.id] + self.ball.lastKicked
+                    if len(self.ball.lastKicked) and robot.id not in self.ball.lastKicked:
+                        self.ball.lastKicked = [robot.id] + self.ball.lastKicked
                     if len(self.ball.lastKicked) > 4:
                         self.ball.lastKicked = self.ball.lastKicked[:4]
                     if self.ballOwned != 0:
@@ -563,7 +575,7 @@ class RoboCupEnvironment(object):
         robot.penalTime = self.penalTimes[teamIdx]
 
         # Punish the robot
-        self.robotRewards[robot.id] -= self.penalTimes[teamIdx]/100
+        self.robotRewards[robot.id] -= self.penalTimes[teamIdx]/5000
 
         # Increase penalty time for team
         self.penalTimes[teamIdx] += 10000
@@ -724,6 +736,15 @@ class RoboCupEnvironment(object):
         if pos.y < 0 or pos.x < 0 or pos.y > self.H or pos.x > self.W:
             self.penalize(robot)
 
+        # If robot got closer to the ball, reward
+        if pos != robot.prevPos:
+            ballPos = self.ball.getPos()
+
+            diff = (pos-ballPos).length - (robot.prevPos-ballPos).length
+            self.robotRewards[self.robots.index(robot)] -= diff*0.01
+
+            robot.prevPos = pos
+
 
     # Called when robots begin touching
     def robotPushingDet(self, arbiter, space, data):
@@ -862,16 +883,16 @@ class RoboCupEnvironment(object):
     def getFullState(self,robot=None):
 
         if robot is None:
-            state = [np.array([normalize(self.ball.getPos()[0],self.normX),normalize(self.ball.getPos()[1],self.normY),self.ballOwned]),
-                   np.array([[normalize(rob.getPos()[0],self.normX),normalize(rob.getPos()[1],self.normY),
+            state = [np.array([normalize(self.ball.getPos()[0],self.normX,0.5),normalize(self.ball.getPos()[1],self.normY,0.5),self.ballOwned]),
+                   np.array([[normalize(rob.getPos()[0],self.normX,0.5),normalize(rob.getPos()[1],self.normY,0.5),
                               rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots])]
         else:
             # flip x axis for team -1
             normX = self.normX*robot.team
 
-            state = [np.array([normalize(self.ball.getPos()[0],normX),normalize(self.ball.getPos()[1],self.normY),self.ballOwned*robot.team]),
-                   np.array([normalize(robot.getPos()[0],normX),normalize(robot.getPos()[1],self.normY),int(robot.fallen or robot.penalized)]),
-                   np.array([[normalize(rob.getPos()[0],normX),normalize(rob.getPos()[1],self.normY),
+            state = [np.array([normalize(self.ball.getPos()[0],normX,0.5),normalize(self.ball.getPos()[1],self.normY,0.5),self.ballOwned*robot.team]),
+                   np.array([normalize(robot.getPos()[0],normX,0.5),normalize(robot.getPos()[1],self.normY,0.5),int(robot.fallen or robot.penalized)]),
+                   np.array([[normalize(rob.getPos()[0],normX,0.5),normalize(rob.getPos()[1],self.normY,0.5),
                               rob.team*robot.team,int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
 
         return state
@@ -1158,13 +1179,20 @@ class RoboCupEnvironment(object):
             return np.concatenate((topCamImg,bottomCamImg))
 
         # Convert to numpy
-        ballDets = np.array([[normalize(ball[1].x,self.normX),normalize(ball[1].y,self.normY),ball[2],ball[3]] for ball in ballDets])
-        robDets = np.array([[normalize(rob[1].x,self.normX),normalize(rob[1].y,self.normY),rob[2],rob[3],rob[4],rob[5]] for rob in robDets])
-        goalDets = np.array([[normalize(goal[1].x,self.normX),normalize(goal[1].y,self.normY),goal[2]] for goal in goalDets])
-        crossDets = np.array([[normalize(cross[1].x,self.normX),normalize(cross[1].y,self.normY),cross[2]] for cross in crossDets])
+        ballDets = np.array([[normalize(ball[1].x,self.normX),normalize(ball[1].y,self.normY),
+                              normalizeAfterScale(ball[2],self.sizeNorm,self.ballRadius*2),ball[3]] for ball in ballDets])
+        robDets = np.array([[normalize(rob[1].x,self.normX),normalize(rob[1].y,self.normY),
+                             normalizeAfterScale(rob[2],self.sizeNorm,Robot.totalRadius),
+                             rob[3],rob[4],rob[5]] for rob in robDets])
+        goalDets = np.array([[normalize(goal[1].x,self.normX),normalize(goal[1].y,self.normY),
+                              normalizeAfterScale(goal[2],self.sizeNorm,self.goalPostRadius*2)] for goal in goalDets])
+        crossDets = np.array([[normalize(cross[1].x,self.normX),normalize(cross[1].y,self.normY),
+                               normalizeAfterScale(cross[2],self.sizeNorm,self.penaltyRadius*2)] for cross in crossDets])
         lineDets = np.array([[normalize(line[1].x,self.normX),normalize(line[1].y,self.normY),
                               normalize(line[2].x,self.normX),normalize(line[2].y,self.normY)] for line in lineDets])
-        circleDets = np.array([[normalize(circleDets[1].x,self.normX),normalize(circleDets[1].y,self.normY),circleDets[2]]]) \
+        circleDets = np.array([[normalize(circleDets[1].x,self.normX),
+                                normalize(circleDets[1].y,self.normY),
+                                normalizeAfterScale(circleDets[2],self.sizeNorm*0.1,self.centerCircleRadius*2)]]) \
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

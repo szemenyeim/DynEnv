@@ -152,6 +152,11 @@ def normalize(pt,normFactor, mean = None):
         mean = 0
     return ((pt*normFactor)-mean)*2
 
+def normalizeAfterScale(pt,normFactor, mean = None):
+    if mean is None:
+        mean = 0
+    return (pt-mean)*normFactor
+
 # Add noise to a line sighting
 def addNoiseLine(obj,noiseType, magn, rand, maxDist):
 
