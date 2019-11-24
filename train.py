@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
     # agent
     agent = ICMAgent(args.num_envs, args.num_players, action_size, attn_target, attn_type,
-                     input_size, feature_size, args.forward_coeff, args.icm_beta, lr=args.lr)
+                     input_size, feature_size, args.forward_coeff, args.icm_beta, args.rollout_size, lr=args.lr)
 
     # params
     param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,

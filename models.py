@@ -357,7 +357,7 @@ class AttentionLayer(nn.Module):
 
 # LSTM Layer
 class LSTMLayer(nn.Module):
-    def __init__(self, nPlayers, feature, hidden, nEnvs, nSteps=10):
+    def __init__(self, nPlayers, feature, hidden, nEnvs, nSteps):
         super(LSTMLayer, self).__init__()
 
         # Params
@@ -426,7 +426,7 @@ class LSTMLayer(nn.Module):
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class DynEnvFeatureExtractor(nn.Module):
-    def __init__(self, inputs, feature, num_envs):
+    def __init__(self, inputs, feature, num_envs, num_rollout):
         super().__init__()
 
         nPlayers = inputs[1]
@@ -436,7 +436,7 @@ class DynEnvFeatureExtractor(nn.Module):
         self.AttNet = AttentionLayer(feature)
 
         self.hidden_size = feature
-        self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs)
+        self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs, num_rollout)
         self.bn = nn.LayerNorm(feature)
 
     # Reset fun for lstm
@@ -668,7 +668,7 @@ class ICMNet(nn.Module):
 
 
 class A2CNet(nn.Module):
-    def __init__(self, num_envs, num_players, action_descriptor, in_size, feature_size):
+    def __init__(self, num_envs, num_players, action_descriptor, in_size, feature_size, num_rollout):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
@@ -687,7 +687,7 @@ class A2CNet(nn.Module):
         self.num_players = num_players * 2
         self.num_envs = num_envs
 
-        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs)
+        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs, num_rollout)
 
         self.actor = ActorLayer(self.feature_size, self.action_descriptor)
         self.critic = CriticLayer(self.feature_size)
