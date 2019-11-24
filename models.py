@@ -143,11 +143,14 @@ class CriticBlock(nn.Module):
         super().__init__()
 
         # Create layers
-        self.Layer = nn.Linear(feature_size, out_size)
+        self.Layer1 = nn.Linear(feature_size, feature_size//2)
+        self.Layer2 = nn.Linear(feature_size//2, out_size)
+        self.relu = nn.LeakyReLU(0.1)
+        self.bn = nn.LayerNorm(feature_size//2)
 
     # Forward
     def forward(self, x):
-        return self.Layer(x)
+        return self.Layer2(self.bn(self.relu(self.Layer1(x))))
 
 
 # Complete action layer for multiple action groups
@@ -432,8 +435,9 @@ class DynEnvFeatureExtractor(nn.Module):
         self.InNet = InputLayer(inputs, feature, num_envs)
         self.AttNet = AttentionLayer(feature)
 
-        self.hidden_size = feature * 2
+        self.hidden_size = feature
         self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs)
+        self.bn = nn.LayerNorm(feature)
 
     # Reset fun for lstm
     def reset(self, reset_indices=None):
@@ -448,6 +452,7 @@ class DynEnvFeatureExtractor(nn.Module):
 
         # Run LSTM
         features = self.LSTM(features)
+        features = self.bn(features)
 
         # Get actions
         return features
@@ -467,7 +472,7 @@ class AttentionNet(nn.Module):
 
 class ForwardNet(nn.Module):
 
-    def __init__(self, in_size):
+    def __init__(self, feat_size, action_size):
         """
         Network for the forward dynamics
 
@@ -476,14 +481,15 @@ class ForwardNet(nn.Module):
         super().__init__()
 
         # constants
-        self.in_size = in_size
+        self.in_size = feat_size + action_size
         self.fc_hidden = 140
-        self.out_size = 256
+        self.out_size = feat_size
 
         # layers
 
         self.fc1 = nn.Linear(self.in_size, self.fc_hidden)
         self.fc2 = nn.Linear(self.fc_hidden, self.out_size)
+        self.relu = nn.LeakyReLU(0.1)
 
     def forward(self, x):
         """
@@ -498,7 +504,7 @@ class ForwardNet(nn.Module):
                   and the current action, pass torch.cat((phi(s_t), a_t), 1)
         :return:
         """
-        return self.fc2(self.fc1(x))
+        return self.fc2(self.relu(self.fc1(x)))
 
 
 class AdversarialHead(nn.Module):
@@ -523,8 +529,8 @@ class AdversarialHead(nn.Module):
         self.action_num_per_type_start_idx = np.cumsum([0, *self.action_num_per_type[:-1]])
 
         # networks
-        self.fwd_net = ForwardNet(2 * self.feat_size + np.array(self.action_num_per_type).sum())
-        self.inv_net = ActorLayer(self.feat_size * 4, self.action_descriptor)
+        self.fwd_net = ForwardNet(self.feat_size, np.array(self.action_num_per_type).sum())
+        self.inv_net = ActorLayer(self.feat_size * 2, self.action_descriptor)
 
         # attention
         self.attention_type = attention_type
@@ -683,8 +689,8 @@ class A2CNet(nn.Module):
 
         self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs)
 
-        self.actor = ActorLayer(self.feature_size * 2, self.action_descriptor)
-        self.critic = CriticLayer(self.feature_size * 2)
+        self.actor = ActorLayer(self.feature_size, self.action_descriptor)
+        self.critic = CriticLayer(self.feature_size)
 
     def set_recurrent_buffers(self, buf_size):
         """
