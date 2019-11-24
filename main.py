@@ -89,7 +89,8 @@ def doDrive():
     env.setRandomSeed(42)
     env.reset()
 
-    action1 = [1, 1]
+    action1 = [random.randint(0,2), random.randint(0,2)]
+    #action1 = [1,1]
     action = np.array([action1,]*(nPlayers*2))
 
     while True:
@@ -115,6 +116,8 @@ def doDrive():
                 action[(0,1)] = 1
 
         ret = env.step(action)
+        if ret[2]:
+            break
 
 if __name__ == '__main__':
 

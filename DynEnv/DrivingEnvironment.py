@@ -38,8 +38,9 @@ class DrivingEnvironment(object):
         self.H = 1000
 
         # Normalization parameters
-        self.normX = 1.0/self.W
-        self.normY = 1.0/self.H
+        self.mean = 5.0
+        self.normX = self.mean*2/self.W
+        self.normY = self.mean*2/self.H
         self.normW = 1.0/7.5
         self.normH = 1.0/15
 
@@ -66,9 +67,9 @@ class DrivingEnvironment(object):
         if self.observationType == ObservationType.Full:
             self.observation_space = [1, self.nPlayers,
                     [[8, ], [self.nPlayers - 1, 6], [self.obstacleNum, 4], [self.pedestrianNum, 2],
-                     [self.laneNum, 5]]]
+                     [self.laneNum, 3]]]
         else:
-            self.observation_space = [1, self.nPlayers, 5, [8, 6, 5, 2, 5]]
+            self.observation_space = [1, self.nPlayers, 5, [8, 6, 5, 2, 3]]
 
         # Action space
         self.action_space = \
@@ -241,6 +242,7 @@ class DrivingEnvironment(object):
         if self.elapsed >= self.maxTime:
             finished = True
             info['episode_r'] = self.episodeRewards
+            #print(self.episodeRewards)
 
         t2 = time.clock()
         #print((t2 - t1) * 1000)
@@ -285,6 +287,9 @@ class DrivingEnvironment(object):
         # Get actions
         acc = action[0]-1
         steer = (action[1]-1)*2
+
+        #self.carRewards[self.cars.index(car)] += 0.01*acc*np.sign(car.goal.x-car.getPos().x)
+        #self.carRewards[self.cars.index(car)] += 0.01*steer*np.sign(car.goal.y-car.getPos().y)
 
         # Sanity checks
         if np.abs(acc) > 3:
@@ -331,8 +336,8 @@ class DrivingEnvironment(object):
                     self.carRewards[index] -= car.shape.body.velocity.length/5
         # Add small punichment for being in opposite lane
         elif car.position == LanePosition.InOpposingLane:
-            if not car.finished and car.shape.body.velocity.length > 0:
-                self.carRewards[index] -= 0.1*0
+            if not car.finished :
+                self.carRewards[index] -= car.shape.body.velocity.length/10000
 
     # Update function for pedestrians
     def move(self,pedestrian):
@@ -594,8 +599,8 @@ class DrivingEnvironment(object):
         # Get lanes
         lanes = []
         for l in self.roads:
-            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, self.normX), normalize(l.Lanes[i - l.nLanes][0].y, self.normY),
-                       normalize(l.Lanes[i - l.nLanes][1].x, self.normX), normalize(l.Lanes[i - l.nLanes][1].y, self.normY),
+            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, self.normX, self.mean), normalize(l.Lanes[i - l.nLanes][0].y, self.normY, self.mean),
+                       normalize(l.Lanes[i - l.nLanes][1].x, self.normX, self.mean), normalize(l.Lanes[i - l.nLanes][1].y, self.normY, self.mean),
                        (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
 
         # If complete state
@@ -603,24 +608,24 @@ class DrivingEnvironment(object):
 
             # Just add cars
             state = [
-                np.array([[normalize(c.getPos().x,self.normX),normalize(c.getPos().y,self.normY), c.getAngle(),
-                           normalize(c.width, self.normW), normalize(c.height, self.normH), c.finished] for c in self.cars]),
+                np.array([[normalize(c.getPos().x,self.normX, self.mean),normalize(c.getPos().y,self.normY, self.mean), c.getAngle(),
+                           normalize(c.width, self.normW, 0.5), normalize(c.height, self.normH, 0.5), c.finished] for c in self.cars]),
             ]
         # Otherwise add self observation separately
         else:
             state = [
-                np.array([normalize(car.getPos().x,self.normX),normalize(car.getPos().y,self.normY), car.getAngle(),
-                          normalize(car.width, self.normW), normalize(car.height, self.normH),
-                          normalize(car.goal.x,self.normX),normalize(car.goal.y,self.normY), car.finished]),
-                np.array([[normalize(c.getPos().x,self.normX),normalize(c.getPos().y,self.normY), c.getAngle(),
-                           normalize(c.width, self.normW), normalize(c.height, self.normH), c.finished] for c in self.cars if c != car]),
+                np.array([normalize(car.getPos().x,self.normX, self.mean),normalize(car.getPos().y,self.normY, self.mean), car.getAngle(),
+                          normalize(car.width, self.normW, 0.5), normalize(car.height, self.normH, 0.5),
+                          normalize(car.goal.x,self.normX, self.mean),normalize(car.goal.y,self.normY, self.mean), car.finished]),
+                np.array([[normalize(c.getPos().x,self.normX, self.mean),normalize(c.getPos().y,self.normY, self.mean), c.getAngle(),
+                           normalize(c.width, self.normW, 0.5), normalize(c.height, self.normH, 0.5), c.finished] for c in self.cars if c != car]),
             ]
 
         # Add obstacles, pedestrians and lanes
         state += [
-            np.array([[normalize(o.getPos().x, self.normX), normalize(o.getPos().y, self.normY),
-                       normalize(o.width, self.normW), normalize(o.height, self.normH)] for o in self.obstacles]),
-            np.array([[normalize(p.getPos().x, self.normX), normalize(p.getPos().y, self.normY)] for p in self.pedestrians]),
+            np.array([[normalize(o.getPos().x, self.normX, self.mean), normalize(o.getPos().y, self.normY, self.mean),
+                       normalize(o.width, self.normW, 0.5), normalize(o.height, self.normH, 0.5)] for o in self.obstacles]),
+            np.array([[normalize(p.getPos().x, self.normX, self.mean), normalize(p.getPos().y, self.normY, self.mean)] for p in self.pedestrians]),
             np.array(lanes)
         ]
 
@@ -638,7 +643,7 @@ class DrivingEnvironment(object):
         pedDets = [isSeenInRadius(p.getPos(),None,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
         laneDets = []
         for l in self.roads:
-            laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],selfDet[2],self.maxVisDist[1])
+            laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],selfDet[2],self.maxVisDist[0])
                          + [(1 if abs(i) == l.nLanes else (-1 if i == 0 else 0)), ]
                         for i in range(-l.nLanes,l.nLanes+1)]
 
@@ -671,7 +676,7 @@ class DrivingEnvironment(object):
         [addNoiseRect(c, self.noiseType, InteractionType.NoInter, self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,c in enumerate(carDets)]
         [addNoiseRect(ped, self.noiseType, pedInter[i], self.noiseMagnitude, self.randBase, self.maxVisDist[0]) for i,ped in enumerate(pedDets)]
         [addNoiseRect(obs, self.noiseType, InteractionType.NoInter, self.noiseMagnitude, self.randBase, self.maxVisDist[1], True) for i,obs in enumerate(obsDets)]
-        [addNoiseLine(lane, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,lane in enumerate(laneDets)]
+        [addNoiseLane(lane, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i,lane in enumerate(laneDets)]
 
         # Cars and obstacles might by misclassified - move them in the other list
         for c in carDets:
@@ -723,13 +728,12 @@ class DrivingEnvironment(object):
                 # Add lane
                 elif c == 3:
                     # Get second point
-                    a2 = random.random()*2*math.pi
-                    pos2 = pymunk.Vec2d(d,0)
-                    pos2.rotate(a2)
+                    a = (random.random()-0.5)*2
+                    dist = random.random()*self.W//2
 
                     # Add lane
                     laneDets.insert(len(laneDets),
-                                   [SightingType.Normal,pos,pos2,random.randint(-1,1)])
+                                   [SightingType.Normal,dist,a,random.randint(-1,1)])
 
         # FP Pedestrians near cars and obstacles
         if self.noiseType == NoiseType.Realistic:
@@ -768,11 +772,11 @@ class DrivingEnvironment(object):
             cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw lane (color based on type)
-            for lane in laneDets:
+            '''for lane in laneDets:
                 color = (0,0,255) if lane[3] == 1 else ((0,255,0) if lane[3] == -1 else (255,255,255))
                 if lane[0] != SightingType.Normal:
                     color = (color[0]//2,color[1]//2,color[2]//2)
-                cv2.line(img,(int(W+lane[1].x),int(-lane[1].y+H)),(int(W+lane[2].x),int(-lane[2].y+H)),color,2)
+                cv2.line(img,(int(W+lane[1].x),int(-lane[1].y+H)),(int(W+lane[2].x),int(-lane[2].y+H)),color,2)'''
 
             # draw cars
             for c in carDets:
@@ -795,16 +799,15 @@ class DrivingEnvironment(object):
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
 
         # Convert to numpy
-        selfDet = np.array([[normalize(selfDet[1].x,self.normX),normalize(selfDet[1].y,self.normY),selfDet[2],
-                            normalize(selfDet[4],self.normW),normalize(selfDet[5],self.normH),
-                            normalize(selfDet[6].x,self.normX),normalize(selfDet[6].y,self.normY),selfDet[7]],])
+        selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],
+                            normalize(selfDet[4],self.normW, 0.5),normalize(selfDet[5],self.normH, 0.5),
+                            normalize(selfDet[6].x,self.normX, self.mean),normalize(selfDet[6].y,self.normY, self.mean),selfDet[7]],])
         carDets = np.array([[normalize(c[1].x,self.normX),normalize(c[1].y,self.normY),c[2],
-                             normalize(c[4],self.normW),normalize(c[5],self.normH), c[6]] for c in carDets])
+                             normalize(c[4],self.normW, 0.5),normalize(c[5],self.normH, 0.5), c[6]] for c in carDets])
         obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],
-                             normalize(obs[4],self.normW),normalize(obs[5],self.normH)] for obs in obsDets])
+                             normalize(obs[4],self.normW, 0.5),normalize(obs[5],self.normH, 0.5)] for obs in obsDets])
         pedDets = np.array([[normalize(ped[1].x,self.normX),normalize(ped[1].y,self.normY)] for ped in pedDets])
-        laneDets = np.array([[normalize(lane[1].x,self.normX),normalize(lane[1].y,self.normY),
-                              normalize(lane[2].x,self.normX),normalize(lane[2].y,self.normY), lane[3]] for lane in laneDets])
+        laneDets = np.array([[normalize(lane[1],self.normW),lane[2],lane[3]] for lane in laneDets])
 
         # return
         return selfDet,carDets,obsDets,pedDets,laneDets

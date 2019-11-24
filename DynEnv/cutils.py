@@ -147,8 +147,10 @@ def colorize(img):
         cImg[img[ind]==1] = classColors[ind]
     return cImg
 
-def normalize(pt,normFactor):
-    return ((pt*normFactor)-0.5)*2
+def normalize(pt,normFactor, mean = None):
+    if mean is None:
+        mean = 0
+    return ((pt*normFactor)-mean)*2
 
 # Add noise to a line sighting
 def addNoiseLine(obj,noiseType, magn, rand, maxDist):
@@ -179,6 +181,36 @@ def addNoiseLine(obj,noiseType, magn, rand, maxDist):
 
             obj[1] += noiseVec1*multiplier1/2
             obj[2] += noiseVec2*multiplier2/2
+
+
+# Add noise to lane
+def addNoiseLane(obj,noiseType, magn, rand, maxDist):
+
+    if obj[0]:
+
+        # Create random distance and angle noise
+        distNoise = 1 - (random.random() - 0.5) * magn * 0.1
+        angleNoise = (random.random() - 0.5) * magn * 0.1
+
+        # Add random noise if simple noise and random FN
+        if noiseType == NoiseType.Random:
+            if random.random() < rand:
+                obj[0] = SightingType.NoSighting
+            obj[1] *= distNoise
+            obj[2] += angleNoise
+
+        # Else add bigger noise to distant lines (also bigger probability of FN)
+        elif noiseType == NoiseType.Realistic:
+
+            # Get distances of points and average dist
+            multiplier1 = 0.25 + 3.75 * obj[1]*obj[1] / maxDist
+
+            if random.random() < rand * multiplier1:
+                obj[0] = SightingType.NoSighting
+
+            obj[1] *= distNoise * multiplier1 / 2
+            obj[2] += angleNoise * multiplier1 / 2
+
 
 # Add random noise to other sightings
 def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
@@ -349,10 +381,22 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
 
     return [SightingType.NoSighting,]
 
+
+def angle(corner):
+
+    return math.atan2(corner.y,corner.x)
+
+
 def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
+    dist = (obsPt-points[0]).cross(points[1]-points[0])/(obsPt-points[0]).length
+    if dist*dist > maxDist:
+        return [SightingType.NoSighting,]
+    ang = math.cos(angle(points[1]-points[0])-obsAngle)
+    return [SightingType.Normal, dist, ang]
+
     # Center points
-    trPts = [point-obsPt for point in points]
+    '''trPts = [point-obsPt for point in points]
 
     # Chortcuts
     x1 = trPts[0].x
@@ -383,11 +427,7 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
         return [SightingType.Normal,trPts[0],trPts[1]]
 
-    return[SightingType.NoSighting,]
-
-def angle(corner):
-
-    return math.atan2(corner.y,corner.x)
+    return[SightingType.NoSighting,]'''
 
 def getViewBlockAngle(centerAngle,corners):
 
