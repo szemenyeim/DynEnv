@@ -104,12 +104,13 @@ class RoboCupEnvironment(object):
         self.penalTimes = [20000,20000]
         self.maxTime = 6000
         self.elapsed = 0
+        self.timeStep = 100.0
+        self.timeDiff = 1000.0/self.timeStep
+        self.stepNum = self.maxTime/self.timeDiff
 
         # Simulation settings
         self.space = pymunk.Space()
         self.space.gravity = (0.0, 0.0)
-        self.timeStep = 100.0
-        self.timeSingle = 1000.0/self.timeStep
 
         self.lines = [
             # Outer lines
@@ -883,9 +884,9 @@ class RoboCupEnvironment(object):
     def getFullState(self,robot=None):
 
         if robot is None:
-            state = [np.array([normalize(self.ball.getPos()[0],self.normX,0.5),normalize(self.ball.getPos()[1],self.normY,0.5),self.ballOwned]),
-                   np.array([[normalize(rob.getPos()[0],self.normX,0.5),normalize(rob.getPos()[1],self.normY,0.5),
-                              rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots])]
+            state = [np.array([[normalize(rob.getPos()[0],self.normX,0.5),normalize(rob.getPos()[1],self.normY,0.5),
+                              rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots]),
+                     np.array([normalize(self.ball.getPos()[0],self.normX,0.5),normalize(self.ball.getPos()[1],self.normY,0.5),self.ballOwned])]
         else:
             # flip x axis for team -1
             normX = self.normX*robot.team
