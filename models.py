@@ -655,8 +655,8 @@ class ICMNet(nn.Module):
         # measure of how good features can be predicted
         if not self.loss_attn_flag:
             loss_fwd = F.mse_loss(feature_preds[carFinished], features[carFinished])
-        # else:
-        #     loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
+        else:
+            loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
         # inverse loss
         # how good is the action estimate between states
         actions = actions.permute(1, 0, 2)
