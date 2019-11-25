@@ -74,7 +74,7 @@ class RolloutStorage(object):
         :return:
         """
         self.rewards = self._generate_buffer((self.rollout_size, self.num_all_players))
-        self.carFinished = self._generate_buffer((self.rollout_size, self.num_all_players)).bool()
+        self.agentFinished = self._generate_buffer((self.rollout_size, self.num_all_players)).bool()
 
         # the features are needed for the curiosity loss, an addtion to the A2C+ICM structure
         # +1 element is needed, as the MSE to the prediction of the next state is calculated
@@ -108,7 +108,7 @@ class RolloutStorage(object):
         """
         return self.states[step]
 
-    def insert(self, step, reward, carFinished, obs, action, log_prob, value, dones, features):
+    def insert(self, step, reward, agentFinished, obs, action, log_prob, value, dones, features):
         """
         Inserts new data into the log for each environment at index step
 
@@ -125,7 +125,7 @@ class RolloutStorage(object):
         self.states.append(obs)
 
         self.rewards[step].copy_(torch.from_numpy(reward).view(-1))
-        self.carFinished[step].copy_(carFinished.view(-1))
+        self.agentFinished[step].copy_(agentFinished.view(-1))
         self.features[step].copy_(features)
         self.actions[step].copy_(torch.stack(action, dim=0))
         self.log_probs[step].copy_(torch.stack(log_prob, dim=0))
@@ -200,9 +200,10 @@ class RolloutStorage(object):
         batch_actions = [action_prob.mean(dim=1) for action_prob in action_probs]
         tempEntropies = torch.stack([Categorical(temp_action).entropy() for temp_action in temp_actions])
         batchEntropies = torch.stack([Categorical(batch_action).entropy() for batch_action in batch_actions])
+        allEntropies = torch.stack([Categorical(action_prob).entropy() for action_prob in action_probs])
         tempEntropy = tempEntropies.mean().detach()
         batchEntropy = batchEntropies.mean()
-        fullEntropy = Categorical(torch.stack(action_probs)).entropy().mean()
+        fullEntropy = allEntropies.mean()
 
         retEntropy = fullEntropy if self.use_full_entropy else batchEntropy
 

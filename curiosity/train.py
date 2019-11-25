@@ -73,7 +73,7 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.carFinished)
+            icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
             icm_loss = sum(icm_losses)
 
             """Assemble loss"""
@@ -169,11 +169,11 @@ class Runner(object):
                 (self.net.num_envs, self.net.num_players * 2, -1)).detach().cpu().numpy()
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
 
-            carFinished = torch.tensor([[car[-1] for car in s['Full State'][0]] for s in state]).bool()
+            agentFinished = torch.tensor([[agent[-1] for agent in s['Full State'][0]] for s in state]).bool()
             # save episode reward
             self.storage.log_episode_rewards(state)
 
-            self.storage.insert(step, rewards, carFinished, new_obs, actions, log_probs, values, dones, features)
+            self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features)
 
         # Note:
         # get the estimate of the final reward

@@ -626,7 +626,7 @@ class ICMNet(nn.Module):
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
 
-    def forward(self, features, action, carFinished):
+    def forward(self, features, action, agentFinished):
         """
 
         feature: current encoded state
@@ -642,26 +642,26 @@ class ICMNet(nn.Module):
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
-        carFinishedMask = torch.logical_not(carFinished)
+        agentFinishedMask = torch.logical_not(agentFinished)
 
-        return self._calc_loss(next_features, next_feature_pred, action_pred, action, carFinishedMask)
+        return self._calc_loss(next_features, next_feature_pred, action_pred, action, agentFinishedMask)
 
-    def _calc_loss(self, features, feature_preds, action_preds, actions, carFinished):
+    def _calc_loss(self, features, feature_preds, action_preds, actions, agentFinished):
 
-        if not carFinished.any():
+        if not agentFinished.any():
             return torch.tensor([0,0]).to(features.device)
 
         # forward loss
         # measure of how good features can be predicted
         if not self.loss_attn_flag:
-            loss_fwd = F.mse_loss(feature_preds[carFinished], features[carFinished])
+            loss_fwd = F.mse_loss(feature_preds[agentFinished], features[agentFinished])
         else:
             loss_fwd = self.loss_attn(F.mse_loss(feature_preds, features, reduction="none"), features).mean()
         # inverse loss
         # how good is the action estimate between states
         actions = actions.permute(1, 0, 2)
         # print(torch.min(action_preds[0]),torch.max(action_preds[0]))
-        losses = [F.cross_entropy(a_pred.permute(0, 2, 1), a.long(), reduction='none')[carFinished].mean() for (a_pred, a) in zip(action_preds, actions)]
+        losses = [F.cross_entropy(a_pred.permute(0, 2, 1), a.long(), reduction='none')[agentFinished].mean() for (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
         return (self.forward_coeff * loss_fwd, self.icm_beta*loss_inv)
