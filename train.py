@@ -58,7 +58,7 @@ if __name__ == '__main__':
     param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,
                               args.num_updates, args.max_grad_norm, args.icm_beta,
                               args.value_coeff, args.forward_coeff, args.entropy_coeff, attn_target, attn_type,
-                              RewardType.INTRINSIC_AND_EXTRINSIC, args.note)
+                              RewardType.INTRINSIC_AND_EXTRINSIC, args.note, args.use_full_entropy)
 
     # runner object & training
     runner = Runner(agent, env, param, args.cuda, args.seed, args.log_dir)

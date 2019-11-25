@@ -42,7 +42,7 @@ class Runner(object):
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
                                       len(self.net.action_descriptor), self.params.n_stack, self.net.feat_size,
-                                      is_cuda=self.is_cuda)
+                                      is_cuda=self.is_cuda, use_full_entropy=self.params.use_full_entropy)
 
     def train(self):
 

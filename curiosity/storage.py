@@ -16,7 +16,7 @@ class sliceable_deque(deque):
 
 class RolloutStorage(object):
     def __init__(self, rollout_size, num_envs, num_players, num_actions, n_stack, feature_size=288,
-                 is_cuda=True):
+                 is_cuda=True, use_full_entropy=False):
         """
 
         :param num_actions:
@@ -39,6 +39,7 @@ class RolloutStorage(object):
         self.feature_size = feature_size
         self.is_cuda = is_cuda
         self.episode_rewards = sliceable_deque(maxlen=num_envs*10)
+        self.use_full_entropy = use_full_entropy
 
         # initialize the buffers with zeros
         self.reset_buffers()
@@ -201,8 +202,11 @@ class RolloutStorage(object):
         batchEntropies = torch.stack([Categorical(batch_action).entropy() for batch_action in batch_actions])
         tempEntropy = tempEntropies.mean().detach()
         batchEntropy = batchEntropies.mean()
+        fullEntropy = Categorical(torch.stack(action_probs)).entropy().mean()
 
-        return (policy_loss, value_coeff * value_loss, -entropy_coeff * batchEntropy, entropy_coeff*tempEntropy), self.rewards.detach().cpu()
+        retEntropy = fullEntropy if self.use_full_entropy else batchEntropy
+
+        return (policy_loss, value_coeff * value_loss, -entropy_coeff * retEntropy, entropy_coeff*tempEntropy), self.rewards.detach().cpu()
 
     def log_episode_rewards(self, infos):
         """

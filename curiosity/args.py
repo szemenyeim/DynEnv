@@ -40,6 +40,8 @@ def get_args():
                         help='rollout size')
     parser.add_argument('--num-updates', type=int, default=60000, metavar='NUM_UPDATES',
                         help='number of updates')
+    parser.add_argument('--use-full-entropy', type=bool, default=False, metavar='USE_FULL_ENTROPY',
+                        help='use full entropy, not just batch entropy')
 
 
     # model coefficients

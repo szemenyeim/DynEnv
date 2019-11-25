@@ -218,7 +218,8 @@ class NetworkParameters(object):
                  attention_target: AttentionTarget = AttentionTarget.NONE,
                  attention_type: AttentionType = AttentionType.SINGLE_ATTENTION,
                  reward_type: RewardType = RewardType.INTRINSIC_ONLY,
-                 note: str = 'None'):
+                 note: str = 'None',
+                 use_full_entropy: bool = False):
         self.env_name = env_name
         self.num_envs = num_envs
         self.n_stack = n_stack
@@ -233,6 +234,7 @@ class NetworkParameters(object):
         self.attention_type = attention_type
         self.reward_type = reward_type
         self.note = note
+        self.use_full_entropy = use_full_entropy
 
     def save(self, data_dir, timestamp):
         param_dict = {**self.__dict__, "timestamp": timestamp}
