@@ -18,8 +18,8 @@ class DynEnvType(Enum):
 
 def env_selector(env_type: DynEnvType, nPlayers, nEnvs):
     if env_type is DynEnvType.ROBO_CUP:
-        envs = [lambda: DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Partial,
-                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.1) for i in range(nEnvs)]
+        envs = [lambda: DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=False, observationType=DynEnv.ObservationType.Full,
+                                        noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0.0) for i in range(nEnvs)]
         env = DynEnv.CustomSubprocVecEnv(envs)
         name = "RoboCup"
     elif env_type is DynEnvType.DRIVE:
@@ -42,11 +42,11 @@ if __name__ == '__main__':
 
     # constants
     feature_size = 128
-    attn_target = AttentionTarget.ICM_LOSS
+    attn_target = AttentionTarget.NONE
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
-    env, env_name = env_selector(DynEnvType.DRIVE, args.num_players, args.num_envs)
+    env, env_name = env_selector(DynEnvType.ROBO_CUP, args.num_players, args.num_envs)
     batch, action_size = env.action_space
     input_size = env.observation_space
 
