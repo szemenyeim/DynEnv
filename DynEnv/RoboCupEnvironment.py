@@ -486,8 +486,10 @@ class RoboCupEnvironment(object):
 
         # Create personal rewards for nearby robots not touching the ball, but only negative rewards
         for robot in self.robots:
-            if (robot.getPos() - pos).length < 150:
-                if not robot.penalized and self.ballOwned != robot.team and self.ballFreeCntr > 0:
+            cond1 = robot.id in self.closestID
+            cond2 = (robot.getPos() - pos).length < 150
+            if cond1 or cond2:
+                if cond2 and not robot.penalized and self.ballOwned != robot.team and self.ballFreeCntr > 0:
                     #print("Illegal position", robot.id, robot.team)
                     if False: # Disable this for now
                         self.penalize(robot)
