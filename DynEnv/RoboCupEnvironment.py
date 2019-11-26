@@ -21,10 +21,10 @@ class RoboCupEnvironment(object):
         self.maxPlayers = 5
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
-        self.sizeNorm = 10.0/noiseMagnitude
+        self.sizeNorm = 10.0/noiseMagnitude if noiseMagnitude != 0.0 else 1.0
 
         # Which robot's observation to visualize
-        self.visId = 0#random.randint(0,self.nPlayers*2-1)
+        self.visId = 2#random.randint(0,self.nPlayers*2-1)
 
         # Field setup
         self.W = 1040
@@ -50,11 +50,11 @@ class RoboCupEnvironment(object):
         # Observation and action spaces
         # Observation space
         if self.observationType == ObservationType.Full:
-            self.observation_space =  [5, self.nPlayers * 2, [[3, ], [3, ], [self.nPlayers - 1, 4]]]
+            self.observation_space =  [5, self.nPlayers * 2, 3, [4, 5, 6]]
         elif self.observationType == ObservationType.Image:
             self.observation_space = [5, self.nPlayers * 2, [8, 480, 640]]
         else:
-            self.observation_space = [5, self.nPlayers * 2, 6, [4, 6, 3, 3, 4, 3]]
+            self.observation_space = [5, self.nPlayers * 2, 6, [5, 6, 3, 3, 4, 3]]
 
         # Action space
         self.action_space =\
@@ -81,6 +81,9 @@ class RoboCupEnvironment(object):
         self.gracePeriod = 0
 
         self.episodeRewards = 0
+        self.episodePosRewards = 0
+        self.goals = np.array([0,0])
+        self.closestID = [0,0]
 
         # Bookkeeping for robots inside penalty area for illegal defender
         self.defenders = [[],[]]
@@ -102,11 +105,11 @@ class RoboCupEnvironment(object):
         self.teamRewards = np.array([0.0,0.0])
         self.robotRewards = np.array([0.0,0.0]*self.nPlayers)
         self.penalTimes = [20000,20000]
-        self.maxTime = 6000
+        self.maxTime = 12000
         self.elapsed = 0
         self.timeStep = 100.0
         self.timeDiff = 1000.0/self.timeStep
-        self.stepNum = self.maxTime/self.timeDiff
+        self.stepNum = self.maxTime/self.timeDiff/5
 
         # Simulation settings
         self.space = pymunk.Space()
@@ -142,27 +145,31 @@ class RoboCupEnvironment(object):
 
         self.robotSpots = [
             # Kickoff team
-            (centX-(self.ballRadius*2+Robot.totalRadius)-random.random()*50, self.H/2 + (random.random()-0.5)*50),
-            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/2 + (random.random()-0.5)*50),
+            [(centX-(self.ballRadius*2+Robot.totalRadius)-random.random()*50, self.H/2 + (random.random()-0.5)*50),
+            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/4*(1 if random.random() > 0.5 else 3) + (random.random()-0.5)*50),
             (centX-(self.sideLength + self.fieldW/4)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
             (centX-(self.sideLength + self.fieldW/4)-random.random()*50, self.sideLength + 3*self.fieldH/4 + (random.random()-0.5)*50),
-            (self.sideLength, self.H/2 + (random.random()-0.5)*50),
+            (self.sideLength, self.H/2 + (random.random()-0.5)*50)],
             # Opposing team
-            (centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2)+random.random()*50, self.H/2 + (random.random()-0.5)*50),
+            [(centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2)+random.random()*50, self.H/2 + (random.random()-0.5)*50),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius)+random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
             (centX+(Robot.totalRadius+self.lineWidth/2+self.centerCircleRadius)+random.random()*50, self.sideLength + 3*self.fieldH/4 + (random.random()-0.5)*50),
             (centX+(self.sideLength + self.fieldW/4)+random.random()*50, self.sideLength + self.fieldH/2 + (random.random()-0.5)*50),
-            (self.W - (self.sideLength), self.H/2 + (random.random()-0.5)*50),
+            (self.W - (self.sideLength), self.H/2 + (random.random()-0.5)*50)],
         ]
 
+        spotIds1 = np.random.permutation(self.maxPlayers)
+        spotIds2 = np.random.permutation(self.maxPlayers)
         # Add robots
-        self.robots = [Robot(spot,1,i) for i,spot in enumerate(self.robotSpots[:self.maxPlayers]) if i < self.nPlayers] \
-                      + [Robot(spot,-1,self.nPlayers+i) for i,spot in enumerate(self.robotSpots[self.maxPlayers:]) if i < self.nPlayers]
+        self.robots = [Robot(self.robotSpots[0][id],1,i) for i,id in enumerate(spotIds1) if i < self.nPlayers] \
+                      + [Robot(self.robotSpots[1][id],-1,self.nPlayers+i) for i,id in enumerate(spotIds2) if i < self.nPlayers]
         for robot in self.robots:
             self.space.add(robot.leftFoot.body,robot.leftFoot,robot.rightFoot.body,robot.rightFoot,robot.joint,robot.rotJoint)
 
         # Add ball
-        self.ball = Ball(self.W/2,self.H/2,self.ballRadius)
+        x = self.W//2 #random.random()*self.fieldW + self.sideLength
+        y = self.H//2 #random.random()*self.fieldH + self.sideLength
+        self.ball = Ball(x,y,self.ballRadius)
         self.space.add(self.ball.shape.body,self.ball.shape)
 
         # Add goalposts
@@ -227,6 +234,7 @@ class RoboCupEnvironment(object):
         # Setup reward and state variables
         self.teamRewards = np.array([0.0,0.0])
         self.robotRewards = np.array([0.0,0.0]*self.nPlayers)
+        self.robotPosRewards = np.array([0.0,0.0]*self.nPlayers)
         observations = []
         finished = False
 
@@ -280,6 +288,11 @@ class RoboCupEnvironment(object):
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
         self.episodeRewards += self.robotRewards
 
+        # Psoitive reward for logging
+        self.robotPosRewards[:self.nPlayers] += max(0.0,self.teamRewards[0])
+        self.robotRewards[self.nPlayers:] += max(0.0,self.teamRewards[1])
+        self.episodePosRewards += self.robotPosRewards
+
         info = {'Full State': self.getFullState()}
 
         t2 = time.clock()
@@ -287,7 +300,9 @@ class RoboCupEnvironment(object):
         if self.elapsed >= self.maxTime:
             finished = True
             info['episode_r'] = self.episodeRewards
-            #print(self.episodeRewards)
+            info['episode_p_r'] = self.episodePosRewards
+            info['episode_g'] = self.goals
+            #print(self.episodeRewards,self.episodePosRewards)
 
         return observations, self.robotRewards, finished, info
 
@@ -319,16 +334,16 @@ class RoboCupEnvironment(object):
         # Moving has a small chance of falling
         if move > 0 and canMove:
             r = random.random()
-            if r > 0.995:
-                self.fall(robot)
+            if r > 0.999:
+                self.fall(robot, False)
                 return
             robot.step(move - 1)
 
         # Turning has a small chance of falling
         if turn > 0 and canMove:
             r = random.random()
-            if r > 0.995:
-                self.fall(robot)
+            if r > 0.999:
+                self.fall(robot, False)
                 return
             robot.turn(turn - 1)
 
@@ -339,8 +354,8 @@ class RoboCupEnvironment(object):
         # Kick has a higher chance of falling. Also, kick cannot be performed together with any other motion
         if kick > 0 and move == 0 and turn == 0 and canMove:
             r = random.random()
-            if r > 0.95:
-                self.fall(robot)
+            if r > 0.99:
+                self.fall(robot, False)
                 return
             robot.kick(kick - 1)
 
@@ -407,7 +422,7 @@ class RoboCupEnvironment(object):
             y = self.H/2
 
             # If out on the sides
-            team = self.robots[self.ball.lastKicked[0]].team
+            team = self.robots[self.ball.lastKicked[0]].team if len(self.ball.lastKicked) else 1
             if pos.y < outMin or pos.y > outMaxY:
                 x = pos.x + 50 if team < 0 else pos.x - 50
                 if pos.y < outMin:
@@ -422,9 +437,11 @@ class RoboCupEnvironment(object):
                     if pos.x < outMin:
                         currReward[0] += -10
                         currReward[1] += 10
+                        self.goals[0] += 1
                     else:
                         currReward[0] += 10
                         currReward[1] += -10
+                        self.goals[1] += 1
                 # If simply out
                 else:
                     # Handle two ends differently
@@ -455,15 +472,17 @@ class RoboCupEnvironment(object):
 
         # Add ball movement to the reward
         if not finished:
-            currReward[0] += (self.ball.shape.body.position.x - self.ball.prevPos.x)/50
-            currReward[1] -= (self.ball.shape.body.position.x - self.ball.prevPos.x)/50
+            currReward[0] += (self.ball.shape.body.position.x - self.ball.prevPos.x)/20
+            currReward[1] -= (self.ball.shape.body.position.x - self.ball.prevPos.x)/20
 
         # Update previous position
         self.ball.prevPos = self.ball.shape.body.position
 
         # Create discounted personal rewards for the robots involved
         for i, id in enumerate(self.ball.lastKicked):
-            self.robotRewards[id] += currReward[0] * (self.kickDiscount ** i) if id < self.nPlayers else currReward[1] * (self.kickDiscount ** i)
+            rew = currReward[0] * (self.kickDiscount ** i) if id < self.nPlayers else currReward[1] * (self.kickDiscount ** i)
+            self.robotRewards[id] += rew
+            self.robotPosRewards[id] += max(0.0,rew)
 
         # Create personal rewards for nearby robots not touching the ball, but only negative rewards
         for robot in self.robots:
@@ -477,13 +496,18 @@ class RoboCupEnvironment(object):
                     currReward[1] * self.kickDiscount)
 
         # Update team rewards
-        self.teamRewards[0] += currReward[0]/5
-        self.teamRewards[1] += currReward[1]/5
+        self.teamRewards[0] += currReward[0]*0.1
+        self.teamRewards[1] += currReward[1]*0.1
+
+        # Get closest robot from both teams
+        pos = self.ball.getPos()
+        self.closestID[0] = np.argmin([(pos-rob.getPos()).get_length_sqrd() for rob in self.robots if rob.team > 0])
+        self.closestID[1] = self.nPlayers + np.argmin([(pos-rob.getPos()).get_length_sqrd() for rob in self.robots if rob.team < 0])
 
         return finished
 
     # Robot falling
-    def fall(self,robot):
+    def fall(self,robot, punish=True):
         #print("Fall", robot.fallCntr, robot.team)
 
         # Get robot position
@@ -494,7 +518,9 @@ class RoboCupEnvironment(object):
         shapes = self.space.point_query(pos,40,filter)
 
         # Punish robots for falling
-        self.robotRewards[robot.id] -= 1
+        if punish:
+            #print("Fallpun")
+            self.robotRewards[robot.id] -= 2
 
         # For closeby objects (that are not the robot)
         for query in shapes:
@@ -576,7 +602,7 @@ class RoboCupEnvironment(object):
         robot.penalTime = self.penalTimes[teamIdx]
 
         # Punish the robot
-        self.robotRewards[robot.id] -= self.penalTimes[teamIdx]/5000
+        self.robotRewards[robot.id] -= self.penalTimes[teamIdx]/2000
 
         # Increase penalty time for team
         self.penalTimes[teamIdx] += 10000
@@ -674,7 +700,7 @@ class RoboCupEnvironment(object):
                 # Is might fall again
                 r = random.random()
                 if r > 0.9 and not robot.penalized:
-                    self.fall(robot)
+                    self.fall(robot, False)
                     return
 
                 #print("Getup", robot.team)
@@ -739,10 +765,12 @@ class RoboCupEnvironment(object):
 
         # If robot got closer to the ball, reward
         if pos != robot.prevPos:
-            ballPos = self.ball.getPos()
+            if (robot.id in self.closestID) and not robot.penalized:
+                ballPos = self.ball.getPos()
 
-            diff = (pos-ballPos).length - (robot.prevPos-ballPos).length
-            self.robotRewards[self.robots.index(robot)] -= diff*0.01
+                diff = (pos-ballPos).length - (robot.prevPos-ballPos).length
+                self.robotRewards[self.robots.index(robot)] -= diff*0.05
+                self.robotPosRewards[self.robots.index(robot)] += max(0.0,-diff*0.05)
 
             robot.prevPos = pos
 
@@ -795,17 +823,17 @@ class RoboCupEnvironment(object):
             robot2.touchCntr += 1
 
         # Compute fall probability thresholds - the longer the robots are touching the more likely they will fall
-        normalThresh = 0.99995
-        pushingThresh = 0.99998
+        normalThresh = 0.9999
+        pushingThresh = 0.99995
 
         # Determine if robots fall
         r = random.random()
         if r > (pushingThresh if robot1.mightPush else normalThresh) ** robot1.touchCntr and not robot1.fallen:
-            self.fall(robot1)
+            self.fall(robot1, robot1.mightPush)
             robot1.touchCntr = 0
         r = random.random()
         if r > (pushingThresh if robot2.mightPush else normalThresh) ** robot2.touchCntr and not robot2.fallen:
-            self.fall(robot2)
+            self.fall(robot2, robot2.mightPush)
             robot2.touchCntr = 0
 
         # Penalize robots for pushing
@@ -850,7 +878,7 @@ class RoboCupEnvironment(object):
 
         # Increment touch counter and compute fall probability threshold
         robot.touchCntr += 1
-        pushingThresh = 0.9999 ** robot.touchCntr
+        pushingThresh = 0.9998 ** robot.touchCntr
 
         # Determine if robot falls
         r = random.random()
@@ -884,18 +912,29 @@ class RoboCupEnvironment(object):
     def getFullState(self,robot=None):
 
         if robot is None:
-            state = [np.array([[normalize(rob.getPos()[0],self.normX,0.5),normalize(rob.getPos()[1],self.normY,0.5),
+            state = [np.array([[normalize(rob.getPos()[0],self.normX,self.mean),normalize(rob.getPos()[1],self.normY,self.mean),
                               rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots]),
-                     np.array([normalize(self.ball.getPos()[0],self.normX,0.5),normalize(self.ball.getPos()[1],self.normY,0.5),self.ballOwned])]
+                     np.array([normalize(self.ball.getPos()[0],self.normX,self.mean),normalize(self.ball.getPos()[1],self.normY,self.mean),self.ballOwned])]
         else:
-            # flip x axis for team -1
-            normX = self.normX*robot.team
+            # flip axes for team -1
+            team = robot.team
+            pos = robot.getPos()
 
-            state = [np.array([normalize(self.ball.getPos()[0],normX,0.5),normalize(self.ball.getPos()[1],self.normY,0.5),self.ballOwned*robot.team]),
-                   np.array([normalize(robot.getPos()[0],normX,0.5),normalize(robot.getPos()[1],self.normY,0.5),int(robot.fallen or robot.penalized)]),
-                   np.array([[normalize(rob.getPos()[0],normX,0.5),normalize(rob.getPos()[1],self.normY,0.5),
-                              rob.team*robot.team,int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
-
+            state = [
+                np.array([
+                    [normalizeAfterScale(self.ball.getPos()[0],self.normX,pos.x,team),
+                     normalizeAfterScale(self.ball.getPos()[1],self.normY,pos.y,team),
+                     self.ballOwned*robot.team, robot.id in self.closestID],]),
+                   np.array([[
+                       normalize(robot.getPos()[0],self.normX,self.mean,team),
+                       normalize(robot.getPos()[1],self.normY,self.mean,team),
+                       math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
+                       int(robot.fallen or robot.penalized)],]),
+                   np.array([
+                       [normalizeAfterScale(rob.getPos()[0],self.normX,pos.x,team),
+                        normalizeAfterScale(rob.getPos()[1],self.normY,pos.y,team),
+                        math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
+                        rob.team*robot.team,int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
         return state
 
     # Getting vision
@@ -1181,7 +1220,7 @@ class RoboCupEnvironment(object):
 
         # Convert to numpy
         ballDets = np.array([[normalize(ball[1].x,self.normX),normalize(ball[1].y,self.normY),
-                              normalizeAfterScale(ball[2],self.sizeNorm,self.ballRadius*2),ball[3]] for ball in ballDets])
+                              normalizeAfterScale(ball[2],self.sizeNorm,self.ballRadius*2),ball[3], robot.id in self.closestID] for ball in ballDets])
         robDets = np.array([[normalize(rob[1].x,self.normX),normalize(rob[1].y,self.normY),
                              normalizeAfterScale(rob[2],self.sizeNorm,Robot.totalRadius),
                              rob[3],rob[4],rob[5]] for rob in robDets])
