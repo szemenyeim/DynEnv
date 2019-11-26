@@ -9,7 +9,7 @@ from torch.distributions import Categorical
 class sliceable_deque(deque):
     def __getitem__(self, index):
         if isinstance(index, slice):
-            start = index.start + self.__len__() if index.start < 0 else index.start
+            start = index.start + self.__len__() if index.start is not None and index.start < 0 else index.start
             return type(self)(itertools.islice(self, start,
                                                index.stop, index.step))
         return deque.__getitem__(self, index)
@@ -39,6 +39,8 @@ class RolloutStorage(object):
         self.feature_size = feature_size
         self.is_cuda = is_cuda
         self.episode_rewards = sliceable_deque(maxlen=num_envs*10)
+        self.episode_pos_rewards = sliceable_deque(maxlen=num_envs*10)
+        self.goals = sliceable_deque(maxlen=num_envs)
         self.use_full_entropy = use_full_entropy
 
         # initialize the buffers with zeros
@@ -220,6 +222,10 @@ class RolloutStorage(object):
         for info in infos:
             if 'episode_r' in info.keys():
                 self.episode_rewards.append(info['episode_r'])
+            if 'episode_p_r' in info.keys():
+                self.episode_pos_rewards.append(info['episode_p_r'])
+            if 'episode_g' in info.keys():
+                self.goals.append(info['episode_g'])
 
     def print_reward_stats(self):
         if len(self.episode_rewards) > 1:

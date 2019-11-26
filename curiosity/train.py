@@ -27,7 +27,7 @@ class Runner(object):
         self.params = params
 
         """Logger"""
-        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards"])
+        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards","ep_pos_rewards"])
         self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp)
 
         """Environment"""
@@ -107,23 +107,34 @@ class Runner(object):
                 last_r = np.array(self.storage.episode_rewards[-self.params.num_envs:]).mean()
                 last_avg_r = np.array(self.storage.episode_rewards).mean()
 
-                '''r_loss/=updatesPerEpisode
-                p_loss/=updatesPerEpisode
-                v_loss/=updatesPerEpisode
-                be_loss/=updatesPerEpisode
-                te_loss/=updatesPerEpisode
-                f_loss/=updatesPerEpisode
-                i_loss/=updatesPerEpisode'''
+                last_p_r = np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]).mean()
+                last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
+
+                if len(self.storage.goals):
+                    goals = [sum(self.storage.goals[:][0]),sum(self.storage.goals[:][0])]
+                else:
+                    goals = [0,0]
+
+                '''r_loss*=5
+                p_loss*=5
+                v_loss*=5
+                be_loss*=5
+                te_loss*=5
+                f_loss*=5
+                i_loss*=5'''
 
                 self.logger.log(
-                             **{"ep_rewards": np.array(self.storage.episode_rewards),})
+                             **{"ep_rewards": np.array(self.storage.episode_rewards),
+                                "ep_pos_rewards": np.array(self.storage.episode_pos_rewards)})
 
                 t_next = time.clock()
-                print("Ep %d: %d sec (%d/%d) Loss: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f) "
-                      % (int(num_update/updatesPerEpisode), (t_next - t_prev), num_update + 1, self.params.num_updates, r_loss, p_loss,
-                         v_loss, be_loss, te_loss, f_loss, i_loss),
-                      "Rewards: [",
-                      "{0:.2f}".format(last_r), ",", "{0:.2f}".format(last_avg_r), "]")  # r_r.astype('int32'),
+                print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
+                      % (int(num_update/updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
+                         v_loss, be_loss*10, te_loss*10, f_loss, i_loss),
+                      "R: [",
+                      "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
+                      "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
+                      "[", goals[0], ":", goals[1], "]")
 
                 t_prev = t_next
                 r_loss = 0
@@ -134,8 +145,9 @@ class Runner(object):
                 f_loss = 0
                 i_loss = 0
 
-                if len(self.storage.episode_rewards) >= self.storage.episode_rewards.maxlen:
-                     self.checkpointer.checkpoint(loss, self.storage.episode_rewards, self.net, updatesPerEpisode)
+                rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
+                if len(rewards_that_count) >= rewards_that_count.maxlen:
+                     self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
@@ -152,7 +164,7 @@ class Runner(object):
 
         self.env.close()
 
-        self.logger.save(*["ep_rewards"])
+        self.logger.save(*["ep_rewards","ep_pos_rewards"])
         self.params.save(self.logger.data_dir, self.timestamp)
 
     def episode_rollout(self):
