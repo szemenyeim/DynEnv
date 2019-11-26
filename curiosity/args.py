@@ -32,13 +32,13 @@ def get_args():
                         help='environment name')
     parser.add_argument('--num-envs', type=int, default=8, metavar='NUM_ENVS',
                         help='number of parallel environments')
-    parser.add_argument('--num-players', type=int, default=1, metavar='NUM_PLAYERS',
+    parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment')
     parser.add_argument('--n-stack', type=int, default=1, metavar='N_STACK',
                         help='number of frames stacked')
     parser.add_argument('--rollout-size', type=int, default=10, metavar='ROLLOUT_SIZE',
                         help='rollout size')
-    parser.add_argument('--num-updates', type=int, default=60000, metavar='NUM_UPDATES',
+    parser.add_argument('--num-updates', type=int, default=30000, metavar='NUM_UPDATES',
                         help='number of updates')
     parser.add_argument('--use-full-entropy', type=bool, default=False, metavar='USE_FULL_ENTROPY',
                         help='use full entropy, not just batch entropy')
