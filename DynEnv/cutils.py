@@ -147,15 +147,19 @@ def colorize(img):
         cImg[img[ind]==1] = classColors[ind]
     return cImg
 
-def normalize(pt,normFactor, mean = None):
+def normalize(pt,normFactor, mean = None, team = None):
     if mean is None:
         mean = 0
-    return ((pt*normFactor)-mean)*2
+    if team is None:
+        team = 1
+    return ((pt*normFactor)-mean)*2*team
 
-def normalizeAfterScale(pt,normFactor, mean = None):
+def normalizeAfterScale(pt,normFactor, mean = None, team = None):
     if mean is None:
         mean = 0
-    return (pt-mean)*normFactor
+    if team is None:
+        team = 1
+    return (pt-mean)*normFactor*team
 
 # Add noise to a line sighting
 def addNoiseLine(obj,noiseType, magn, rand, maxDist):
