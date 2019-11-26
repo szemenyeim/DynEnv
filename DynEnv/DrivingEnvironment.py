@@ -86,6 +86,7 @@ class DrivingEnvironment(object):
         self.stepNum = self.maxTime/self.timeDiff
 
         self.episodeRewards = np.array([0.0,]*self.nPlayers)
+        self.episodePosRewards = np.array([0.0,]*self.nPlayers)
 
         # Setup roads
         self.roads = [
@@ -183,6 +184,7 @@ class DrivingEnvironment(object):
         # Setup reward and state variables
         self.teamReward = 0.0
         self.carRewards = np.array([0.0,] * self.nPlayers)
+        self.carPosRewards = np.array([0.0,] * self.nPlayers)
         finished = False
         observations = []
 
@@ -237,11 +239,15 @@ class DrivingEnvironment(object):
         self.carRewards += self.teamReward
         self.episodeRewards += self.carRewards
 
+        self.carPosRewards += max(0.0,self.teamReward)
+        self.episodePosRewards += self.carPosRewards
+
         info = {'Full State': self.getFullState()}
 
         if self.elapsed >= self.maxTime:
             finished = True
             info['episode_r'] = self.episodeRewards
+            info['episode_p_r'] = self.episodePosRewards
             #print(self.episodeRewards)
 
         t2 = time.clock()
@@ -318,6 +324,7 @@ class DrivingEnvironment(object):
         diff = (car.prevPos-car.goal).length - (car.getPos()-car.goal).length
         if not car.finished:
             self.carRewards[index] += diff/50
+            self.carPosRewards[index] += max(0.0,diff/50)
 
         # Update previous position
         car.prevPos = car.getPos()
@@ -330,6 +337,7 @@ class DrivingEnvironment(object):
                     car.position = LanePosition.AtGoal
                     car.finished = True
                     self.carRewards[index] += (self.maxTime-self.elapsed)/100
+                    self.carPosRewards[index] += (self.maxTime-self.elapsed)/100
                     car.shape.body.velocity_func = friction_car_crashed
                 else:
                     car.crash()
