@@ -82,8 +82,13 @@ class Robot(object):
     def getPos(self):
         return (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
 
-    def getAngle(self):
-        return (self.leftFoot.body.angle + self.rightFoot.body.angle)/2.0
+    def getAngle(self,team = None):
+        angle = (self.leftFoot.body.angle + self.rightFoot.body.angle)/2.0
+        if team is not None and team == -1:
+            angle -= math.pi
+            if angle < -math.pi*2:
+                angle += math.pi*2
+        return angle
 
     # Move in certain direction (relative to the robot
     def step(self, dir):
