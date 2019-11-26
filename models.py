@@ -331,7 +331,7 @@ class AttentionLayer(nn.Module):
         finalAtt = attObj[0]
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
-            finalAtt = self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0]
+            finalAtt = self.bn2(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
             finalMask = masks[i + 1] & finalMask
             # Filter nans
             with torch.no_grad():
