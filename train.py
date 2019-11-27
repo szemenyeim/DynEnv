@@ -42,7 +42,7 @@ if __name__ == '__main__':
 
     # constants
     feature_size = 128
-    attn_target = AttentionTarget.NONE
+    attn_target = AttentionTarget.ICM_LOSS
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env

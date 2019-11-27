@@ -50,7 +50,7 @@ class RoboCupEnvironment(object):
         # Observation and action spaces
         # Observation space
         if self.observationType == ObservationType.Full:
-            self.observation_space =  [5, self.nPlayers * 2, 3, [4, 5, 6]]
+            self.observation_space =  [5, self.nPlayers * 2, 3, [4, 6, 6]]
         elif self.observationType == ObservationType.Image:
             self.observation_space = [5, self.nPlayers * 2, [8, 480, 640]]
         else:
@@ -435,13 +435,13 @@ class RoboCupEnvironment(object):
                 if pos.y < self.H/2 + self.goalWidth and pos.y > self.H/2 - self.goalWidth:
                     finished = True
                     if pos.x < outMin:
-                        currReward[0] += -10
-                        currReward[1] += 10
-                        self.goals[0] += 1
-                    else:
-                        currReward[0] += 10
-                        currReward[1] += -10
+                        currReward[0] += -25
+                        currReward[1] += 25
                         self.goals[1] += 1
+                    else:
+                        currReward[0] += 25
+                        currReward[1] += -25
+                        self.goals[0] += 1
                 # If simply out
                 else:
                     # Handle two ends differently
@@ -931,7 +931,7 @@ class RoboCupEnvironment(object):
                        normalize(robot.getPos()[0],self.normX,self.mean,team),
                        normalize(robot.getPos()[1],self.normY,self.mean,team),
                        math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
-                       int(robot.fallen or robot.penalized)],]),
+                       robot.team, int(robot.fallen or robot.penalized)],]),
                    np.array([
                        [normalizeAfterScale(rob.getPos()[0],self.normX,pos.x,team),
                         normalizeAfterScale(rob.getPos()[1],self.normY,pos.y,team),
