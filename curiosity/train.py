@@ -111,7 +111,7 @@ class Runner(object):
                 last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
 
                 if len(self.storage.goals):
-                    goals = [sum(self.storage.goals[:][0]),sum(self.storage.goals[:][0])]
+                    goals = [sum(self.storage.goals[:][0]),sum(self.storage.goals[:][1])]
                 else:
                     goals = [0,0]
 
