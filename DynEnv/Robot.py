@@ -96,13 +96,13 @@ class Robot(object):
             self.moveTime = 500
             velocity = None
             if dir == 0:
-                velocity = Vec2d(0,2.5*self.velocity)
+                velocity = Vec2d(0,2*self.velocity)
             elif dir == 1:
-                velocity = Vec2d(0,-2.5*self.velocity)
+                velocity = Vec2d(0,-2*self.velocity)
             elif dir == 2:
                 velocity = Vec2d(2.5*self.velocity,0)
             elif dir == 3:
-                velocity = Vec2d(-2.5*self.velocity,0)
+                velocity = Vec2d(-2*self.velocity,0)
             if velocity is not None:
                 shape = self.leftFoot
                 angle = shape.body.angle

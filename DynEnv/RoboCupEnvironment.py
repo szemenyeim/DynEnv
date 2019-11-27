@@ -146,9 +146,9 @@ class RoboCupEnvironment(object):
         self.robotSpots = [
             # Kickoff team
             [(centX-(self.ballRadius*2+Robot.totalRadius)-random.random()*50, self.H/2 + (random.random()-0.5)*50),
-            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/4*(1 if random.random() > 0.5 else 3) + (random.random()-0.5)*50),
-            (centX-(self.sideLength + self.fieldW/4)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
-            (centX-(self.sideLength + self.fieldW/4)-random.random()*50, self.sideLength + 3*self.fieldH/4 + (random.random()-0.5)*50),
+            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
+            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
+            (centX-(self.fieldW/4)-(random.random()-0.5)*50, self.sideLength + self.fieldH/2 + (random.random()-0.5)*50),
             (self.sideLength, self.H/2 + (random.random()-0.5)*50)],
             # Opposing team
             [(centX+(self.centerCircleRadius*2+Robot.totalRadius+self.lineWidth/2)+random.random()*50, self.H/2 + (random.random()-0.5)*50),
@@ -931,12 +931,14 @@ class RoboCupEnvironment(object):
                        normalize(robot.getPos()[0],self.normX,self.mean,team),
                        normalize(robot.getPos()[1],self.normY,self.mean,team),
                        math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
-                       robot.team, int(robot.fallen or robot.penalized)],]),
+                       robot.team,
+                       int(robot.fallen or robot.penalized)],]),
                    np.array([
                        [normalizeAfterScale(rob.getPos()[0],self.normX,pos.x,team),
                         normalizeAfterScale(rob.getPos()[1],self.normY,pos.y,team),
                         math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
-                        rob.team*robot.team,int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
+                        rob.team*robot.team,
+                        int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
         return state
 
     # Getting vision

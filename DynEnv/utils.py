@@ -35,11 +35,11 @@ def friction_pedestrian_dead(body, gravity, damping, dt):
 
 # Robot friction callback
 def friction_robot(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,2e-3,1e-2)
+    apply_friction(body,gravity,damping,dt,1e-3,1e-2)
 
 # Ball friction callback
 def friction_ball(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,4e-2,2e-3,5e-2)
+    apply_friction(body,gravity,damping,dt,3e-2,2e-3,5e-2)
 
 def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0):
 

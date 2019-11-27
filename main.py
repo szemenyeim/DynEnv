@@ -13,6 +13,7 @@ def doRoboCup():
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0)
     env.setRandomSeed(42)
 
+    action0 = [0, 0, 0]
     action1 = [0, 0, 0]
     action2 = [0, 0, 0]
 
@@ -61,7 +62,7 @@ def doRoboCup():
                 action1 = [0, 0, 0]
                 action2 = [0, 0, 0]
 
-        action = np.array([action1, action2] * nPlayers)
+        action = np.array([action1, ] + [action0,] * (nPlayers-1) + [action2,] + [action0,] * (nPlayers-1))
         ret = env.step(action)
         if ret[2]:
             break
