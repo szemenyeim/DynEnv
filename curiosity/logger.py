@@ -5,10 +5,8 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 
-
-from .utils import make_dir, numpy_ewma_vectorized_v2, plot_postprocess, print_init, series_indexer, \
+from utils import make_dir, numpy_ewma_vectorized_v2, plot_postprocess, print_init, series_indexer, \
     color4label, label_enum_converter, instance2label
 
 
@@ -153,54 +151,40 @@ class EnvLogger(object):
 
         self.logs = {}
 
-        mean_reward = []
-        mean_feat_std = []
-        mean_proxy = []
+        mean_ep_reward = []
+        mean_ep_pos_reward = []
 
         # load trainings
         for timestamp in self.params_df.timestamp:
-            self.logs[timestamp] = TemporalLogger(self.env_name, timestamp, self.log_dir, *["rewards", "features"])
+            self.logs[timestamp] = TemporalLogger(self.env_name, timestamp, self.log_dir, *["ep_rewards"])
             self.logs[timestamp].load(join(self.data_dir, f"time_log_{timestamp}"), self.decimate_step)
 
             # calculate statistics
-            mean_reward.append(self.logs[timestamp].__dict__["rewards"].mean.mean())
-            mean_feat_std.append(self.logs[timestamp].__dict__["features"].std.mean())
-            mean_proxy.append(mean_reward[-1] * mean_feat_std[-1])
+            # breakpoint()
+            mean_ep_reward.append(self.logs[timestamp].__dict__["ep_rewards"].mean)
+            # mean_ep_pos_reward.append(self.logs[timestamp].__dict__["ep_pos_rewards"].mean.mean())
 
         # append statistics to df
-        self.params_df["mean_reward"] = pd.Series(mean_reward, index=self.params_df.index)
-        self.params_df["mean_feat_std"] = pd.Series(mean_feat_std, index=self.params_df.index)
-        self.params_df["mean_proxy"] = pd.Series(mean_proxy, index=self.params_df.index)
+        self.params_df["mean_ep_reward"] = pd.Series(mean_ep_reward, index=self.params_df.index)
+        # self.params_df["mean_ep_pos_reward"] = pd.Series(mean_ep_pos_reward, index=self.params_df.index)
 
     def plot_mean_std(self, *args):
         for key, val in self.logs.items():
             print(key)
             val.plot_mean_std(*args)
 
-    def plot_proxy(self, window=1000):
-        fig, ax, _ = print_init(False)
-        for idx, (key, val) in enumerate(self.logs.items()):
-            print(f'key={key}, proxy_val={self.params_df[self.params_df.timestamp == key]["mean_proxy"][idx]}')
-            plt.plot(numpy_ewma_vectorized_v2(val.__dict__["features"].std, window) * numpy_ewma_vectorized_v2(
-                val.__dict__["rewards"].mean, window), label=key)
-
-        plt.title("Proxy for the reward-exploration problem")
-        plot_postprocess(fig, ax, "Proxy", " value for the reward-exploration problem", None)
-
-    def plot_decorator(self, keyword="rewards", window=1000, std_scale=1, inset_start_x=int(2e6),
-                       inset_end_x=int(2.5e6),
-                       y_inset_std_scale=5, save=False, zoom=2.5, loc=4):
+    def plot_decorator(self, keyword="ep_rewards", window=1000, std_scale=1, save=False, zoom=2.5, loc=4):
 
         def stat_ewma(val, keyword, window):
             feat = val.__dict__[keyword]
-            if keyword == "rewards":
+            if keyword == "ep_rewards":
                 feat_stat = feat.mean
-            elif keyword == "features":
+            elif keyword == "ep_pos_rewards":
                 feat_stat = feat.std
 
             return numpy_ewma_vectorized_v2(feat_stat, window)
 
-        fig, ax, axins, loc1, loc2 = print_init(zoom=zoom, loc=loc)
+        fig, ax, _, loc1, loc2 = print_init(False, zoom=zoom, loc=loc)
 
         # precompute y inset limits
         stats_last = []
@@ -211,9 +195,6 @@ class EnvLogger(object):
             stats_max.append(ewma_stat.max())
 
         stats_max = np.array(stats_max)
-        stats_last = np.array(stats_last)
-        y_inset_mean = np.median(stats_last)
-        y_inset_std = y_inset_std_scale * stats_last.std()
 
         # create data structure for storing proxy values
         perf_metrics = {}
@@ -228,28 +209,20 @@ class EnvLogger(object):
             label = instance2label(instance)
 
             # plot the mean of the feature
-            # breakpoint()
             ewma_stat = stat_ewma(val, keyword, window)  # calculate exp mean
             print(f'{label}, {keyword}, {ewma_stat.max()}, {ewma_stat.max() / stats_max.max()}')
             perf_metrics[label] = 100 * ewma_stat.max() / stats_max.max()
             x_points = self.decimate_step * np.arange(
                 ewma_stat.shape[0])  # placeholder for the x points (for xtick conversion)
+            # breakpoint()
             ax.plot(x_points, ewma_stat, label=label, color=color4label(label))
 
-            if keyword == "rewards":
-                # plot standard deviation (uncertainty)
-                ewma_std = numpy_ewma_vectorized_v2(val.__dict__[keyword].std, window)
-                ax.fill_between(x_points, ewma_stat + std_scale * ewma_std,
-                                ewma_stat - std_scale * ewma_std, alpha=.2, color=color4label(label))
-
-            # inset
-            axins.plot(x_points, ewma_stat, label=label, color=color4label(label))
-            axins.set_xlim(inset_start_x, inset_end_x)  # apply the x-limits
-            axins.set_ylim(y_inset_mean - y_inset_std, y_inset_mean + y_inset_std)  # apply the y-limits
-            mark_inset(ax, axins, loc1=loc1, loc2=loc2, fc="none", ec="0.5")
+            # if keyword == "ep_rewards":
+            # plot standard deviation (uncertainty)
+            # ewma_std = numpy_ewma_vectorized_v2(val.__dict__[keyword].std, window)
+            # ax.fill_between(x_points, ewma_stat + std_scale * ewma_std,
+            #                 ewma_stat - std_scale * ewma_std, alpha=.2, color=color4label(label))
 
         plot_postprocess(fig, ax, keyword, self.env_name, self.fig_dir, save=save)
 
         return perf_metrics
-
-

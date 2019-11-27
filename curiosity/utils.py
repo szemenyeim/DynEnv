@@ -151,12 +151,12 @@ def print_init(inset=True, zoom=2.5, loc=4):
 
 def plot_postprocess(fig, ax, keyword, env, dir, xlabel="Rollout", save=False):
     # assemble notation
-    if keyword == "rewards":
+    if keyword == "ep_rewards":
         stat_descriptor = r"$\mu_{reward}$"
-        file_prefix = "mean_reward"
-    elif keyword == "features":
-        stat_descriptor = r"$\sigma_{feature}$"
-        file_prefix = "feat_std"
+        file_prefix = "mean_ep_reward"
+    elif keyword == "ep_pos_rewards":
+        stat_descriptor = r"$\mu_{reward, positive$"
+        file_prefix = "mean_ep_pos_rewards"
 
     title = stat_descriptor + f" in {env}"
 
@@ -168,11 +168,7 @@ def plot_postprocess(fig, ax, keyword, env, dir, xlabel="Rollout", save=False):
     handles, labels = ax.get_legend_handles_labels()
     # sort both labels and handles by labels
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
-    legend = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.125),
-                       fancybox=True, shadow=False, ncol=2)
-
-    # legend = ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.125),
-    #                    fancybox=True, shadow=False, ncol=2)
+    legend = ax.legend(handles, labels, fancybox=True, shadow=False)
 
     if save:
         fig.savefig(join(dir, f"{file_prefix}_{env}.svg"), bbox_extra_artists=(legend,), bbox_inches='tight',
