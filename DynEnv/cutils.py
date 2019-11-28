@@ -206,7 +206,10 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] *= distNoise
-            obj[2] += angleNoise
+            ang = math.atan2(obj[3],obj[2])
+            ang += angleNoise
+            obj[2] = math.cos(ang)
+            obj[3] = math.sin(ang)
 
         # Else add bigger noise to distant lines (also bigger probability of FN)
         elif noiseType == NoiseType.Realistic:
@@ -217,8 +220,11 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
             if random.random() < rand * multiplier1:
                 obj[0] = SightingType.NoSighting
 
-            obj[1] *= distNoise * multiplier1 / 2
-            obj[2] += angleNoise * multiplier1 / 2
+            obj[1] *= (distNoise + (1-distNoise) * multiplier1 / 2)
+            ang = math.atan2(obj[3],obj[2])
+            ang += angleNoise * multiplier1 / 2
+            obj[2] = math.cos(ang)
+            obj[3] = math.sin(ang)
 
 
 # Add random noise to other sightings
@@ -398,45 +404,15 @@ def angle(corner):
 
 def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
-    dist = (obsPt-points[0]).cross(points[1]-points[0])/(obsPt-points[0]).length
+    lineD = points[1]-points[0]
+    dist = (lineD.cross(obsPt) + points[0].cross(points[1]))/lineD.length
     if dist*dist > maxDist:
         return [SightingType.NoSighting,]
-    ang = math.cos(angle(points[1]-points[0])-obsAngle)
-    return [SightingType.Normal, dist, ang]
+    ang = angle(points[1]-points[0])-obsAngle
+    c = math.cos(ang)
+    s = math.sin(ang)
+    return [SightingType.Normal, dist, c, s]
 
-    # Center points
-    '''trPts = [point-obsPt for point in points]
-
-    # Chortcuts
-    x1 = trPts[0].x
-    y1 = trPts[0].y
-    dx = trPts[1].x-x1
-    dy = trPts[1].y-y1
-
-    # Compute coefficients
-    a = dx*dx+dy*dy
-    b = 2*(x1*dx + y1*dy)
-    c = x1*x1+y1*y1-maxDist
-
-    # Determinant
-    det = b*b-4*a*c
-
-    # Solve equation
-    if det >= 0:
-        den = 0.5/a
-        sqrDet = math.sqrt(det)
-        t1 = (-b-sqrDet)*den
-        t2 = (-b+sqrDet)*den
-        dP = trPts[1]-trPts[0]
-
-        # Get points
-        trPts = [trPts[0] + t1*dP,trPts[0] + t2*dP]
-        # Rotate them
-        [pt.rotate(-obsAngle) for pt in trPts]
-
-        return [SightingType.Normal,trPts[0],trPts[1]]
-
-    return[SightingType.NoSighting,]'''
 
 def getViewBlockAngle(centerAngle,corners):
 

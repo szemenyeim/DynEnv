@@ -31,7 +31,7 @@ class DrivingEnvironment(object):
             print("Image type observation is not supported for this environment")
             exit(0)
 
-        self.visId = 0#random.randint(0,self.nPlayers-1)
+        self.visId = random.randint(0,self.nPlayers-1)
 
         # Setup scene
         self.W = 1750
@@ -69,7 +69,7 @@ class DrivingEnvironment(object):
                     [[8, ], [self.nPlayers - 1, 6], [self.obstacleNum, 4], [self.pedestrianNum, 2],
                      [self.laneNum, 3]]]
         else:
-            self.observation_space = [1, self.nPlayers, 5, [8, 6, 5, 2, 3]]
+            self.observation_space = [1, self.nPlayers, 5, [8, 6, 5, 2, 4]]
 
         # Action space
         self.action_space = \
@@ -258,7 +258,7 @@ class DrivingEnvironment(object):
     def drawStaticObjects(self):
 
         # Gray screen
-        self.screen.fill((150, 150, 150))
+        self.screen.fill((75, 75, 75))
 
         # Draw roads
         for road in self.roads:
@@ -736,12 +736,14 @@ class DrivingEnvironment(object):
                 # Add lane
                 elif c == 3:
                     # Get second point
-                    a = (random.random()-0.5)*2
+                    a = (random.random()-0.5)*math.pi*2
+                    c = math.cos(a)
+                    s = math.sin(a)
                     dist = random.random()*self.W//2
 
                     # Add lane
                     laneDets.insert(len(laneDets),
-                                   [SightingType.Normal,dist,a,random.randint(-1,1)])
+                                   [SightingType.Normal,dist,c,s,random.randint(-1,1)])
 
         # FP Pedestrians near cars and obstacles
         if self.noiseType == NoiseType.Realistic:
@@ -780,11 +782,18 @@ class DrivingEnvironment(object):
             cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw lane (color based on type)
-            '''for lane in laneDets:
-                color = (0,0,255) if lane[3] == 1 else ((0,255,0) if lane[3] == -1 else (255,255,255))
+            for lane in laneDets:
+                color = (0,0,255) if lane[4] == 1 else ((0,255,0) if lane[4] == -1 else (255,255,255))
                 if lane[0] != SightingType.Normal:
                     color = (color[0]//2,color[1]//2,color[2]//2)
-                cv2.line(img,(int(W+lane[1].x),int(-lane[1].y+H)),(int(W+lane[2].x),int(-lane[2].y+H)),color,2)'''
+                a = lane[2]
+                b = -lane[3]
+                rho = -lane[1]
+                x0 = b*rho
+                y0 = a*rho
+                pt1 = (int(np.round(x0-5000*a)+W),int(H-np.round(y0+5000*b)))
+                pt2 = (int(np.round(x0+5000*a)+W),int(H-np.round(y0-5000*b)))
+                cv2.line(img,pt1,pt2,color,2)
 
             # draw cars
             for c in carDets:
@@ -794,7 +803,7 @@ class DrivingEnvironment(object):
 
             # draw obstacles
             for obs in obsDets:
-                color = (255,0,255) if obs[0] == SightingType.Normal else (127,0,127)
+                color = (255,255,255) if obs[0] == SightingType.Normal else (127,0,127)
                 points = obs[3]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
@@ -805,6 +814,10 @@ class DrivingEnvironment(object):
                 cv2.circle(img,(int(point.x+W),int(-point.y+H)),5,color,-1)
 
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
+            '''c = cv2.waitKey(10)
+            if c == 13:
+                cv2.imwrite("drivingObs.png",img)
+                pygame.image.save(self.screen,"drivingGame.png")'''
 
         # Convert to numpy
         selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],
