@@ -69,7 +69,7 @@ class DrivingEnvironment(object):
                     [[8, ], [self.nPlayers - 1, 6], [self.obstacleNum, 4], [self.pedestrianNum, 2],
                      [self.laneNum, 3]]]
         else:
-            self.observation_space = [1, self.nPlayers, 5, [8, 6, 5, 2, 4]]
+            self.observation_space = [1, self.nPlayers, 5, [9, 7, 6, 2, 4]]
 
         # Action space
         self.action_space = \
@@ -642,16 +642,18 @@ class DrivingEnvironment(object):
     # Get car observation
     def getCarVision(self,car):
 
+        ang = car.getAngle()
+
         # Get detections within radius
-        selfDet = [SightingType.Normal, car.getPos(), car.getAngle(), car.getPoints(), car.width, car.height, car.goal, car.finished]
-        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1])
+        selfDet = [SightingType.Normal, car.getPos(), math.cos(ang), math.sin(ang), car.getPoints(), car.width, car.height, car.goal, car.finished]
+        carDets = [isSeenInRadius(c.getPos(),c.getPoints(),c.getAngle(),selfDet[1],ang,self.maxVisDist[0],self.maxVisDist[1])
                    + [c.width, c.height] +  [c.finished,] for c in self.cars if c != car]
-        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) + [o.width, o.height] for o in self.obstacles]
-        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],selfDet[2],20000000,20000000) for b in self.buildings] # Buildings are always seen
-        pedDets = [isSeenInRadius(p.getPos(),None,0,selfDet[1],selfDet[2],self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
+        obsDets = [isSeenInRadius(o.getPos(),o.points,0,selfDet[1],ang,self.maxVisDist[0],self.maxVisDist[1]) + [o.width, o.height] for o in self.obstacles]
+        buildDets = [isSeenInRadius(b.getPos(),b.points,0,selfDet[1],ang,20000000,20000000) for b in self.buildings] # Buildings are always seen
+        pedDets = [isSeenInRadius(p.getPos(),None,0,selfDet[1],ang,self.maxVisDist[0],self.maxVisDist[1]) for p in self.pedestrians]
         laneDets = []
         for l in self.roads:
-            laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],selfDet[2],self.maxVisDist[0])
+            laneDets += [getLineInRadius(l.Lanes[i+l.nLanes],selfDet[1],ang,self.maxVisDist[0])
                          + [(1 if abs(i) == l.nLanes else (-1 if i == 0 else 0)), ]
                         for i in range(-l.nLanes,l.nLanes+1)]
 
@@ -689,10 +691,10 @@ class DrivingEnvironment(object):
         # Cars and obstacles might by misclassified - move them in the other list
         for c in carDets:
             if c[0] == SightingType.Misclassified:
-                obsDets.append((SightingType.Normal,c[1],c[2],c[3],c[4],c[5]))
+                obsDets.append((SightingType.Normal,c[1],c[2],c[3],c[4],c[5],c[6]))
         for obs in obsDets:
             if obs[0] == SightingType.Misclassified:
-                carDets.append((SightingType.Normal,obs[1],obs[2],obs[3],obs[4],obs[5],False))
+                carDets.append((SightingType.Normal,obs[1],obs[2],obs[3],obs[4],obs[5],obs[6],False))
 
         # Random false positives
         for i in range(10):
@@ -709,6 +711,8 @@ class DrivingEnvironment(object):
 
                 # Object angle
                 angle = random.random()*2*math.pi
+                co = math.cos(angle)
+                si = math.sin(angle)
 
                 # car or obstacle
                 if c <= 1:
@@ -725,10 +729,10 @@ class DrivingEnvironment(object):
                     # Add objects
                     if c == 0:
                         carDets.insert(len(carDets),
-                                   [SightingType.Normal,pos,angle,obs,w,h,False])
+                                   [SightingType.Normal,pos,co,si,obs,w,h,False])
                     else:
                         obsDets.insert(len(obsDets),
-                                   [SightingType.Normal,pos,angle,obs,w,h])
+                                   [SightingType.Normal,pos,co,si,obs,w,h])
                 # Add pedestrian
                 elif c == 2:
                     pedDets.insert(len(pedDets),
@@ -773,12 +777,12 @@ class DrivingEnvironment(object):
             # Draw buildings first
             for build in buildDets:
                 color = (255,255,255)
-                points = build[3]
+                points = build[4]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw self
             color = (255,255,0)
-            points = [p - car.getPos() for p in selfDet[3]]
+            points = [p - car.getPos() for p in selfDet[4]]
             cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw lane (color based on type)
@@ -798,13 +802,13 @@ class DrivingEnvironment(object):
             # draw cars
             for c in carDets:
                 color = (0,255,0) if c[0] == SightingType.Normal else (0,127,0)
-                points = c[3]
+                points = c[4]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw obstacles
             for obs in obsDets:
                 color = (255,255,255) if obs[0] == SightingType.Normal else (127,0,127)
-                points = obs[3]
+                points = obs[4]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw pedestrians
@@ -820,13 +824,13 @@ class DrivingEnvironment(object):
                 pygame.image.save(self.screen,"drivingGame.png")'''
 
         # Convert to numpy
-        selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],
-                            normalize(selfDet[4],self.normW, 0.5),normalize(selfDet[5],self.normH, 0.5),
-                            normalize(selfDet[6].x,self.normX, self.mean),normalize(selfDet[6].y,self.normY, self.mean),selfDet[7]],])
-        carDets = np.array([[normalize(c[1].x,self.normX),normalize(c[1].y,self.normY),c[2],
-                             normalize(c[4],self.normW, 0.5),normalize(c[5],self.normH, 0.5), c[6]] for c in carDets])
-        obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],
-                             normalize(obs[4],self.normW, 0.5),normalize(obs[5],self.normH, 0.5)] for obs in obsDets])
+        selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],selfDet[3],
+                            normalize(selfDet[5],self.normW, 0.5),normalize(selfDet[6],self.normH, 0.5),
+                            normalize(selfDet[7].x,self.normX, self.mean),normalize(selfDet[7].y,self.normY, self.mean),selfDet[8]],])
+        carDets = np.array([[normalize(c[1].x,self.normX),normalize(c[1].y,self.normY),c[2],c[3],
+                             normalize(c[5],self.normW, 0.5),normalize(c[6],self.normH, 0.5), c[7]] for c in carDets])
+        obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],obs[3],
+                             normalize(obs[5],self.normW, 0.5),normalize(obs[6],self.normH, 0.5)] for obs in obsDets])
         pedDets = np.array([[normalize(ped[1].x,self.normX),normalize(ped[1].y,self.normY)] for ped in pedDets])
         laneDets = np.array([[normalize(lane[1],self.normW),lane[2],lane[3]] for lane in laneDets])
 

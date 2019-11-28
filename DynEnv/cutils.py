@@ -299,12 +299,15 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
                 newPos = obj[1] + noiseVec
                 # Compute rotation
                 angleDiff = (random.random()-0.5)*magn*angleNoise
-                obj[2] += angleDiff
+                ang = math.atan2(obj[3], obj[2])
+                ang += angleDiff
+                obj[2] = math.cos(ang)
+                obj[3] = math.sin(ang)
                 # Center corner points and rotate
-                if obj[3] is not None:
-                    obj[3] = [pt-obj[1] for pt in obj[3]]
-                    [pt.rotate(angleDiff) for pt in obj[3]]
-                    obj[3] = [pt+obj[1] for pt in obj[3]]
+                if obj[4] is not None:
+                    obj[4] = [pt-obj[1] for pt in obj[4]]
+                    [pt.rotate(angleDiff) for pt in obj[4]]
+                    obj[4] = [pt+obj[1] for pt in obj[4]]
                 # Compute new center and add it to corners
                 obj[1]  = newPos
 
@@ -331,14 +334,17 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
                 obj[0] = SightingType.Misclassified
 
             # Apply noise
-            angleDiff = (random.random()-0.5)*magn*angleNoise
-            obj[2] += angleDiff
+            angleDiff = (random.random() - 0.5) * magn * angleNoise
+            ang = math.atan2(obj[3], obj[2])
+            ang += angleDiff
+            obj[2] = math.cos(ang)
+            obj[3] = math.sin(ang)
 
             # Center corners and rotate
-            if obj[3] is not None:
-                obj[3] = [pt-obj[1] for pt in obj[3]]
-                [pt.rotate(angleDiff) for pt in obj[3]]
-                obj[3] = [pt+newPos for pt in obj[3]]
+            if obj[4] is not None:
+                obj[4] = [pt-obj[1] for pt in obj[4]]
+                [pt.rotate(angleDiff) for pt in obj[4]]
+                obj[4] = [pt+newPos for pt in obj[4]]
             # Compute new center and add it to corners
             obj[1] = newPos
 
@@ -391,7 +397,7 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
         trPt.rotate(-obsAngle)
         trAngle = angle - obsAngle
 
-        return [seen,trPt,trAngle,corners]
+        return [seen,trPt,math.cos(trAngle),math.sin(trAngle),corners]
 
 
     return [SightingType.NoSighting,]
@@ -443,7 +449,7 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
     # Get variables
     point1 = elem1[1]
     point2 = elem2[1]
-    corners = elem2[3]
+    corners = elem2[4]
 
     # Check proximity
     if radius > 0 and (point2-point1).get_length_sqrd() < radius:
