@@ -24,7 +24,7 @@ class RoboCupEnvironment(object):
         self.sizeNorm = 10.0/noiseMagnitude if noiseMagnitude != 0.0 else 1.0
 
         # Which robot's observation to visualize
-        self.visId = 2#random.randint(0,self.nPlayers*2-1)
+        self.visId = random.randint(0,self.nPlayers*2-1)
 
         # Field setup
         self.W = 1040
@@ -147,7 +147,7 @@ class RoboCupEnvironment(object):
             # Kickoff team
             [(centX-(self.ballRadius*2+Robot.totalRadius)-random.random()*50, self.H/2 + (random.random()-0.5)*50),
             (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
-            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + self.fieldH/4 + (random.random()-0.5)*50),
+            (centX-(Robot.totalRadius+self.lineWidth/2)-random.random()*50, self.sideLength + 3*self.fieldH/4 + (random.random()-0.5)*50),
             (centX-(self.fieldW/4)-(random.random()-0.5)*50, self.sideLength + self.fieldH/2 + (random.random()-0.5)*50),
             (self.sideLength, self.H/2 + (random.random()-0.5)*50)],
             # Opposing team
@@ -1215,6 +1215,10 @@ class RoboCupEnvironment(object):
                 cv2.circle(img,(int(xOffs+ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
 
             cv2.imshow(("Robot %d" % robot.id),img)
+            '''c = cv2.waitKey(10)
+            if c == 13:
+                cv2.imwrite("roboObs.png",img)
+                pygame.image.save(self.screen,"roboGame.png")'''
             if self.observationType == ObservationType.Image:
                 cv2.imshow("Bottom",colorize(bottomCamImg))
                 cv2.imshow("Top",colorize(topCamImg))

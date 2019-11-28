@@ -8,9 +8,9 @@ import random
 # Launch game, allow user controls
 
 def doRoboCup():
-    nPlayers = 2
-    env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Full,
-                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=0)
+    nPlayers = 5
+    env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
+                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
     env.setRandomSeed(42)
 
     action0 = [0, 0, 0]
@@ -63,14 +63,15 @@ def doRoboCup():
                 action2 = [0, 0, 0]
 
         action = np.array([action1, ] + [action0,] * (nPlayers-1) + [action2,] + [action0,] * (nPlayers-1))
-        ret = env.step(action)
+        a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
+        ret = env.step(a1)
         if ret[2]:
             break
 
 def doDrive():
-    nPlayers = 1
+    nPlayers = 5
     env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
-                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2.0)
     env.setRandomSeed(42)
     env.reset()
 
@@ -100,13 +101,14 @@ def doDrive():
                 action[(0,0)] = 1
                 action[(0,1)] = 1
 
-        ret = env.step(action)
+        a1 = np.random.randint(0,3,(nPlayers*2,2))
+        ret = env.step(a1)
         if ret[2]:
             break
 
 if __name__ == '__main__':
 
-    drive = False
+    drive = True
 
     pygame.init()
 

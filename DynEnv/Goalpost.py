@@ -6,6 +6,6 @@ class Goalpost(object):
         body = Body(0, 0, Body.STATIC)
         body.position = x, y
         self.shape = Circle(body, radius*2, (0, 0))
-        self.shape.color = (0, 0, 0)
+        self.shape.color = (0, 0, 255)
         self.shape.elasticity = 0.95
         self.shape.collision_type = CollisionType.Goalpost
