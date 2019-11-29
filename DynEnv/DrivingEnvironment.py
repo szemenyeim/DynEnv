@@ -23,7 +23,7 @@ class DrivingEnvironment(object):
         self.noiseType = noiseType
         self.maxPlayers = 5
         self.nPlayers = min(nPlayers,self.maxPlayers)*2
-        self.render = render
+        self.renderVar = render
         self.numTeams = 2
         self.continuousActions = continuousActions
 
@@ -164,7 +164,7 @@ class DrivingEnvironment(object):
         h.begin = self.carHit
 
         # Render options
-        if self.render:
+        if self.renderVar:
             pygame.init()
             self.screen = pygame.display.set_mode((self.W, self.H))
             pygame.display.set_caption("Driving Environment")
@@ -173,7 +173,7 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers//2,self.render,self.observationType,self.noiseType,self.noiseMagnitude)
+        self.__init__(self.nPlayers//2,self.renderVar,self.observationType,self.noiseType,self.noiseMagnitude)
         observations = []
         if self.observationType == ObservationType.Full:
             observations.append([self.getFullState(car) for car in self.cars])
@@ -288,16 +288,15 @@ class DrivingEnvironment(object):
         # draw everything else
         self.space.debug_draw(self.draw_options)
 
-
     # Render
     def render(self):
-        if not self.render:
+
+        if not self.renderVar:
             raise Exception("Tried to render, but the render variable is set to False. Create the env with render=True!")
 
         self.drawStaticObjects()
         pygame.display.flip()
         self.clock.tick(self.timeStep)
-
 
     # Process actions
     def processAction(self,action,car):
@@ -773,7 +772,7 @@ class DrivingEnvironment(object):
         obsDets = [obs for i,obs in enumerate(obsDets) if obs[0] != SightingType.NoSighting and obs[0] != SightingType.Misclassified]
         laneDets = [lane for i,lane in enumerate(laneDets) if lane[0] != SightingType.NoSighting]
 
-        if self.render and self.cars.index(car) == self.visId:
+        if self.renderVar and self.cars.index(car) == self.visId:
 
             # Visualization image size
             H = self.H//2

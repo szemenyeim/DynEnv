@@ -20,7 +20,7 @@ class RoboCupEnvironment(object):
         self.noiseType = noiseType
         self.maxPlayers = 5
         self.nPlayers = min(nPlayers,self.maxPlayers)
-        self.render = render
+        self.renderVar = render
         self.sizeNorm = 10.0/noiseMagnitude if noiseMagnitude != 0.0 else 1.0
         self.allowHeadTurn = allowHeadTurn
 
@@ -215,7 +215,7 @@ class RoboCupEnvironment(object):
         h.begin = self.ballCollision
 
         # Render options
-        if self.render:
+        if self.renderVar:
             pygame.init()
             self.screen = pygame.display.set_mode((self.W, self.H))
             pygame.display.set_caption("Robot Soccer")
@@ -224,7 +224,7 @@ class RoboCupEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers, self.render, self.observationType, self.noiseType, self.noiseMagnitude)
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude)
         observations = []
         for i in range(5):
             if self.observationType == ObservationType.Full:
@@ -377,7 +377,7 @@ class RoboCupEnvironment(object):
 
     # Render
     def render(self):
-        if not self.render:
+        if not self.renderVar:
             raise Exception(
                 "Tried to render, but the render variable is set to False. Create the env with render=True!")
 
@@ -1185,7 +1185,7 @@ class RoboCupEnvironment(object):
                 cv2.circle(topCamImg[0],       (int(tProj[0,0]),int(tProj[1,0])),  tRad, 1, -1)
                 cv2.circle(bottomCamImg[0],    (int(bProj[0,0]),int(bProj[1,0])),  bRad, 1, -1)
 
-        if self.render and robot.id == self.visId:
+        if self.renderVar and robot.id == self.visId:
 
             # Visualization image size
             H = self.W//2-50
