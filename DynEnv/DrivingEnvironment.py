@@ -12,6 +12,7 @@ import pymunk.pygame_util
 import pygame
 import numpy as np
 import random
+# from gym.spaces import Tuple, MultiDiscrete, Box
 
 class DrivingEnvironment(object):
 
@@ -72,11 +73,13 @@ class DrivingEnvironment(object):
 
         # Action space
         if self.continuousActions:
+            # action_space = Tuple(self.nPlayers*[Box(-3, +3, shape=(2,))])
             self.action_space = \
                 [self.nPlayers, [
                     ['cont', 2, [0, 0], [6, 6]],
                 ]]
         else:
+            # action_space = Tuple(self.nPlayers*[MultiDiscrete([3,3])])
             self.action_space = \
                 [self.nPlayers, [
                     ['cat', 3, None, None],

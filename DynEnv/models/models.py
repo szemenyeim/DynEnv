@@ -92,6 +92,61 @@ class Indexer(object):
         return range(self.prev[obj_type] - count, self.prev[obj_type])
 
 
+class InOutArranger(object):
+
+    def __init__(self, nObjects, nPlayers, nTime) -> None:
+        super().__init__()
+
+        self.nTime = nTime
+        self.nPlayers = nPlayers
+        self.nObjects = nObjects
+        self.indexer = Indexer(self.nObjects)
+
+    def rearrange_inputs(self, x):
+        # Object counts [type x timeStep x nPlayer]
+        # for each object type, for each timestep, the number of seen objects is calculated
+        counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjects)]
+        objCounts = torch.tensor(
+            [
+                [
+                    # sum of the object types for a given timestep and player
+                    sum([
+                        counts[obj_type][time][player] for obj_type in range(self.nObjects)
+                    ])
+                    for player in range(self.nPlayers)
+                ]
+                for time in range(self.nTime)
+            ]).long()
+        maxCount = torch.max(objCounts).item()
+        # Object arrays [all objects of the same type]
+        inputs = [
+            flatten([
+                flatten([sightings[i] for sightings in time if len(sightings[i])])
+                for time in x
+            ])
+            for i in range(self.nObjects)
+        ]
+        inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
+        return counts, inputs, maxCount, objCounts
+
+    def rearrange_outputs(self, counts, maxCount, outs):
+        # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
+        outs = torch.stack(
+            [torch.stack(
+                [
+                    # in a given timestep, for a given player and object type, get the embeddings,
+                    # pad them to match the length of the longest embedding tensor
+                    ObsMask.catAndPad([out[self.indexer.getRange(counts[obj_type], time, player, obj_type)]
+                                       for obj_type, out in enumerate(outs) if out is not None
+                                       ], maxCount)
+                    for player in range(self.nPlayers)
+                ])
+                for time in range(self.nTime)
+            ])
+        outs = outs.permute(0, 2, 1, 3)
+        return outs
+
+
 # Outputs a certain type of action
 class ActorBlock(nn.Module):
     def __init__(self, features, actions, action_type, means=None, scale=None):
@@ -143,10 +198,10 @@ class CriticBlock(nn.Module):
         super().__init__()
 
         # Create layers
-        self.Layer1 = nn.Linear(feature_size, feature_size//2)
-        self.Layer2 = nn.Linear(feature_size//2, out_size)
+        self.Layer1 = nn.Linear(feature_size, feature_size // 2)
+        self.Layer2 = nn.Linear(feature_size // 2, out_size)
         self.relu = nn.LeakyReLU(0.1)
-        self.bn = nn.LayerNorm(feature_size//2)
+        self.bn = nn.LayerNorm(feature_size // 2)
 
     # Forward
     def forward(self, x):
@@ -228,7 +283,7 @@ class InputLayer(nn.Module):
         self.nObjects = inputs[2]
 
         # Helper class for arranging tensor
-        self.indexer = Indexer(self.nObjects)
+        self.arranger = InOutArranger(self.nObjects, self.nPlayers, self.nTime)
 
         # Create embedding blocks for them
         self.blocks = nn.ModuleList([EmbedBlock(input, features) for input in inputNums])
@@ -239,50 +294,18 @@ class InputLayer(nn.Module):
 
         # Object counts [type x timeStep x nPlayer]
         # for each object type, for each timestep, the number of seen objects is calculated
-        counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjects)]
-
-        objCounts = torch.tensor(
-            [
-                [
-                    # sum of the object types for a given timestep and player
-                    sum([
-                        counts[obj_type][time][player] for obj_type in range(self.nObjects)
-                    ])
-                    for player in range(self.nPlayers)
-                ]
-                for time in range(self.nTime)
-            ]).long()
-        maxCount = torch.max(objCounts).item()
-
-        # Object arrays [all objects of the same type]
-        inputs = [
-            flatten([
-                flatten([sightings[i] for sightings in time if len(sightings[i])])
-                for time in x
-            ])
-            for i in range(self.nObjects)
-        ]
-        inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
+        counts, inputs, maxCount, objCounts = self.arranger.rearrange_inputs(x)
 
         # Call embedding block for all object types
         outs = [block(torch.tensor(obj).to(device)) for block, obj in zip(self.blocks, inputs)]
 
         # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
-        outs = torch.stack(
-            [torch.stack(
-                [
-                    # in a given timestep, for a given player and object type, get the embeddings,
-                    # pad them to match the length of the longest embedding tensor
-                    ObsMask.catAndPad([out[self.indexer.getRange(counts[obj_type], time, player, obj_type)]
-                                       for obj_type, out in enumerate(outs) if out is not None
-                                       ], maxCount)
-                    for player in range(self.nPlayers)
-                ])
-                for time in range(self.nTime)
-            ])
-        outs = outs.permute(0, 2, 1, 3)
+        outs = self.arranger.rearrange_outputs(counts, maxCount, outs)
 
-        return outs, objCounts
+        maxNum = outs.shape[1]
+        masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
+
+        return outs, masks
 
 
 # Layer for reducing timeStep and Objects dimension via attention
@@ -312,14 +335,12 @@ class AttentionLayer(nn.Module):
         device = next(self.parameters()).device
 
         # create masks
-        tensor, objCounts = x
-        maxNum = tensor.shape[1]
-        masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
+        tensor, masks = x
 
         # Run self-attention
         attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
 
-        #shape = attObj[0].shape
+        # shape = attObj[0].shape
 
         # Filter nans
         with torch.no_grad():
@@ -469,6 +490,7 @@ class AttentionNet(nn.Module):
     def forward(self, target, attn=None):
         return target * F.softmax(self.attention(target if attn is None else attn), dim=-1)
 
+
 class ForwardNet(nn.Module):
 
     def __init__(self, feat_size, action_size):
@@ -565,7 +587,6 @@ class AdversarialHead(nn.Module):
                     action_one_hot[
                         frame_idx, a_idx, int(self.action_num_per_type_start_idx[a_type_idx] + action.item())] = 1
 
-
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
                 fwd_in = self.fwd_att(torch.cat((current_feature, action_one_hot), 2))
@@ -650,7 +671,7 @@ class ICMNet(nn.Module):
 
         # If all agents finished, the loss is 0
         if not agentFinished.any():
-            return torch.tensor([0,0]).to(features.device)
+            return torch.tensor([0, 0]).to(features.device)
 
         # forward loss
         # measure of how good features can be predicted
@@ -662,10 +683,11 @@ class ICMNet(nn.Module):
         # how good is the action estimate between states
         actions = actions.permute(1, 0, 2)
         # print(torch.min(action_preds[0]),torch.max(action_preds[0]))
-        losses = [F.cross_entropy(a_pred.permute(0, 2, 1), a.long(), reduction='none')[agentFinished].mean() for (a_pred, a) in zip(action_preds, actions)]
+        losses = [F.cross_entropy(a_pred.permute(0, 2, 1), a.long(), reduction='none')[agentFinished].mean() for
+                  (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
-        return (self.forward_coeff * loss_fwd, self.icm_beta*loss_inv)
+        return (self.forward_coeff * loss_fwd, self.icm_beta * loss_inv)
 
 
 class A2CNet(nn.Module):
