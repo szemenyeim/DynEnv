@@ -82,12 +82,13 @@ class Robot(object):
     def getPos(self):
         return (self.leftFoot.body.position + self.rightFoot.body.position)/2.0
 
+    # Get orientation from the perspective of the team
     def getAngle(self,team = None):
         angle = (self.leftFoot.body.angle + self.rightFoot.body.angle)/2.0
+
+        # If from the perspective of the other team, rotate 180 degrees
         if team is not None and team == -1:
             angle -= math.pi
-            if angle < -math.pi*2:
-                angle += math.pi*2
         return angle
 
     # Move in certain direction (relative to the robot

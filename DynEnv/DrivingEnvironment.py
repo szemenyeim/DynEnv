@@ -51,7 +51,8 @@ class DrivingEnvironment(object):
             exit(0)
         if observationType == ObservationType.Full and noiseMagnitude > 0:
             print(
-                "Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
+                "Warning: Full observation type does not support noisy observations, but your noise magnitude is set"
+                " to a non-zero value! (The noise setting has no effect in this case)")
         self.randBase = 0.01 * noiseMagnitude
         self.noiseMagnitude = noiseMagnitude
         self.maxVisDist = [(self.W * 0.4)**2, (self.W * 0.6)**2]
@@ -74,7 +75,8 @@ class DrivingEnvironment(object):
         # Action space
         self.action_space = \
             [self.nPlayers, [
-                #['cont', 2, [0, 0], [6, 6]],
+                # For now, categorical actions used
+                # ['cont', 2, [0, 0], [6, 6]],
                 ['cat', 3, None, None],
                 ['cat', 3, None, None],
             ]]
@@ -85,6 +87,7 @@ class DrivingEnvironment(object):
         self.allFinished = False
         self.stepNum = self.maxTime/self.timeDiff
 
+        # Episode rewards
         self.episodeRewards = np.array([0.0,]*self.nPlayers)
         self.episodePosRewards = np.array([0.0,]*self.nPlayers)
 
@@ -208,6 +211,7 @@ class DrivingEnvironment(object):
                 # Update cars
                 self.tick(car)
 
+            # Update pedestrians
             [self.move(ped) for ped in self.pedestrians]
 
             # Run simulation
@@ -236,6 +240,7 @@ class DrivingEnvironment(object):
                 cv2.waitKey(1)
 
 
+        # Reward finishing
         self.carRewards += self.teamReward
         self.episodeRewards += self.carRewards
 
@@ -244,6 +249,7 @@ class DrivingEnvironment(object):
 
         info = {'Full State': self.getFullState()}
 
+        # Episode finishing
         if self.elapsed >= self.maxTime:
             finished = True
             info['episode_r'] = self.episodeRewards
@@ -293,9 +299,6 @@ class DrivingEnvironment(object):
         # Get actions
         acc = action[0]-1
         steer = (action[1]-1)*2
-
-        #self.carRewards[self.cars.index(car)] += 0.01*acc*np.sign(car.goal.x-car.getPos().x)
-        #self.carRewards[self.cars.index(car)] += 0.01*steer*np.sign(car.goal.y-car.getPos().y)
 
         # Sanity checks
         if np.abs(acc) > 3:
@@ -790,6 +793,8 @@ class DrivingEnvironment(object):
                 color = (0,0,255) if lane[4] == 1 else ((0,255,0) if lane[4] == -1 else (255,255,255))
                 if lane[0] != SightingType.Normal:
                     color = (color[0]//2,color[1]//2,color[2]//2)
+
+                # Get line points from params
                 a = lane[2]
                 b = -lane[3]
                 rho = -lane[1]
@@ -797,6 +802,7 @@ class DrivingEnvironment(object):
                 y0 = a*rho
                 pt1 = (int(np.round(x0-5000*a)+W),int(H-np.round(y0+5000*b)))
                 pt2 = (int(np.round(x0+5000*a)+W),int(H-np.round(y0-5000*b)))
+                
                 cv2.line(img,pt1,pt2,color,2)
 
             # draw cars

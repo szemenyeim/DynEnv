@@ -62,7 +62,8 @@ class RoboCupEnvironment(object):
                 ['cat', 5, None, None],
                 ['cat', 3, None, None],
                 ['cat', 3, None, None],
-                # ['cat',13, None, None],
+                # Head turning is removed atm
+                # ['cont',1,[0,],[12,]],
             ]]
 
         # Vision settings
@@ -158,8 +159,10 @@ class RoboCupEnvironment(object):
             (self.W - (self.sideLength), self.H/2 + (random.random()-0.5)*50)],
         ]
 
+        # Permute spots
         spotIds1 = np.random.permutation(self.maxPlayers)
         spotIds2 = np.random.permutation(self.maxPlayers)
+
         # Add robots
         self.robots = [Robot(self.robotSpots[0][id],1,i) for i,id in enumerate(spotIds1) if i < self.nPlayers] \
                       + [Robot(self.robotSpots[1][id],-1,self.nPlayers+i) for i,id in enumerate(spotIds2) if i < self.nPlayers]
@@ -315,8 +318,6 @@ class RoboCupEnvironment(object):
             head = 0
         else:
             move, turn, kick, head = action
-            #todo: dirty hack,
-            head -=6
 
         # Sanity check for actions
         if move not in [0, 1, 2, 3, 4]:
@@ -521,7 +522,6 @@ class RoboCupEnvironment(object):
 
         # Punish robots for falling
         if punish:
-            #print("Fallpun")
             self.robotRewards[robot.id] -= 2
 
         # For closeby objects (that are not the robot)
@@ -570,25 +570,28 @@ class RoboCupEnvironment(object):
 
     def getFreePenaltySpot(self,robot):
 
+        # Get speantly spots for team
         availableSpots = self.penaltySpots[0][0] if robot.team > 0 else self.penaltySpots[1][0]
 
+        # Narrow dow spots based on ball location
         y = self.ball.getPos().y
-
         angle = math.pi / 2 if y < self.H / 2 else -math.pi / 2
-
         availableSpots = availableSpots[:7] if y > self.H/2 else availableSpots[7:]
 
+        # Select first free spot
         selectedSpot = availableSpots[0]
-
         for spot in availableSpots:
             available = True
+
+            # Check if any robots are too close
             for rob in self.robots:
                 if rob == robot:
                     continue
-                dist = (spot-rob.getPos()).length
+                dist = (spot - rob.getPos()).length
                 if dist < Robot.totalRadius*3:
                     available = False
                     break
+            # Select first free spot
             if available:
                 selectedSpot = spot
                 break
@@ -767,10 +770,12 @@ class RoboCupEnvironment(object):
 
         # If robot got closer to the ball, reward
         if pos != robot.prevPos:
+            # Reward only closes rotobs from each team
             if (robot.id in self.closestID) and not robot.penalized:
-                ballPos = self.ball.getPos()
 
+                ballPos = self.ball.getPos()
                 diff = (pos-ballPos).length - (robot.prevPos-ballPos).length
+
                 self.robotRewards[self.robots.index(robot)] -= diff*0.05
                 self.robotPosRewards[self.robots.index(robot)] += max(0.0,-diff*0.05)
 
@@ -1248,33 +1253,3 @@ class RoboCupEnvironment(object):
     # For compatibility
     def close(self):
         pass
-
-    # Print env params
-    def __str__(self):
-        return "Robot Soccer Simulation Environment\n" \
-               "Created by Márton Szemenyei\n\n" \
-               "Parameters:\n" \
-               "    nPlayers: Number of robots per team\n" \
-               "    render: Wether to render the environment using pyGame\n" \
-               "    observationType: Choose between full state, partial, and 2D image observation types\n" \
-               "    noiseType: Choose between random and realistic noise\n" \
-               "    noiseMagnitude: Set the amount of the noise between 0-5\n" \
-               "Actions:\n" \
-               "    Movement direction: 0,1,2,3,4\n" \
-               "    Turn: 0,1,2\n" \
-               "    Turn head: [-6:+6]\n" \
-               "    Kick: 0,1,2 (this is exclusive with moving or turning)\n" \
-               "Return values:\n" \
-               "    Full state: Contains the correct\n" \
-               "        Ball info [position,ball owned team ID]\n" \
-               "        Robot info for all robots [position, angle, team, fallen or penalized]\n" \
-               "    Observations: Contains robot observations (in the same order as the robots are in the full state):\n" \
-               "        Ball detections: [x, y, radius, ball owned status]\n" \
-               "        Robot detections: [x, y, radius, angle, team, fallen or penalized]\n" \
-               "        Goalpost detections: [x, y, radius]\n" \
-               "        Cross detections: [x, y, radius]\n" \
-               "        Line detections: [x1, y1, x2, y2]\n" \
-               "        Center circle detections: [x, y, radius]\n" \
-               "    Team rewards: rewards for each team\n" \
-               "    Robot rewards: rewards for each robot (in the same order as in state)\n" \
-               "    Finished: Game over flag"

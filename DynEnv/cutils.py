@@ -403,20 +403,27 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
     return [SightingType.NoSighting,]
 
 
+# Quick angle computation (the pymunk one checks the length for some strange reason making it very slow)
 def angle(corner):
-
     return math.atan2(corner.y,corner.x)
 
 
+# Return line parameters within a certain radius
 def getLineInRadius(points,obsPt,obsAngle,maxDist):
 
+    # Get signed distance
     lineD = points[1]-points[0]
     dist = (lineD.cross(obsPt) + points[0].cross(points[1]))/lineD.length
+
+    # Check visibility
     if dist*dist > maxDist:
         return [SightingType.NoSighting,]
+
+    # Get angle
     ang = angle(points[1]-points[0])-obsAngle
     c = math.cos(ang)
     s = math.sin(ang)
+
     return [SightingType.Normal, dist, c, s]
 
 
