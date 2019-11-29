@@ -40,8 +40,24 @@ myEnv = DrivingEnvironment(nPlayers)
 
 ret = myEnv.step(actions)
 ```
+More complex examples including 
+- vectorized environments (for which a factory function, `make_dyn_env` is provided in the `CustomVecEnv.py` file),
+- neural networks tailored for the special output format (i.e. the number of observations can vary through time),
+- logging and
+- plotting the results.
 
-More complex examples can be found in the main.py and testNet.py files.
+For the above, confer the `DynEnv/examples` directory. The `main.py` file consists a full example, while if you would like to try out how the environments work by hand, `play.py` is there for you as well.
+
+### Model structure
+The most important part from the point of view of the neural network is the `DynEnv/models` directory, which exposes you the following classes:
+- _ICMAgent_: the top-level agent consisting of an A2C and an Intrinsic Curiosity Module (and its variant, [Rational Curiosity Module](https://github.com/rpatrik96/AttA2C))
+- _EmbedBlock_: the embedding network used for an object
+- _InputLayer_: a complex network which convert all observations into a unified feature space
+- _ActorBlock_: a neural network predicting actions for a given action type
+- _ActorLayer_: an ensemble of _ActorBlock_ to predict every action
+- _AttentionLayer_:
+- _DynEnvFeatureExtractor_: a wrapper for the input transform by _InputLayer_, collapsing the time dimension with Recurrent Temporal Attention and running an LSTM
+
 
 ### Parameters
 
@@ -53,7 +69,7 @@ Here are some of the important settings of the environments
 - **noiseType [Random, Realistic]**: Realistic noise: noise magnitude and false negative rate depends on distance, proximity of other objects and sighting type. False positives and misclassifications are more likely to occur in certain situations.
 - **noiseMagnitude [0-5]**: Variable to control noise
 
-Here are some examples of different noise and observation trypes
+Here are some examples of different noise and observation types
 
 #### Random Noise
 
@@ -80,9 +96,9 @@ Here are some examples of different noise and observation trypes
 
 - `reset()` Resets the environment to a new game and returns initial observations.
 - `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
-- `getObservationSize()` Returns information about the observations returned by the envionrment.
+- `getObservationSize()` Returns information about the observations returned by the environrment.
 - `getActionSize()` Returns information about the actions the environment expects.
-- `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup envs). It returns observations for every 10 simulation steps and full state for the last step.
+- `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
 
 ### So, what are the actions?
 
