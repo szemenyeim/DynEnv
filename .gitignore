@@ -3,3 +3,5 @@
 __pycache__/
 .vscode/
 jupyter/.ipynb_checkpoints
+log/
+figures/

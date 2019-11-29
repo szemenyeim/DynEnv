@@ -79,7 +79,6 @@ def instance2label(instance):
     # label = f"{label_converter(series_indexer(instance['attention_target']))}, {label_converter(series_indexer(instance['attention_type']))}"
     label = f"{label_converter(series_indexer(instance['attention_target']))}, {label_converter(series_indexer(instance['note']))}"
     # remove attention annotation from the baseline
-    print(label)
     if "Baseline" in label:
         if "Entropy" in label:
             label = "ICM-TER" # ICM + Temporal Entropy Regularization
@@ -151,10 +150,10 @@ def print_init(inset=True, zoom=2.5, loc=4):
 def plot_postprocess(fig, ax, keyword, env, dir, xlabel="Episode", save=False):
     # assemble notation
     if keyword == "ep_rewards":
-        stat_descriptor = r"$\mu_{reward}$"
+        stat_descriptor = r"$R_{avg}^{10}$"
         file_prefix = "mean_ep_reward"
     elif keyword == "ep_pos_rewards":
-        stat_descriptor = r"$\mu_{reward, positive$"
+        stat_descriptor = r"$P_{avg}^{10}$"
         file_prefix = "mean_ep_pos_rewards"
 
     title = stat_descriptor + f" in {env}"

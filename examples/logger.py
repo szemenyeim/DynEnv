@@ -156,25 +156,31 @@ class EnvLogger(object):
 
         # load trainings
         for timestamp in self.params_df.timestamp:
-            self.logs[timestamp] = TemporalLogger(self.env_name, timestamp, self.log_dir, *["ep_rewards"])
+
+            # collect features to load
+            features = ["ep_rewards"]
+            if "Robo" in self.env_name:
+                features += ["ep_pos_rewards"]
+
+            self.logs[timestamp] = TemporalLogger(self.env_name, timestamp, self.log_dir, *features)
             self.logs[timestamp].load(join(self.data_dir, f"time_log_{timestamp}"), self.decimate_step)
 
             # calculate statistics
             # breakpoint()
             mean_ep_reward.append(self.logs[timestamp].__dict__["ep_rewards"].mean)
-            # mean_ep_pos_reward.append(self.logs[timestamp].__dict__["ep_pos_rewards"].mean.mean())
+            mean_ep_pos_reward.append(self.logs[timestamp].__dict__["ep_pos_rewards"].mean.mean())
 
         # append statistics to df
         self.params_df["mean_ep_reward"] = pd.Series(mean_ep_reward, index=self.params_df.index)
         # breakpoint()
-        # self.params_df["mean_ep_pos_reward"] = pd.Series(mean_ep_pos_reward, index=self.params_df.index)
+        self.params_df["mean_ep_pos_reward"] = pd.Series(mean_ep_pos_reward, index=self.params_df.index)
 
     def plot_mean_std(self, *args):
         for key, val in self.logs.items():
             print(key)
             val.plot_mean_std(*args)
 
-    def plot_decorator(self, keyword="ep_rewards", window=1000, std_scale=1, save=False, zoom=2.5, loc=4, num_episodes=1000):
+    def plot_decorator(self, keyword="ep_rewards", window=1000, std_scale=1, save=False, zoom=2.5, loc=4):
 
         def stat_indexer(val, keyword):
             return val.__dict__[keyword].mean
@@ -207,10 +213,9 @@ class EnvLogger(object):
             perf_metrics[label] = stat.max() #/ stats_max.max()
             x_points = self.decimate_step * np.arange(
                 stat.shape[0])  # placeholder for the x points (for xtick conversion)
-            # breakpoint()
+
             ax.plot(x_points, stat, label=label, color=color4label(label))
-            # ax.fill_between(x_points, stat.max()*np.ones(stat.shape[0]),
-            #                 np.zeros(stat.shape[0]), alpha=.1, color=color4label(label))
+
 
 
             # if keyword == "ep_rewards":
@@ -219,6 +224,7 @@ class EnvLogger(object):
             # ax.fill_between(x_points, stat + std_scale * ewma_std,
             #                 stat - std_scale * ewma_std, alpha=.2, color=color4label(label))
 
+        num_episodes=stat_indexer(val, keyword).shape[0]
         x_points = self.decimate_step * np.arange(num_episodes)
         for label, stat in perf_metrics.items():
             ax.plot(x_points,  stat*np.ones(num_episodes), "--", color=color4label(label))
