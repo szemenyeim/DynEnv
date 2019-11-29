@@ -66,9 +66,7 @@ class DrivingEnvironment(object):
 
         # Observation space
         if self.observationType == ObservationType.Full:
-            self.observation_space = [1, self.nPlayers,
-                    [[8, ], [self.nPlayers - 1, 6], [self.obstacleNum, 4], [self.pedestrianNum, 2],
-                     [self.laneNum, 3]]]
+            self.observation_space = [1, self.nPlayers, 5, [9, 7, 4, 2, 5]]
         else:
             self.observation_space = [1, self.nPlayers, 5, [9, 7, 6, 2, 4]]
 
@@ -615,8 +613,10 @@ class DrivingEnvironment(object):
         # Get lanes
         lanes = []
         for l in self.roads:
-            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, self.normX, self.mean), normalize(l.Lanes[i - l.nLanes][0].y, self.normY, self.mean),
-                       normalize(l.Lanes[i - l.nLanes][1].x, self.normX, self.mean), normalize(l.Lanes[i - l.nLanes][1].y, self.normY, self.mean),
+            lanes += [[normalize(l.Lanes[i - l.nLanes][0].x, self.normX, self.mean),
+                       normalize(l.Lanes[i - l.nLanes][0].y, self.normY, self.mean),
+                       normalize(l.Lanes[i - l.nLanes][1].x, self.normX, self.mean),
+                       normalize(l.Lanes[i - l.nLanes][1].y, self.normY, self.mean),
                        (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
 
         # If complete state
@@ -624,25 +624,49 @@ class DrivingEnvironment(object):
 
             # Just add cars
             state = [
-                np.array([[normalize(c.getPos().x,self.normX, self.mean),normalize(c.getPos().y,self.normY, self.mean), c.getAngle(),
-                           normalize(c.width, self.normW, 0.5), normalize(c.height, self.normH, 0.5), c.finished] for c in self.cars]),
+                np.array([[normalize(c.getPos().x,self.normX, self.mean),
+                           normalize(c.getPos().y,self.normY, self.mean),
+                           math.cos(c.getAngle()),
+                           math.sin(c.getAngle()),
+                           normalize(c.width, self.normW, 0.5),
+                           normalize(c.height, self.normH, 0.5),
+                           c.finished] for c in self.cars]).astype('float32'),
             ]
         # Otherwise add self observation separately
         else:
             state = [
-                np.array([normalize(car.getPos().x,self.normX, self.mean),normalize(car.getPos().y,self.normY, self.mean), car.getAngle(),
-                          normalize(car.width, self.normW, 0.5), normalize(car.height, self.normH, 0.5),
-                          normalize(car.goal.x,self.normX, self.mean),normalize(car.goal.y,self.normY, self.mean), car.finished]),
-                np.array([[normalize(c.getPos().x,self.normX, self.mean),normalize(c.getPos().y,self.normY, self.mean), c.getAngle(),
-                           normalize(c.width, self.normW, 0.5), normalize(c.height, self.normH, 0.5), c.finished] for c in self.cars if c != car]),
+                np.array([normalize(car.getPos().x,self.normX, self.mean),
+                          normalize(car.getPos().y,self.normY, self.mean),
+                          math.cos(car.getAngle()),
+                          math.sin(car.getAngle()),
+                          normalize(car.width, self.normW, 0.5),
+                          normalize(car.height, self.normH, 0.5),
+                          normalize(car.goal.x,self.normX, self.mean),
+                          normalize(car.goal.y,self.normY, self.mean),
+                          car.finished]).astype('float32'),
+
+                np.array([[normalize(c.getPos().x,self.normX, self.mean),
+                           normalize(c.getPos().y,self.normY, self.mean),
+                           math.cos(c.getAngle()),
+                           math.sin(c.getAngle()),
+                           normalize(c.width, self.normW, 0.5),
+                           normalize(c.height, self.normH, 0.5),
+                           c.finished] for c in self.cars if c != car]).astype('float32'),
             ]
 
         # Add obstacles, pedestrians and lanes
         state += [
-            np.array([[normalize(o.getPos().x, self.normX, self.mean), normalize(o.getPos().y, self.normY, self.mean),
-                       normalize(o.width, self.normW, 0.5), normalize(o.height, self.normH, 0.5)] for o in self.obstacles]),
-            np.array([[normalize(p.getPos().x, self.normX, self.mean), normalize(p.getPos().y, self.normY, self.mean)] for p in self.pedestrians]),
-            np.array(lanes)
+            np.array([[normalize(o.getPos().x, self.normX, self.mean),
+                       normalize(o.getPos().y, self.normY, self.mean),
+                       normalize(o.width, self.normW, 0.5),
+                       normalize(o.height, self.normH, 0.5)]
+                      for o in self.obstacles]).astype('float32'),
+
+            np.array([[normalize(p.getPos().x, self.normX, self.mean),
+                       normalize(p.getPos().y, self.normY, self.mean)]
+                      for p in self.pedestrians]).astype('float32'),
+
+            np.array(lanes).astype('float32')
         ]
 
         return state
@@ -837,13 +861,13 @@ class DrivingEnvironment(object):
         # Convert to numpy
         selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],selfDet[3],
                             normalize(selfDet[5],self.normW, 0.5),normalize(selfDet[6],self.normH, 0.5),
-                            normalize(selfDet[7].x,self.normX, self.mean),normalize(selfDet[7].y,self.normY, self.mean),selfDet[8]],])
+                            normalize(selfDet[7].x,self.normX, self.mean),normalize(selfDet[7].y,self.normY, self.mean),selfDet[8]],]).astype('float32')
         carDets = np.array([[normalize(c[1].x,self.normX),normalize(c[1].y,self.normY),c[2],c[3],
-                             normalize(c[5],self.normW, 0.5),normalize(c[6],self.normH, 0.5), c[7]] for c in carDets])
+                             normalize(c[5],self.normW, 0.5),normalize(c[6],self.normH, 0.5), c[7]] for c in carDets]).astype('float32')
         obsDets = np.array([[normalize(obs[1].x,self.normX),normalize(obs[1].y,self.normY),obs[2],obs[3],
-                             normalize(obs[5],self.normW, 0.5),normalize(obs[6],self.normH, 0.5)] for obs in obsDets])
-        pedDets = np.array([[normalize(ped[1].x,self.normX),normalize(ped[1].y,self.normY)] for ped in pedDets])
-        laneDets = np.array([[normalize(lane[1],self.normW),lane[2],lane[3]] for lane in laneDets])
+                             normalize(obs[5],self.normW, 0.5),normalize(obs[6],self.normH, 0.5)] for obs in obsDets]).astype('float32')
+        pedDets = np.array([[normalize(ped[1].x,self.normX),normalize(ped[1].y,self.normY)] for ped in pedDets]).astype('float32')
+        laneDets = np.array([[normalize(lane[1],self.normW),lane[2],lane[3],lane[4]] for lane in laneDets]).astype('float32')
 
         # return
         return selfDet,carDets,obsDets,pedDets,laneDets
