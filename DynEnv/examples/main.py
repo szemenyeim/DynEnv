@@ -29,8 +29,11 @@ if __name__ == '__main__':
     batch, action_size = env.action_space
     input_size = env.observation_space
 
+    # True number of players: RoboCup Env asks for players per team
+    num_players = args.num_players * 2 if args.env == DynEnv.DynEnvType.ROBO_CUP else args.num_players
+
     # agent
-    agent = ICMAgent(args.num_envs, args.num_players, action_size, attn_target, attn_type,
+    agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type,
                      input_size, feature_size, args.forward_coeff, args.icm_beta, args.rollout_size, lr=args.lr)
 
     # params

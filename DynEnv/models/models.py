@@ -707,7 +707,7 @@ class A2CNet(nn.Module):
         self.in_size = in_size  # in_size
         self.feature_size = feature_size
         self.action_descriptor = action_descriptor
-        self.num_players = num_players * 2
+        self.num_players = num_players
         self.num_envs = num_envs
 
         self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs, num_rollout)

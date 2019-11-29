@@ -34,7 +34,7 @@ class RolloutStorage(object):
         self.num_envs = num_envs
         self.num_players = num_players
         self.num_actions = num_actions
-        self.num_all_players =2*self.num_envs*self.num_players # sum of players over all envs
+        self.num_all_players = self.num_envs*self.num_players # sum of players over all envs
         self.n_stack = n_stack
         self.feature_size = feature_size
         self.is_cuda = is_cuda
@@ -164,7 +164,7 @@ class RolloutStorage(object):
         # the episode is not finished, thus the (1-x)
         # .T is needed of consecutiveness (i.e. the proper order of dones) is broken
         #dones4players = torch.stack(2*self.num_players*[self.dones[-1]]).T.reshape(-1)
-        dones4players = torch.zeros(2*self.num_players*self.num_envs).to(final_value.device)
+        dones4players = torch.zeros(self.num_players*self.num_envs).to(final_value.device)
         R = self._generate_buffer(self.num_all_players).masked_scatter((1 - dones4players).bool(), final_value.view(-1))
 
         for i in reversed(range(self.rollout_size)):

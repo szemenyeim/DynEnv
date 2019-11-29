@@ -161,7 +161,7 @@ class Runner(object):
 
             # interact
             actionsForEnv = (torch.stack(actions, dim=1)).view(
-                (self.net.num_envs, self.net.num_players * 2, -1)).detach().cpu().numpy()
+                (self.net.num_envs, self.net.num_players, -1)).detach().cpu().numpy()
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
 
             # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)

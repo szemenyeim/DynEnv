@@ -50,7 +50,7 @@ class RoboCupEnvironment(object):
         # Observation and action spaces
         # Observation space
         if self.observationType == ObservationType.Full:
-            self.observation_space =  [5, self.nPlayers * 2, 3, [4, 6, 6]]
+            self.observation_space = [5, self.nPlayers * 2, 3, [4, 6, 6]]
         elif self.observationType == ObservationType.Image:
             self.observation_space = [5, self.nPlayers * 2, [8, 480, 640]]
         else:
