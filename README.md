@@ -16,7 +16,7 @@ This project contains two reinforcement learning environments based on 2D physic
 
 ## Installation
 
-You can install simply using pip:
+~~You can install simply using pip:~~ (Not yet, be patient!) :)
 
 `pip install dynenv`
 
