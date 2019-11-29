@@ -13,7 +13,7 @@ import numpy as np
 
 class RoboCupEnvironment(object):
 
-    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2):
+    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2, allowHeadTurn = False):
 
         # Basic settings
         self.observationType = observationType
@@ -22,6 +22,7 @@ class RoboCupEnvironment(object):
         self.nPlayers = min(nPlayers,self.maxPlayers)
         self.render = render
         self.sizeNorm = 10.0/noiseMagnitude if noiseMagnitude != 0.0 else 1.0
+        self.allowHeadTurn = allowHeadTurn
 
         # Which robot's observation to visualize
         self.visId = random.randint(0,self.nPlayers*2-1)
@@ -57,14 +58,21 @@ class RoboCupEnvironment(object):
             self.observation_space = [5, self.nPlayers * 2, 6, [5, 6, 3, 3, 4, 3]]
 
         # Action space
-        self.action_space =\
-            [self.nPlayers * 2, [
-                ['cat', 5, None, None],
-                ['cat', 3, None, None],
-                ['cat', 3, None, None],
-                # Head turning is removed atm
-                # ['cont',1,[0,],[12,]],
-            ]]
+        if self.allowHeadTurn:
+            self.action_space =\
+                [self.nPlayers * 2, [
+                    ['cat', 5, None, None],
+                    ['cat', 3, None, None],
+                    ['cat', 3, None, None],
+                    ['cont',1,[0,],[12,]],
+                ]]
+        else:
+            self.action_space =\
+                [self.nPlayers * 2, [
+                    ['cat', 5, None, None],
+                    ['cat', 3, None, None],
+                    ['cat', 3, None, None],
+                ]]
 
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
@@ -245,8 +253,9 @@ class RoboCupEnvironment(object):
         for i in range(50):
 
             # Sanity check
-            if actions.shape != (len(self.robots),4) and actions.shape != (len(self.robots),3):
-                raise Exception("Error: There must be 3 or 4 actions for every robot")
+            actionNum = 4 if self.allowHeadTurn else 3
+            if actions.shape != (len(self.robots),actionNum):
+                raise Exception("Error: There must be %d actions for every robot" % actionNum)
 
             # Robot loop
             for action, robot in zip(actions, self.robots):

@@ -16,7 +16,7 @@ import random
 
 class DrivingEnvironment(object):
 
-    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2):
+    def __init__(self,nPlayers,render=False,observationType = ObservationType.Partial,noiseType = NoiseType.Realistic, noiseMagnitude = 2, continuousActions = False):
 
         # Basic settings
         self.observationType = observationType
@@ -25,6 +25,7 @@ class DrivingEnvironment(object):
         self.nPlayers = min(nPlayers,self.maxPlayers)*2
         self.render = render
         self.numTeams = 2
+        self.continuousActions = continuousActions
 
         if self.observationType == ObservationType.Image:
 
@@ -73,13 +74,17 @@ class DrivingEnvironment(object):
             self.observation_space = [1, self.nPlayers, 5, [9, 7, 6, 2, 4]]
 
         # Action space
-        self.action_space = \
-            [self.nPlayers, [
-                # For now, categorical actions used
-                # ['cont', 2, [0, 0], [6, 6]],
-                ['cat', 3, None, None],
-                ['cat', 3, None, None],
-            ]]
+        if self.continuousActions:
+            self.action_space = \
+                [self.nPlayers, [
+                    ['cont', 2, [0, 0], [6, 6]],
+                ]]
+        else:
+            self.action_space = \
+                [self.nPlayers, [
+                    ['cat', 3, None, None],
+                    ['cat', 3, None, None],
+                ]]
 
         # Time rewards
         self.maxTime = 6000
@@ -298,8 +303,9 @@ class DrivingEnvironment(object):
     def processAction(self,action,car):
 
         # Get actions
-        acc = action[0]-1
-        steer = (action[1]-1)*2
+        if not self.continuousActions:
+            acc = action[0]-1
+            steer = (action[1]-1)*2
 
         # Sanity checks
         if np.abs(acc) > 3:
@@ -308,7 +314,7 @@ class DrivingEnvironment(object):
             raise Exception("Error: Steering must be between +/-3")
 
         # Apply actions to car
-        car.accelerate(acc.item())
+        car.accelerate(acc.item(), self.continuousActions)
         if steer != 0:
             car.turn(steer.item())
 

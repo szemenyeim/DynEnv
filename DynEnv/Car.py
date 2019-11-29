@@ -52,22 +52,35 @@ class Car(object):
         self.shape.collision_type = CollisionType.Car
 
     # Move forward or break
-    def accelerate(self,dir):
+    def accelerate(self,dir, continuousActions):
         if not self.finished:
 
             power = dir
 
-            # Reverse is less powerful
-            if dir < 0:
-                power = dir*0.75
-
             moveDir = self.shape.body.velocity.dot(self.direction)
-            if dir == 0:
-                power = 0 if not moveDir else (-2 if moveDir > 0 else 2)
-            elif dir < 0 and moveDir > 0:
-                return
-            elif dir > 0 and moveDir < 0:
-                return
+
+            # Handle continuous actions
+            if continuousActions:
+                # breaking is more powerful
+                if dir*moveDir < 0:
+                    power *= 2
+                # Reverse is less powerful
+                elif dir < 0:
+                    power *= 0.75
+            # Handle categorical actions
+            else:
+                # Reverse is less powerful
+                if dir < 0:
+                    power = dir*0.75
+
+                # When breaking accelerate in the opposite direction (breaking is more powerful)
+                if dir == 0:
+                    power = 0 if not moveDir else (-2 if moveDir > 0 else 2)
+                # Accelerating in the opposite direction has no effect
+                elif dir < 0 and moveDir > 0:
+                    return
+                elif dir > 0 and moveDir < 0:
+                    return
 
             # Get velocity
             velocity = Vec2d(self.powers[self.type]*power,0)
@@ -76,7 +89,7 @@ class Car(object):
             # Add to previous
             self.shape.body.velocity = self.shape.body.velocity + velocity
 
-            # Prevent the car from moving backwards
+            # Prevent the car from moving backwards when breaking
             if dir == 0 and self.shape.body.velocity.dot(self.direction)*moveDir < 0:
                 self.shape.body.velocity = Vec2d(0,0)
 
