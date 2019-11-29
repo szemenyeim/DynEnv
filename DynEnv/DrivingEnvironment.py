@@ -3,7 +3,6 @@ from .Car import Car
 from .Pedestrian import Pedestrian
 from .Obstacle import Obstacle
 from .Road import Road
-from .utils import ObservationType, NoiseType, CollisionType, friction_car_crashed
 from .cutils import *
 import cv2
 import math

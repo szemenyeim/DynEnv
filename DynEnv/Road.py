@@ -1,6 +1,5 @@
 import copy
 import math
-from pymunk import Vec2d
 from .cutils import LanePosition
 
 

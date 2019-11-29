@@ -1,4 +1,4 @@
-from .utils import CollisionType, friction_pedestrian_dead
+from .cutils import CollisionType, friction_pedestrian_dead
 from pymunk import Vec2d, Circle, Body, moment_for_circle
 import random
 

@@ -2,7 +2,6 @@
 import pygame
 import pymunk.pygame_util
 import time
-from .utils import *
 from .cutils import *
 from .Ball import Ball
 from .Goalpost import Goalpost

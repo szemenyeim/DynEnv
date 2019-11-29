@@ -1,4 +1,4 @@
-from .utils import CollisionType
+from .cutils import CollisionType
 from pymunk import Vec2d, Poly, Body
 
 

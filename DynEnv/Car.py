@@ -1,4 +1,4 @@
-from .utils import CollisionType, friction_car, friction_car_crashed
+from .cutils import CollisionType, friction_car, friction_car_crashed
 from .cutils import LanePosition
 import math
 from pymunk import Vec2d, Poly, Body, moment_for_poly
