@@ -928,8 +928,8 @@ class RoboCupEnvironment(object):
 
         if robot is None:
             state = [np.array([[normalize(rob.getPos()[0],self.normX,self.mean),normalize(rob.getPos()[1],self.normY,self.mean),
-                              rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots]),
-                     np.array([normalize(self.ball.getPos()[0],self.normX,self.mean),normalize(self.ball.getPos()[1],self.normY,self.mean),self.ballOwned])]
+                              rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots]).astype('float32'),
+                     np.array([normalize(self.ball.getPos()[0],self.normX,self.mean),normalize(self.ball.getPos()[1],self.normY,self.mean),self.ballOwned]).astype('float32')]
         else:
             # flip axes for team -1
             team = robot.team
@@ -939,19 +939,19 @@ class RoboCupEnvironment(object):
                 np.array([
                     [normalizeAfterScale(self.ball.getPos()[0],self.normX,pos.x,team),
                      normalizeAfterScale(self.ball.getPos()[1],self.normY,pos.y,team),
-                     self.ballOwned*robot.team, robot.id in self.closestID],]),
+                     self.ballOwned*robot.team, robot.id in self.closestID],]).astype('float32'),
                    np.array([[
                        normalize(robot.getPos()[0],self.normX,self.mean,team),
                        normalize(robot.getPos()[1],self.normY,self.mean,team),
                        math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
                        robot.team,
-                       int(robot.fallen or robot.penalized)],]),
+                       int(robot.fallen or robot.penalized)],]).astype('float32'),
                    np.array([
                        [normalizeAfterScale(rob.getPos()[0],self.normX,pos.x,team),
                         normalizeAfterScale(rob.getPos()[1],self.normY,pos.y,team),
                         math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
                         rob.team*robot.team,
-                        int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot])]
+                        int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot]).astype('float32')]
         return state
 
     # Getting vision
@@ -1241,19 +1241,19 @@ class RoboCupEnvironment(object):
 
         # Convert to numpy
         ballDets = np.array([[normalize(ball[1].x,self.normX),normalize(ball[1].y,self.normY),
-                              normalizeAfterScale(ball[2],self.sizeNorm,self.ballRadius*2),ball[3], robot.id in self.closestID] for ball in ballDets])
+                              normalizeAfterScale(ball[2],self.sizeNorm,self.ballRadius*2),ball[3], robot.id in self.closestID] for ball in ballDets]).astype('float32')
         robDets = np.array([[normalize(rob[1].x,self.normX),normalize(rob[1].y,self.normY),
                              normalizeAfterScale(rob[2],self.sizeNorm,Robot.totalRadius),
-                             rob[3],rob[4],rob[5]] for rob in robDets])
+                             rob[3],rob[4],rob[5]] for rob in robDets]).astype('float32')
         goalDets = np.array([[normalize(goal[1].x,self.normX),normalize(goal[1].y,self.normY),
-                              normalizeAfterScale(goal[2],self.sizeNorm,self.goalPostRadius*2)] for goal in goalDets])
+                              normalizeAfterScale(goal[2],self.sizeNorm,self.goalPostRadius*2)] for goal in goalDets]).astype('float32')
         crossDets = np.array([[normalize(cross[1].x,self.normX),normalize(cross[1].y,self.normY),
-                               normalizeAfterScale(cross[2],self.sizeNorm,self.penaltyRadius*2)] for cross in crossDets])
+                               normalizeAfterScale(cross[2],self.sizeNorm,self.penaltyRadius*2)] for cross in crossDets]).astype('float32')
         lineDets = np.array([[normalize(line[1].x,self.normX),normalize(line[1].y,self.normY),
-                              normalize(line[2].x,self.normX),normalize(line[2].y,self.normY)] for line in lineDets])
+                              normalize(line[2].x,self.normX),normalize(line[2].y,self.normY)] for line in lineDets]).astype('float32')
         circleDets = np.array([[normalize(circleDets[1].x,self.normX),
                                 normalize(circleDets[1].y,self.normY),
-                                normalizeAfterScale(circleDets[2],self.sizeNorm*0.1,self.centerCircleRadius*2)]]) \
+                                normalizeAfterScale(circleDets[2],self.sizeNorm*0.1,self.centerCircleRadius*2)]]).astype('float32') \
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
         return ballDets,robDets,goalDets,crossDets,lineDets,circleDets

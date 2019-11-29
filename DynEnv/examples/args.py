@@ -44,7 +44,7 @@ def get_args():
 
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.from_string, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.ROBO_CUP, type=DynEnvType.from_string, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
