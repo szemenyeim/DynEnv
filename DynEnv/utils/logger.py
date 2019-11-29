@@ -11,6 +11,7 @@ from .utils import make_dir, plot_postprocess, print_init, color4label, instance
 
 class LogData(object):
     def __init__(self):
+        self.values = []
         self.mean = []
         self.std = []
         self.min = []
@@ -22,6 +23,7 @@ class LogData(object):
         :param sample: data for logging specified as a numpy.array
         :return:
         """
+        self.values.append(sample.mean(axis=1))
         self.mean.append(sample.mean())
         self.std.append(sample.std())
         self.min.append(sample.min())
@@ -47,6 +49,7 @@ class LogData(object):
         #  it doesn't read the whole data but instead gives you lazy access to sub-parts
         #  (very useful when the array is huge but you only need a small part of it).
         # https://stackoverflow.com/questions/10274476/how-to-export-hdf5-file-to-numpy-using-h5py
+        self.values = group["values"][()][::decimate_step]
         self.mean = group["mean"][()][::decimate_step]
         self.std = group["std"][()][::decimate_step]
         self.min = group["min"][()][::decimate_step]
