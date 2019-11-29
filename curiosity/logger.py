@@ -166,6 +166,7 @@ class EnvLogger(object):
 
         # append statistics to df
         self.params_df["mean_ep_reward"] = pd.Series(mean_ep_reward, index=self.params_df.index)
+        # breakpoint()
         # self.params_df["mean_ep_pos_reward"] = pd.Series(mean_ep_pos_reward, index=self.params_df.index)
 
     def plot_mean_std(self, *args):
@@ -173,26 +174,18 @@ class EnvLogger(object):
             print(key)
             val.plot_mean_std(*args)
 
-    def plot_decorator(self, keyword="ep_rewards", window=1000, std_scale=1, save=False, zoom=2.5, loc=4):
+    def plot_decorator(self, keyword="ep_rewards", window=1000, std_scale=1, save=False, zoom=2.5, loc=4, num_episodes=1000):
 
-        def stat_ewma(val, keyword, window):
-            feat = val.__dict__[keyword]
-            if keyword == "ep_rewards":
-                feat_stat = feat.mean
-            elif keyword == "ep_pos_rewards":
-                feat_stat = feat.std
-
-            return numpy_ewma_vectorized_v2(feat_stat, window)
+        def stat_indexer(val, keyword):
+            return val.__dict__[keyword].mean
 
         fig, ax, _, loc1, loc2 = print_init(False, zoom=zoom, loc=loc)
 
         # precompute y inset limits
-        stats_last = []
         stats_max = []
         for val in self.logs.values():
-            ewma_stat = stat_ewma(val, keyword, window)
-            stats_last.append(ewma_stat[-1])
-            stats_max.append(ewma_stat.max())
+            stat = stat_indexer(val, keyword)
+            stats_max.append(stat.max())
 
         stats_max = np.array(stats_max)
 
@@ -209,20 +202,26 @@ class EnvLogger(object):
             label = instance2label(instance)
 
             # plot the mean of the feature
-            ewma_stat = stat_ewma(val, keyword, window)  # calculate exp mean
-            print(f'{label}, {keyword}, {ewma_stat.max()}, {ewma_stat.max() / stats_max.max()}')
-            perf_metrics[label] = 100 * ewma_stat.max() / stats_max.max()
+            stat = stat_indexer(val, keyword)  # calculate exp mean
+            print(f'{label}, {keyword}, {stat.max()}, {stat.max() / stats_max.max()}')
+            perf_metrics[label] = stat.max() #/ stats_max.max()
             x_points = self.decimate_step * np.arange(
-                ewma_stat.shape[0])  # placeholder for the x points (for xtick conversion)
+                stat.shape[0])  # placeholder for the x points (for xtick conversion)
             # breakpoint()
-            ax.plot(x_points, ewma_stat, label=label, color=color4label(label))
+            ax.plot(x_points, stat, label=label, color=color4label(label))
+            # ax.fill_between(x_points, stat.max()*np.ones(stat.shape[0]),
+            #                 np.zeros(stat.shape[0]), alpha=.1, color=color4label(label))
+
 
             # if keyword == "ep_rewards":
             # plot standard deviation (uncertainty)
             # ewma_std = numpy_ewma_vectorized_v2(val.__dict__[keyword].std, window)
-            # ax.fill_between(x_points, ewma_stat + std_scale * ewma_std,
-            #                 ewma_stat - std_scale * ewma_std, alpha=.2, color=color4label(label))
+            # ax.fill_between(x_points, stat + std_scale * ewma_std,
+            #                 stat - std_scale * ewma_std, alpha=.2, color=color4label(label))
 
+        x_points = self.decimate_step * np.arange(num_episodes)
+        for label, stat in perf_metrics.items():
+            ax.plot(x_points,  stat*np.ones(num_episodes), "--", color=color4label(label))
         plot_postprocess(fig, ax, keyword, self.env_name, self.fig_dir, save=save)
 
         return perf_metrics

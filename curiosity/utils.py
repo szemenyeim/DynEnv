@@ -76,14 +76,17 @@ def label_converter(label):
 
 def instance2label(instance):
     # label generation
-    label = f"{label_converter(series_indexer(instance['attention_target']))}, {label_converter(series_indexer(instance['attention_type']))}"
+    # label = f"{label_converter(series_indexer(instance['attention_target']))}, {label_converter(series_indexer(instance['attention_type']))}"
+    label = f"{label_converter(series_indexer(instance['attention_target']))}, {label_converter(series_indexer(instance['note']))}"
     # remove attention annotation from the baseline
+    print(label)
     if "Baseline" in label:
-        label = "Baseline"
+        if "Entropy" in label:
+            label = "ICM-TER" # ICM + Temporal Entropy Regularization
+        else:
+            label = "ICM"
     elif "RCM" in label:
         label = "RCM"
-    elif "A2C" in label:
-        label = "AttA2C"
     return label
 
 
@@ -106,13 +109,9 @@ def label_enum_converter(label):
 
 
 def color4label(label):
-    if label == "Baseline":
+    if label == "ICM":
         color = "tab:blue"
-    elif label == "AttA2C":
-        color = "tab:purple"
-    elif label == "ICM, single attention":
-        color = "tab:red"
-    elif label == "ICM, double attention":
+    elif label == "ICM-TER":
         color = "tab:green"
     elif label == "RCM":
         color = "tab:orange"
@@ -149,7 +148,7 @@ def print_init(inset=True, zoom=2.5, loc=4):
     return fig, ax, axins, loc1, loc2
 
 
-def plot_postprocess(fig, ax, keyword, env, dir, xlabel="Rollout", save=False):
+def plot_postprocess(fig, ax, keyword, env, dir, xlabel="Episode", save=False):
     # assemble notation
     if keyword == "ep_rewards":
         stat_descriptor = r"$\mu_{reward}$"
