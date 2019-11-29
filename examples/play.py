@@ -65,6 +65,7 @@ def doRoboCup(nPlayers):
         action = np.array([action1, ] + [action0,] * (nPlayers-1) + [action2,] + [action0,] * (nPlayers-1))
         #a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
         ret = env.step(action)
+        env.render()
         if ret[2]:
             break
 
@@ -102,6 +103,7 @@ def doDrive(nPlayers):
 
         #a1 = np.random.randint(0,3,(nPlayers*2,2))
         ret = env.step(action)
+        env.render()
         if ret[2]:
             break
 

@@ -194,10 +194,6 @@ class DrivingEnvironment(object):
         # Run simulation for 100 ms (time for every action)
         for i in range(10):
 
-            # Draw lines
-            if self.render:
-                self.drawStaticObjects()
-
             # Sanity check
             if actions.shape != (len(self.cars),2):
                 raise Exception("Error: There must be 2 actions for every car")
@@ -232,12 +228,6 @@ class DrivingEnvironment(object):
                     observations.append([self.getFullState(car) for car in self.cars])
                 else:
                     observations.append([self.getCarVision(car) for car in self.cars])
-
-            # Render
-            if self.render:
-                pygame.display.flip()
-                self.clock.tick(self.timeStep)
-                cv2.waitKey(1)
 
 
         # Reward finishing
@@ -292,6 +282,17 @@ class DrivingEnvironment(object):
 
         # draw everything else
         self.space.debug_draw(self.draw_options)
+
+
+    # Render
+    def render(self):
+        if not self.render:
+            raise Exception("Tried to render, but the render variable is set to False. Create the env with render=True!")
+
+        self.drawStaticObjects()
+        pygame.display.flip()
+        self.clock.tick(self.timeStep)
+
 
     # Process actions
     def processAction(self,action,car):
@@ -802,7 +803,7 @@ class DrivingEnvironment(object):
                 y0 = a*rho
                 pt1 = (int(np.round(x0-5000*a)+W),int(H-np.round(y0+5000*b)))
                 pt2 = (int(np.round(x0+5000*a)+W),int(H-np.round(y0-5000*b)))
-                
+
                 cv2.line(img,pt1,pt2,color,2)
 
             # draw cars
@@ -824,10 +825,10 @@ class DrivingEnvironment(object):
                 cv2.circle(img,(int(point.x+W),int(-point.y+H)),5,color,-1)
 
             cv2.imshow(("Car %d" % self.cars.index(car)),img)
-            '''c = cv2.waitKey(10)
+            c = cv2.waitKey(1)
             if c == 13:
                 cv2.imwrite("drivingObs.png",img)
-                pygame.image.save(self.screen,"drivingGame.png")'''
+                pygame.image.save(self.screen,"drivingGame.png")
 
         # Convert to numpy
         selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],selfDet[3],

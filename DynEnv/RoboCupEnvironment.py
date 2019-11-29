@@ -244,10 +244,6 @@ class RoboCupEnvironment(object):
         # Run simulation for 500 ms (time for every action, except the kick)
         for i in range(50):
 
-            # Draw lines
-            if self.render:
-                self.drawStaticObjects()
-
             # Sanity check
             if actions.shape != (len(self.robots),4) and actions.shape != (len(self.robots),3):
                 raise Exception("Error: There must be 3 or 4 actions for every robot")
@@ -280,12 +276,6 @@ class RoboCupEnvironment(object):
                     observations.append([self.getFullState(robot) for robot in self.robots])
                 else:
                     observations.append([self.getRobotVision(robot) for robot in self.robots])
-
-            # Render
-            if self.render:
-                pygame.display.flip()
-                self.clock.tick(self.timeStep)
-                cv2.waitKey(1)
 
         self.robotRewards[:self.nPlayers] += self.teamRewards[0]
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
@@ -375,6 +365,16 @@ class RoboCupEnvironment(object):
         pygame.draw.circle(self.screen, (255,255,255), self.centerCircle[0], self.centerCircle[1] * 2, self.lineWidth)
 
         self.space.debug_draw(self.draw_options)
+
+    # Render
+    def render(self):
+        if not self.render:
+            raise Exception(
+                "Tried to render, but the render variable is set to False. Create the env with render=True!")
+
+        self.drawStaticObjects()
+        pygame.display.flip()
+        self.clock.tick(self.timeStep)
 
     # Ball free kick
     def ballFreeKickProcess(self,team):
@@ -1220,10 +1220,10 @@ class RoboCupEnvironment(object):
                 cv2.circle(img,(int(xOffs+ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
 
             cv2.imshow(("Robot %d" % robot.id),img)
-            '''c = cv2.waitKey(10)
+            c = cv2.waitKey(1)
             if c == 13:
                 cv2.imwrite("roboObs.png",img)
-                pygame.image.save(self.screen,"roboGame.png")'''
+                pygame.image.save(self.screen,"roboGame.png")
             if self.observationType == ObservationType.Image:
                 cv2.imshow("Bottom",colorize(bottomCamImg))
                 cv2.imshow("Top",colorize(topCamImg))
