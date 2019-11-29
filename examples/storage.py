@@ -63,6 +63,8 @@ class RolloutStorage(object):
         """
         Creates and/or resets the buffers - each of size (rollout_size, num_envs) -
         storing: - rewards
+                 - positive rewards
+                 - agent finished status
                  - states
                  - features
                  - actions
@@ -110,12 +112,13 @@ class RolloutStorage(object):
         """
         return self.states[step]
 
-    def insert(self, step, reward, agentFinished, obs, action, log_prob, value, dones, features):
+    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features):
         """
         Inserts new data into the log for each environment at index step
 
         :param step: index of the step
         :param reward: numpy array of the rewards
+        :param agent_finished: numpy array of agent finished status
         :param obs: observation as a numpy array
         :param action: tensor of the actions
         :param log_prob: tensor of the log probabilities
@@ -127,7 +130,7 @@ class RolloutStorage(object):
         self.states.append(obs)
 
         self.rewards[step].copy_(torch.from_numpy(reward).view(-1))
-        self.agentFinished[step].copy_(agentFinished.view(-1))
+        self.agentFinished[step].copy_(agent_finished.view(-1))
         self.features[step].copy_(features)
         self.actions[step].copy_(torch.stack(action, dim=0))
         self.log_probs[step].copy_(torch.stack(log_prob, dim=0))
@@ -196,17 +199,24 @@ class RolloutStorage(object):
         # and predicted rewards
         value_loss = advantage.pow(2).mean()
 
+        # Compute entropies
         action_probs = [torch.stack([action_probs[time][a] for time in range(self.rollout_size)]) for a in range(len(action_probs[0]))]
 
+        # Average action probabilities along the batch and time dimensions
         temp_actions = [action_prob.mean(dim=0) for action_prob in action_probs]
         batch_actions = [action_prob.mean(dim=1) for action_prob in action_probs]
+
+        # Compute temporal, batch and full entropies
         tempEntropies = torch.stack([Categorical(temp_action).entropy() for temp_action in temp_actions])
         batchEntropies = torch.stack([Categorical(batch_action).entropy() for batch_action in batch_actions])
         allEntropies = torch.stack([Categorical(action_prob).entropy() for action_prob in action_probs])
+
+        # Temporal entropy only computed for logging purposes
         tempEntropy = tempEntropies.mean().detach()
+
+        # Decide which one to return
         batchEntropy = batchEntropies.mean()
         fullEntropy = allEntropies.mean()
-
         retEntropy = fullEntropy if self.use_full_entropy else batchEntropy
 
         return (policy_loss, value_coeff * value_loss, -entropy_coeff * retEntropy, entropy_coeff*tempEntropy), self.rewards.detach().cpu()

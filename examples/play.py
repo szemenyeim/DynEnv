@@ -4,11 +4,11 @@ from pygame.locals import *
 import sys
 import numpy as np
 import random
+import argparse
 
 # Launch game, allow user controls
 
-def doRoboCup():
-    nPlayers = 5
+def doRoboCup(nPlayers):
     env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
     env.setRandomSeed(42)
@@ -63,13 +63,12 @@ def doRoboCup():
                 action2 = [0, 0, 0]
 
         action = np.array([action1, ] + [action0,] * (nPlayers-1) + [action2,] + [action0,] * (nPlayers-1))
-        a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
-        ret = env.step(a1)
+        #a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
+        ret = env.step(action)
         if ret[2]:
             break
 
-def doDrive():
-    nPlayers = 5
+def doDrive(nPlayers):
     env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
                                     noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2.0)
     env.setRandomSeed(42)
@@ -101,18 +100,27 @@ def doDrive():
                 action[(0,0)] = 1
                 action[(0,1)] = 1
 
-        a1 = np.random.randint(0,3,(nPlayers*2,2))
-        ret = env.step(a1)
+        #a1 = np.random.randint(0,3,(nPlayers*2,2))
+        ret = env.step(action)
         if ret[2]:
             break
 
+
 if __name__ == '__main__':
 
-    drive = True
+    parser = argparse.ArgumentParser(description='Play with the env')
+    parser.add_argument('--env', type=str, required=True,
+                        help='log directory')
+    parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
+                        help='number of players in the environment')
+
+    args = parser.parse_args()
+
+    drive = True if args.env == "Driving" else False
 
     pygame.init()
 
     if drive:
-        doDrive()
+        doDrive(args.num_players)
     else:
-        doRoboCup()
+        doRoboCup(args.num_players)

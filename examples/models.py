@@ -241,7 +241,7 @@ class InputLayer(nn.Module):
         # for each object type, for each timestep, the number of seen objects is calculated
         counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjects)]
 
-        objCounts = torch.Tensor(
+        objCounts = torch.tensor(
             [
                 [
                     # sum of the object types for a given timestep and player
@@ -265,7 +265,7 @@ class InputLayer(nn.Module):
         inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
 
         # Call embedding block for all object types
-        outs = [block(torch.Tensor(obj).to(device)) for block, obj in zip(self.blocks, inputs)]
+        outs = [block(torch.tensor(obj).to(device)) for block, obj in zip(self.blocks, inputs)]
 
         # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
         outs = torch.stack(
@@ -299,8 +299,7 @@ class AttentionLayer(nn.Module):
         self.tempAtt = nn.MultiheadAttention(features, num_heads)
 
         # Relu and group norm
-        self.bn1 = nn.LayerNorm(features)
-        self.bn2 = nn.LayerNorm(features)
+        self.bn = nn.LayerNorm(features)
 
         # Confidence layer
         self.confLayer = nn.Sequential(
@@ -331,7 +330,7 @@ class AttentionLayer(nn.Module):
         finalAtt = attObj[0]
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
-            finalAtt = self.bn2(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
+            finalAtt = self.bn(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
             finalMask = masks[i + 1] & finalMask
             # Filter nans
             with torch.no_grad():
@@ -642,12 +641,14 @@ class ICMNet(nn.Module):
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
+        # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)
 
         return self._calc_loss(next_features, next_feature_pred, action_pred, action, agentFinishedMask)
 
     def _calc_loss(self, features, feature_preds, action_preds, actions, agentFinished):
 
+        # If all agents finished, the loss is 0
         if not agentFinished.any():
             return torch.tensor([0,0]).to(features.device)
 
@@ -748,7 +749,6 @@ class A2CNet(nn.Module):
         cats = [Categorical(a_prob) for a_prob in action_probs]
         actions = [cat.sample() for cat in cats]
         log_probs = [cat.log_prob(a) for (cat, a) in zip(cats, actions)]
-        #entropies = Categorical(torch.stack(action_probs)).entropy()
 
         return (actions, log_probs, action_probs, values,
                 features)  # ide is jön egy feature bypass a self(state-ből)

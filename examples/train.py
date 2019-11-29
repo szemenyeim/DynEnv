@@ -50,9 +50,11 @@ class Runner(object):
         obs = self.env.reset()
         self.storage.states.append(obs)
 
+        """Variables for propoer logging"""
         epLen = self.env.get_attr('stepNum')[0]
         updatesPerEpisode = epLen/self.params.rollout_size
 
+        """Losses"""
         r_loss = 0
         p_loss = 0
         v_loss = 0
@@ -60,8 +62,6 @@ class Runner(object):
         te_loss = 0
         f_loss = 0
         i_loss = 0
-
-        t_prev = time.clock()
 
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
@@ -81,7 +81,6 @@ class Runner(object):
                                                         self.params.entropy_coeff)
 
             a2c_loss = sum(a2c_losses)
-
             loss = a2c_loss + icm_loss
 
             loss.backward(retain_graph=False)
@@ -91,6 +90,7 @@ class Runner(object):
 
             self.net.optimizer.step()
 
+            """Running losses"""
             r_loss += loss.item()
             p_loss += a2c_losses[0].item()
             v_loss += a2c_losses[1].item()
@@ -99,35 +99,28 @@ class Runner(object):
             f_loss += icm_losses[0].item()
             i_loss += icm_losses[1].item()
 
+            """Print to console at the end of each episode"""
             dones = self.storage.dones[-1].bool()
-
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
 
+                """Get average rewards and positive rewards (for this episode and the last 10)"""
                 last_r = np.array(self.storage.episode_rewards[-self.params.num_envs:]).mean()
                 last_avg_r = np.array(self.storage.episode_rewards).mean()
 
                 last_p_r = np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]).mean()
                 last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
 
+                """Get goals for robocup env"""
                 if len(self.storage.goals):
                     goals = [sum(self.storage.goals[:][0]),sum(self.storage.goals[:][1])]
                 else:
                     goals = [0,0]
 
-                '''r_loss*=5
-                p_loss*=5
-                v_loss*=5
-                be_loss*=5
-                te_loss*=5
-                f_loss*=5
-                i_loss*=5'''
-
                 self.logger.log(
                              **{"ep_rewards": np.array(self.storage.episode_rewards),
                                 "ep_pos_rewards": np.array(self.storage.episode_pos_rewards)})
 
-                t_next = time.clock()
                 print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
                       % (int(num_update/updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
                          v_loss, be_loss, te_loss, f_loss, i_loss),
@@ -136,7 +129,6 @@ class Runner(object):
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
                       "[", goals[0], ":", goals[1], "]")
 
-                t_prev = t_next
                 r_loss = 0
                 p_loss = 0
                 v_loss = 0
@@ -145,6 +137,7 @@ class Runner(object):
                 f_loss = 0
                 i_loss = 0
 
+                """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
                 if len(rewards_that_count) >= rewards_that_count.maxlen:
                      self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
@@ -152,15 +145,6 @@ class Runner(object):
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
             self.storage.after_update()
-
-            #if (num_update + 1) % 3000 == 0:
-            #    torch.save(self.net.state_dict(), ("saved/net%d.pth" % (num_update + 1)))
-            #    torch.save(torch.tensor(losses), "saved/losses.pth")
-            #    torch.save(torch.tensor(rews), "saved/rewards.pth")
-            #    torch.save(torch.tensor(rewps), "saved/rewards_pos.pth")
-            #     print("current loss: ", loss.item(), " at update #", num_update)
-            #     self.storage.print_reward_stats()
-            # torch.save(self.net.state_dict(), "a2c_time_log_no_norm")
 
         self.env.close()
 
@@ -181,7 +165,9 @@ class Runner(object):
                 (self.net.num_envs, self.net.num_players * 2, -1)).detach().cpu().numpy()
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
 
+            # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)
             agentFinished = torch.tensor([[agent[-1] for agent in s['Full State'][0]] for s in state]).bool()
+
             # save episode reward
             self.storage.log_episode_rewards(state)
 
