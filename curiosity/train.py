@@ -130,7 +130,7 @@ class Runner(object):
                 t_next = time.clock()
                 print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
                       % (int(num_update/updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
-                         v_loss, be_loss*10, te_loss*10, f_loss, i_loss),
+                         v_loss, be_loss, te_loss, f_loss, i_loss),
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
