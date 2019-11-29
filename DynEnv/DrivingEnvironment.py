@@ -20,8 +20,8 @@ class DrivingEnvironment(object):
         # Basic settings
         self.observationType = observationType
         self.noiseType = noiseType
-        self.maxPlayers = 5
-        self.nPlayers = min(nPlayers,self.maxPlayers)*2
+        self.maxPlayers = 10
+        self.nPlayers = min(nPlayers,self.maxPlayers)
         self.renderVar = render
         self.numTeams = 2
         self.continuousActions = continuousActions
@@ -170,7 +170,7 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers//2,self.renderVar,self.observationType,self.noiseType,self.noiseMagnitude)
+        self.__init__(self.nPlayers,self.renderVar,self.observationType,self.noiseType,self.noiseMagnitude)
         observations = []
         if self.observationType == ObservationType.Full:
             observations.append([self.getFullState(car) for car in self.cars])
