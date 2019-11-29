@@ -1,4 +1,5 @@
 import argparse
+from DynEnv import *
 
 
 def get_args():
@@ -32,8 +33,6 @@ def get_args():
                         help='environment name')
     parser.add_argument('--num-envs', type=int, default=8, metavar='NUM_ENVS',
                         help='number of parallel environments')
-    parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
-                        help='number of players in the environment')
     parser.add_argument('--n-stack', type=int, default=1, metavar='N_STACK',
                         help='number of frames stacked')
     parser.add_argument('--rollout-size', type=int, default=10, metavar='ROLLOUT_SIZE',
@@ -42,6 +41,21 @@ def get_args():
                         help='number of updates')
     parser.add_argument('--use-full-entropy', type=bool, default=False, metavar='USE_FULL_ENTROPY',
                         help='use full entropy, not just batch entropy')
+
+
+    # env Params
+    parser.add_argument('--env', type=DynEnvType.from_string, choices=list(DynEnvType),
+                        help='Environment type')
+    parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
+                        help='number of players in the environment [1-5]')
+    parser.add_argument('--observationType', type=ObservationType.from_string, choices=list(ObservationType),
+                        help='Observation type')
+    parser.add_argument('--noiseType', type=NoiseType.from_string, choices=list(NoiseType),
+                        help='Noise type')
+    parser.add_argument('--noiseMagnitude', type=float, default=0.1,
+                        help='Noise magnitude [0-5]')
+    parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='USE_CONTINUOUS_ACTIONS',
+                        help='Enable continuous actions (all actions in driving, head turning in robot soccer)')
 
 
     # model coefficients

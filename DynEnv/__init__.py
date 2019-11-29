@@ -1,30 +1,23 @@
-from .utils import ObservationType, NoiseType
+from .utils import ObservationType, NoiseType, DynEnvType
 from .RoboCupEnvironment import RoboCupEnvironment
 from .DrivingEnvironment import DrivingEnvironment
 from .CustomVecEnv import CustomSubprocVecEnv
-from enum import Enum
-
-
-class DynEnvType(Enum):
-    ROBO_CUP = 0
-    DRIVE = 1
 
 
 """ Create dynamic environment with custom wrapper"""
 
 
-def make_dyn_env(env_type: DynEnvType, nPlayers, nEnvs, render=False, observationType=ObservationType.Partial,
-                 noiseType=NoiseType.Realistic, noiseMagnitude=0.1):
-    if env_type is DynEnvType.ROBO_CUP:
-        envs = [lambda: RoboCupEnvironment(nPlayers=nPlayers, render=render, observationType=observationType,
-                                                  noiseType=noiseType, noiseMagnitude=noiseMagnitude) for i in
-                range(nEnvs)]
+def make_dyn_env(args):
+    if args.env_type is DynEnvType.ROBO_CUP:
+        envs = [lambda: RoboCupEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
+                                                  noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, allowHeadTurn=args.continuous)
+                for i in range(args.num_envs)]
         env = CustomSubprocVecEnv(envs)
         name = "RoboCup"
-    elif env_type is DynEnvType.DRIVE:
-        envs = [lambda: DrivingEnvironment(nPlayers=nPlayers, render=render, observationType=observationType,
-                                                  noiseType=noiseType, noiseMagnitude=noiseMagnitude) for i in
-                range(nEnvs)]
+    elif args.env_type is DynEnvType.DRIVE:
+        envs = [lambda: DrivingEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
+                                                  noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, continuousActions=args.continuous)
+                for i in range(args.num_envs)]
         env = CustomSubprocVecEnv(envs)
         name = "Driving"
     else:

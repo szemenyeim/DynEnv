@@ -23,7 +23,7 @@ if __name__ == '__main__':
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
-    env, env_name = DynEnv.make_dyn_env(DynEnv.DynEnvType.ROBO_CUP, args.num_players, args.num_envs)
+    env, env_name = DynEnv.make_dyn_env(args)
     batch, action_size = env.action_space
     input_size = env.observation_space
 

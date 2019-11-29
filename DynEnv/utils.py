@@ -1,16 +1,54 @@
 from pymunk import Body, Vec2d
 from enum import IntEnum
 
+
+class DynEnvType(IntEnum):
+    ROBO_CUP = 0
+    DRIVE = 1
+
+    def __str__(self):
+        return self.name
+
+    @staticmethod
+    def from_string(s):
+        try:
+            return NoiseType[s]
+        except KeyError:
+            raise ValueError()
+
+
 # Type of noise to be added
 class NoiseType(IntEnum):
     Random = 0
     Realistic = 1
+
+    def __str__(self):
+        return self.name
+
+    @staticmethod
+    def from_string(s):
+        try:
+            return NoiseType[s]
+        except KeyError:
+            raise ValueError()
+
 
 # Observation types
 class ObservationType(IntEnum):
     Full = 0
     Partial = 1
     Image = 2
+
+    def __str__(self):
+        return self.name
+
+    @staticmethod
+    def from_string(s):
+        try:
+            return NoiseType[s]
+        except KeyError:
+            raise ValueError()
+
 
 # Enum for object collision handling
 class CollisionType(IntEnum):
@@ -21,25 +59,31 @@ class CollisionType(IntEnum):
     Pedestrian = 4
     Obstacle = 5
 
+
 # Car friction callback
 def friction_car(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,5e-5,1e-5)
+
 
 # Car friction callback crashed
 def friction_car_crashed(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,5e-4,2e-5)
 
+
 # Dead pedestrian friction
 def friction_pedestrian_dead(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,5e-2,2e-4)
+
 
 # Robot friction callback
 def friction_robot(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,1e-3,1e-2)
 
+
 # Ball friction callback
 def friction_ball(body, gravity, damping, dt):
     apply_friction(body,gravity,damping,dt,3e-2,2e-3,5e-2)
+
 
 def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0):
 

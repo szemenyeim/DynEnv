@@ -1,4 +1,4 @@
-import DynEnv
+from DynEnv import *
 import pygame
 from pygame.locals import *
 import sys
@@ -8,9 +8,9 @@ import argparse
 
 # Launch game, allow user controls
 
-def doRoboCup(nPlayers):
-    env = DynEnv.RoboCupEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
-                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2)
+def doRoboCup(args):
+    env = RoboCupEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
+                                    noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, allowHeadTurn=args.continuous)
     env.setRandomSeed(42)
 
     action0 = [0, 0, 0]
@@ -62,22 +62,22 @@ def doRoboCup(nPlayers):
                 action1 = [0, 0, 0]
                 action2 = [0, 0, 0]
 
-        action = np.array([action1, ] + [action0,] * (nPlayers-1) + [action2,] + [action0,] * (nPlayers-1))
+        action = np.array([action1, ] + [action0,] * (args.num_players-1) + [action2,] + [action0,] * (args.num_players-1))
         #a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
         ret = env.step(action)
         env.render()
         if ret[2]:
             break
 
-def doDrive(nPlayers):
-    env = DynEnv.DrivingEnvironment(nPlayers=nPlayers, render=True, observationType=DynEnv.ObservationType.Partial,
-                                    noiseType=DynEnv.NoiseType.Realistic, noiseMagnitude=2.0)
+def doDrive(args):
+    env = DrivingEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
+                                    noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, continuousActions=args.continuous)
     env.setRandomSeed(42)
     env.reset()
 
     #action1 = [random.randint(0,2), random.randint(0,2)]
     action1 = [1,1]
-    action = np.array([action1,]*(nPlayers*2))
+    action = np.array([action1,]*(args.num_players*2))
 
     while True:
         for event in pygame.event.get():
@@ -111,18 +111,28 @@ def doDrive(nPlayers):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Play with the env')
-    parser.add_argument('--env', type=str, required=True,
-                        help='log directory')
+
+    # env Params
+    parser.add_argument('--env', type=DynEnvType.from_string, choices=list(DynEnvType),
+                        help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
-                        help='number of players in the environment')
+                        help='number of players in the environment [1-5]')
+    parser.add_argument('--observationType', type=ObservationType.from_string, choices=list(ObservationType),
+                        help='Observation type')
+    parser.add_argument('--noiseType', type=NoiseType.from_string, choices=list(NoiseType),
+                        help='Noise type')
+    parser.add_argument('--noiseMagnitude', type=float, default=0.1,
+                        help='Noise magnitude [0-5]')
+    parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='USE_CONTINUOUS_ACTIONS',
+                        help='Enable continuous actions (all actions in driving, head turning in robot soccer)')
 
     args = parser.parse_args()
 
-    drive = True if args.env == "Driving" else False
+    drive = args.env
 
     pygame.init()
 
-    if drive:
-        doDrive(args.num_players)
+    if drive == DynEnvType.DRIVE:
+        doDrive(args)
     else:
-        doRoboCup(args.num_players)
+        doRoboCup(args)
