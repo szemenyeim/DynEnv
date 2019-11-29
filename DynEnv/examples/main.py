@@ -3,12 +3,10 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pymunkoptions
 pymunkoptions.options["debug"] = False
 import DynEnv
-from .agent import ICMAgent
+from DynEnv.models.agent import ICMAgent
 from .args import get_args
-from .train import Runner
-from .utils import set_random_seeds, NetworkParameters, RewardType, AttentionTarget, AttentionType
-from .models import *
-
+from DynEnv.models.train import Runner
+from DynEnv.utils.utils import set_random_seeds, NetworkParameters, RewardType, AttentionTarget, AttentionType
 
 if __name__ == '__main__':
     # arg parsing

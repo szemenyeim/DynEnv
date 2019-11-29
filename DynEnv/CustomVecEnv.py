@@ -6,6 +6,10 @@ import itertools
 import gym
 import numpy as np
 
+from .cutils import DynEnvType
+from .RoboCupEnvironment import RoboCupEnvironment
+from .DrivingEnvironment import DrivingEnvironment
+
 from stable_baselines.common.vec_env.base_vec_env import VecEnv, CloudpickleWrapper
 from stable_baselines.common.tile_images import tile_images
 
@@ -193,3 +197,28 @@ def _flatten_obs(obs, space):
     numT = space[0]
     rearranged = [list(itertools.chain.from_iterable([obs[env][time] for env in range(len(obs))])) for time in range(numT)]
     return rearranged
+
+
+
+""" Create dynamic environment with custom wrapper"""
+def make_dyn_env(args):
+    if args.env_type is DynEnvType.ROBO_CUP:
+        envs = [lambda: RoboCupEnvironment(nPlayers=args.num_players, render=args.render,
+                                           observationType=args.observationType,
+                                           noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude,
+                                           allowHeadTurn=args.use_continuous_actions)
+                for i in range(args.num_envs)]
+        env = CustomSubprocVecEnv(envs)
+        name = "RoboCup"
+    elif args.env_type is DynEnvType.DRIVE:
+        envs = [lambda: DrivingEnvironment(nPlayers=args.num_players, render=args.render,
+                                           observationType=args.observationType,
+                                           noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude,
+                                           continuousActions=args.use_continuous_actions)
+                for i in range(args.num_envs)]
+        env = CustomSubprocVecEnv(envs)
+        name = "Driving"
+    else:
+        raise ValueError
+
+    return env, name

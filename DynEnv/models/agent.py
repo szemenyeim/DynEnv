@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from curiosity.models import A2CNet, ICMNet
+from .models import A2CNet, ICMNet
 
 
 class ICMAgent(nn.Module):

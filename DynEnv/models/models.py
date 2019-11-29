@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
-from curiosity.utils import AttentionType, AttentionTarget
+from DynEnv.utils.utils import AttentionType, AttentionTarget
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 

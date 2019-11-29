@@ -7,10 +7,9 @@ import torch.nn as nn
 
 np.set_printoptions(precision=1)
 
-from .logger import TemporalLogger
-from .utils import AgentCheckpointer
+from DynEnv.utils.logger import TemporalLogger
+from DynEnv.utils.utils import AgentCheckpointer
 from .storage import RolloutStorage
-import time
 
 
 class Runner(object):

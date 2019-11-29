@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .utils import make_dir, numpy_ewma_vectorized_v2, plot_postprocess, print_init, series_indexer, \
-    color4label, label_enum_converter, instance2label
+from .utils import make_dir, plot_postprocess, print_init, color4label, instance2label
 
 
 class LogData(object):

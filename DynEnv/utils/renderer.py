@@ -6,8 +6,7 @@ import pandas as pd
 import torch
 from stable_baselines.common.vec_env import VecFrameStack
 
-from agent import ICMAgent
-from utils import make_dir, series_indexer, label_enum_converter, instance2label
+from .utils import make_dir, series_indexer, label_enum_converter, instance2label
 
 
 class Renderer(object):
@@ -58,7 +57,7 @@ class Renderer(object):
     #
     #             self.load_and_eval(agent, env, agent_name, gif_name, steps)
 
-    def load_and_eval(self, agent: ICMAgent, env, agent_path, gif_path, steps=2500):
+    def load_and_eval(self, agent, env, agent_path, gif_path, steps=2500):
         # load agent and set to evaluation mode
         agent.load_state_dict(torch.load(join(self.data_dir, agent_path)))
         agent.eval()
