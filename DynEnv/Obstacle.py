@@ -14,7 +14,7 @@ class Obstacle(object):
         self.height = height
         self.points = [p+center for p in points]
         self.shape = Poly(body,points)
-        self.shape.color = (255, 255, 255)
+        self.shape.color = (200, 200, 200)
         self.shape.elasticity = 0.05
         self.shape.collision_type = CollisionType.Obstacle
 

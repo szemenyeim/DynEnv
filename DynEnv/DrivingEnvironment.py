@@ -259,7 +259,7 @@ class DrivingEnvironment(object):
     def drawStaticObjects(self):
 
         # Gray screen
-        self.screen.fill((75, 75, 75))
+        self.screen.fill((50, 50, 50))
 
         # Draw roads
         for road in self.roads:
@@ -785,12 +785,12 @@ class DrivingEnvironment(object):
 
             # Draw buildings first
             for build in buildDets:
-                color = (255,255,255)
+                color = (200,200,200)
                 points = build[4]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw self
-            color = (255,255,0)
+            color = (0,255,255)
             points = [p - car.getPos() for p in selfDet[4]]
             cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
@@ -819,13 +819,13 @@ class DrivingEnvironment(object):
 
             # draw obstacles
             for obs in obsDets:
-                color = (255,255,255) if obs[0] == SightingType.Normal else (127,0,127)
+                color = (200,200,200) if obs[0] == SightingType.Normal else (100,100,100)
                 points = obs[4]
                 cv2.fillConvexPoly(img,np.array([(int(p.x+W),int(-p.y+H)) for p in points]),color)
 
             # draw pedestrians
             for ped in pedDets:
-                color = (255,0,0) if ped[0] == SightingType.Normal else (127,0,0)
+                color = (255,255,0) if ped[0] == SightingType.Normal else (127,127,0)
                 point = ped[1]
                 cv2.circle(img,(int(point.x+W),int(-point.y+H)),5,color,-1)
 

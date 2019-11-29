@@ -37,7 +37,7 @@ def get_args():
                         help='number of frames stacked')
     parser.add_argument('--rollout-size', type=int, default=10, metavar='ROLLOUT_SIZE',
                         help='rollout size')
-    parser.add_argument('--num-updates', type=int, default=12000, metavar='NUM_UPDATES',
+    parser.add_argument('--num-updates', type=int, default=60000, metavar='NUM_UPDATES',
                         help='number of updates')
     parser.add_argument('--use-full-entropy', type=bool, default=False, metavar='USE_FULL_ENTROPY',
                         help='use full entropy, not just batch entropy')
@@ -65,7 +65,7 @@ def get_args():
                         help='beta for the ICM module')
     parser.add_argument('--value-coeff', type=float, default=5e-1, metavar='VALUE_COEFF',
                         help='value loss weight factor in the A2C loss')
-    parser.add_argument('--entropy-coeff', type=float, default=1e-1, metavar='ENTROPY_COEFF',
+    parser.add_argument('--entropy-coeff', type=float, default=1e-2, metavar='ENTROPY_COEFF',
                         help='entropy loss weight factor in the A2C loss')
     parser.add_argument('--forward-coeff', type=float, default=1e-2, metavar='FORWARD_COEFF',
                         help='forward loss weight factor in the ICM loss')
