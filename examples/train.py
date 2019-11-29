@@ -118,8 +118,8 @@ class Runner(object):
                     goals = [0,0]
 
                 self.logger.log(
-                             **{"ep_rewards": np.array(self.storage.episode_rewards),
-                                "ep_pos_rewards": np.array(self.storage.episode_pos_rewards)})
+                             **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
+                                "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:])})
 
                 print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
                       % (int(num_update/updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
