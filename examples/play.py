@@ -10,7 +10,7 @@ import argparse
 
 def doRoboCup(args):
     env = RoboCupEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
-                                    noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, allowHeadTurn=args.continuous)
+                             noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, allowHeadTurn=args.use_continuous_actions)
     env.setRandomSeed(42)
 
     action0 = [0, 0, 0]
@@ -71,7 +71,7 @@ def doRoboCup(args):
 
 def doDrive(args):
     env = DrivingEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
-                                    noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, continuousActions=args.continuous)
+                             noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, continuousActions=args.use_continuous_actions)
     env.setRandomSeed(42)
     env.reset()
 
@@ -113,18 +113,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Play with the env')
 
     # env Params
-    parser.add_argument('--env', type=DynEnvType.from_string, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.from_string, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
-    parser.add_argument('--observationType', type=ObservationType.from_string, choices=list(ObservationType),
+    parser.add_argument('--observationType', default=ObservationType.Partial, type=ObservationType.from_string, choices=list(ObservationType),
                         help='Observation type')
-    parser.add_argument('--noiseType', type=NoiseType.from_string, choices=list(NoiseType),
+    parser.add_argument('--noiseType', default=NoiseType.Realistic, type=NoiseType.from_string, choices=list(NoiseType),
                         help='Noise type')
-    parser.add_argument('--noiseMagnitude', type=float, default=0.1,
+    parser.add_argument('--noiseMagnitude', type=float, default=1.0,
                         help='Noise magnitude [0-5]')
-    parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='USE_CONTINUOUS_ACTIONS',
+    parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='CONTINUOUS',
                         help='Enable continuous actions (all actions in driving, head turning in robot soccer)')
+    parser.add_argument('--render', type=bool, default=True, metavar='RENDER',
+                        help='Enable rendering')
 
     args = parser.parse_args()
 

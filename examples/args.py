@@ -44,18 +44,20 @@ def get_args():
 
 
     # env Params
-    parser.add_argument('--env', type=DynEnvType.from_string, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.from_string, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
-    parser.add_argument('--observationType', type=ObservationType.from_string, choices=list(ObservationType),
+    parser.add_argument('--observationType', default=ObservationType.Partial, type=ObservationType.from_string, choices=list(ObservationType),
                         help='Observation type')
-    parser.add_argument('--noiseType', type=NoiseType.from_string, choices=list(NoiseType),
+    parser.add_argument('--noiseType', default=NoiseType.Realistic, type=NoiseType.from_string, choices=list(NoiseType),
                         help='Noise type')
     parser.add_argument('--noiseMagnitude', type=float, default=0.1,
                         help='Noise magnitude [0-5]')
-    parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='USE_CONTINUOUS_ACTIONS',
+    parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='CONTINUOUS',
                         help='Enable continuous actions (all actions in driving, head turning in robot soccer)')
+    parser.add_argument('--render', type=bool, default=False, metavar='RENDER',
+                        help='Enable rendering')
 
 
     # model coefficients
