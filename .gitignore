@@ -5,3 +5,4 @@ __pycache__/
 DynEnv/examples/jupyter/.ipynb_checkpoints
 log/
 figures/
+build/

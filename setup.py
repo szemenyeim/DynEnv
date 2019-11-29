@@ -5,26 +5,29 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='DynEnv',
-    version='0.1',
+    version='0.2',
     author="Marton Szemenyei",
     author_email="szemenyei@iit.bme.hu",
     description="Dynamic RL Environments for Autonomous Driving and Robot Soccer",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/szemenyeim/RoboEnv",
+    url="https://github.com/szemenyeim/DynEnv",
     packages=setuptools.find_packages(),
     classifiers=[
-     "Programming Language :: Python :: 3",
-     "License :: OSI Approved :: MIT License",
-     "Operating System :: OS Independent",
+         "Programming Language :: Python :: 3",
+         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+         "Operating System :: OS Independent",
     ],
     python_requires='>=3.5',
     install_requires=[
-       'opencv-python',
-       'numpy',
-       'pymunk',
-       'pygame',
-       'gym',
-       'stable-baselines'
+        'opencv-python',
+        'numpy',
+        'pymunk',
+        'pygame',
+        'gym',
+        'stable-baselines',
+        'torch',
+        'pandas',
+        'matplotlib'
     ],
  )

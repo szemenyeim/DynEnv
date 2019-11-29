@@ -4,7 +4,6 @@ import imageio
 import numpy as np
 import pandas as pd
 import torch
-from stable_baselines.common.vec_env import VecFrameStack
 
 from .utils import make_dir, series_indexer, label_enum_converter, instance2label
 
