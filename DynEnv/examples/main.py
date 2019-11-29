@@ -1,6 +1,8 @@
 import os
+
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pymunkoptions
+
 pymunkoptions.options["debug"] = False
 import DynEnv
 from DynEnv.models.agent import ICMAgent
@@ -21,7 +23,9 @@ if __name__ == '__main__':
     attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
-    env, env_name = DynEnv.make_dyn_env(args)
+    env, env_name = DynEnv.make_dyn_env(args.env, args.num_envs, args.num_players, args.render, args.observationType,
+                                        args.noiseType, args.noiseMagnitude,
+                                        args.use_continuous_actions)
     batch, action_size = env.action_space
     input_size = env.observation_space
 
