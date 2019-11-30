@@ -58,6 +58,7 @@ For the above, confer the `DynEnv/examples` directory. The `main.py` file consis
 ### Model structure
 The most important part from the point of view of the neural network is the `DynEnv/models` directory, which exposes you the following classes:
 - _ICMAgent_: the top-level agent consisting of an A2C and an Intrinsic Curiosity Module (and its variant, [Rational Curiosity Module](https://github.com/rpatrik96/AttA2C))
+- _InOutArranger_: helper class to rearrange observations for simple NN forwarding
 - _EmbedBlock_: the embedding network used for an object
 - _InputLayer_: a complex network which convert all observations into a unified feature space
 - _ActorBlock_: a neural network predicting actions for a given action type
