@@ -130,8 +130,7 @@ class InOutArranger(object):
         inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
         return inputs, (counts, maxCount, objCounts)
 
-    def rearrange_outputs(self, outs, countArr):#counts, maxCount, outs:
-        device = outs[0].device
+    def rearrange_outputs(self, outs, countArr, device):#counts, maxCount, outs:
 
         counts = countArr[0]
         maxCount = countArr[1]
@@ -306,7 +305,7 @@ class InputLayer(nn.Module):
         outs = [block(torch.tensor(obj).to(device)) for block, obj in zip(self.blocks, inputs)]
 
         # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
-        outs, masks = self.arranger.rearrange_outputs(outs, counts)
+        outs, masks = self.arranger.rearrange_outputs(outs, counts, device)
 
         return outs, masks
 
