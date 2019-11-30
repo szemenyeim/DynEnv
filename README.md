@@ -126,7 +126,7 @@ Full Observation            |  Partial Observation
 - `reset()` Resets the environment to a new game and returns initial observations.
 - `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
 - `observationSpace` Returns information about the observations returned by the environrment. (**Note: These are not Gym Compatible, see the folowing section**)
-- `actionSpace` Returns information about the actions the environment expects. (**Note: These are not Gym Compatible, see the folowing section**)
+- `actionSpace` Returns information about the actions the environment expects.
 - `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
 - `renderMode` Whether to render to a display (`'human'`) or to a memory array (`'memory'`).
 - `agentVisID` With this, you can visualize the observation of an agent during rendering.
