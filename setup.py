@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='DynEnv',
-    version='0.2',
+    version='1.0',
     author="Marton Szemenyei",
     author_email="szemenyei@iit.bme.hu",
     description="Dynamic RL Environments for Autonomous Driving and Robot Soccer",
