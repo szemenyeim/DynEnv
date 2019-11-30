@@ -83,24 +83,26 @@ Here are some examples of different noise and observation types
 
 #### Random Noise
 
-![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/randNoise/game.gif)
-![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/randNoise/obs.gif)
-![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/randNoise/top.gif)
-![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/randNoise/bottom.gif)
+{% include /images/image.html url="/images/randNoise/game.gif" description="Gameplay" %}
+
+![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/game.gif)
+![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/obs.gif)
+![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/top.gif)
+![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/bottom.gif)
 
 #### Realistic Noise
 
-![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/realNoise/game.gif)
-![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/realNoise/obs.gif)
-![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/realNoise/top.gif)
-![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/realNoise/bottom.gif)
+![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/game.gif)
+![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/obs.gif)
+![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/top.gif)
+![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/bottom.gif)
 
 #### Large, Realistic Noise
 
-![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/game.gif)
-![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/obs.gif)
-![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/top.gif)
-![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/bottom.gif)
+![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/game.gif)
+![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/obs.gif)
+![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/top.gif)
+![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/bottom.gif)
 
 ### Important functions and members
 
