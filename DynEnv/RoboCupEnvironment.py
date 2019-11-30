@@ -52,7 +52,7 @@ class RoboCupEnvironment(object):
         if self.observationType == ObservationType.Full:
             self.observation_space = [5, self.nPlayers * 2, 3, [4, 6, 6]]
         elif self.observationType == ObservationType.Image:
-            self.observation_space = [5, self.nPlayers * 2, [8, 480, 640]]
+            self.observation_space = [5, self.nPlayers * 2, [4, 480, 640]]
         else:
             self.observation_space = [5, self.nPlayers * 2, 6, [5, 6, 3, 3, 4, 3]]
 
@@ -927,9 +927,16 @@ class RoboCupEnvironment(object):
     def getFullState(self,robot=None):
 
         if robot is None:
-            state = [np.array([[normalize(rob.getPos()[0],self.normX,self.mean),normalize(rob.getPos()[1],self.normY,self.mean),
-                              rob.team,int(rob.fallen or rob.penalized)] for rob in self.robots]).astype('float32'),
-                     np.array([normalize(self.ball.getPos()[0],self.normX,self.mean),normalize(self.ball.getPos()[1],self.normY,self.mean),self.ballOwned]).astype('float32')]
+            state = [np.array([[normalize(rob.getPos()[0],self.normX,self.mean),
+                                normalize(rob.getPos()[1],self.normY,self.mean),
+                                math.cos(rob.getAngle()), math.sin(rob.getAngle()),
+                                rob.team,
+                                int(rob.fallen or rob.penalized)]
+                               for rob in self.robots]).astype('float32'),
+
+                     np.array([normalize(self.ball.getPos()[0],self.normX,self.mean),
+                               normalize(self.ball.getPos()[1],self.normY,self.mean),
+                               self.ballOwned]).astype('float32')]
         else:
             # flip axes for team -1
             team = robot.team
@@ -939,19 +946,23 @@ class RoboCupEnvironment(object):
                 np.array([
                     [normalizeAfterScale(self.ball.getPos()[0],self.normX,pos.x,team),
                      normalizeAfterScale(self.ball.getPos()[1],self.normY,pos.y,team),
-                     self.ballOwned*robot.team, robot.id in self.closestID],]).astype('float32'),
+                     self.ballOwned*robot.team,
+                     robot.id in self.closestID],]).astype('float32'),
+
                    np.array([[
                        normalize(robot.getPos()[0],self.normX,self.mean,team),
                        normalize(robot.getPos()[1],self.normY,self.mean,team),
-                       math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
+                       math.cos(robot.getAngle(team)), math.sin(robot.getAngle(team)),
                        robot.team,
                        int(robot.fallen or robot.penalized)],]).astype('float32'),
+
                    np.array([
                        [normalizeAfterScale(rob.getPos()[0],self.normX,pos.x,team),
                         normalizeAfterScale(rob.getPos()[1],self.normY,pos.y,team),
-                        math.cos(robot.getAngle(team)),math.sin(robot.getAngle(team)),
+                        math.cos(robot.getAngle(team)), math.sin(robot.getAngle(team)),
                         rob.team*robot.team,
-                        int(rob.fallen or rob.penalized)] for rob in self.robots if rob != robot]).astype('float32')]
+                        int(rob.fallen or rob.penalized)]
+                       for rob in self.robots if rob != robot]).astype('float32')]
         return state
 
     # Getting vision
