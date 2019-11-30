@@ -26,7 +26,7 @@ if __name__ == '__main__':
     env, env_name = DynEnv.make_dyn_env(args.env, args.num_envs, args.num_players, args.render, args.observationType,
                                         args.noiseType, args.noiseMagnitude,
                                         args.use_continuous_actions)
-    batch, action_size = env.action_space
+    action_size = env.action_space
     input_size = env.observation_space
 
     # True number of players: RoboCup Env asks for players per team

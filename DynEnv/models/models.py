@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from DynEnv.utils.utils import AttentionType, AttentionTarget
+from gym.spaces import MultiDiscrete, Box
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -156,52 +157,6 @@ class InOutArranger(object):
 
         return outs, masks
 
-
-# Outputs a certain type of action
-class ActorBlock(nn.Module):
-    def __init__(self, features, actions, action_type, means=None, scale=None):
-        super().__init__()
-
-        self.action_type = action_type
-        # Initialize
-        self.means = None
-        self.scale = None
-
-        # For continous actions a desired interval can be given [mean-range:mean+range] (otherwise [0:1])
-        if means is not None:
-            self.means = torch.Tensor(means)
-            self.scale = torch.Tensor(scale)
-            assert (len(means) == len(scale) and len(means) == actions)
-
-        # Create layers
-        self.Layer = nn.Linear(features, actions)
-        self.activation = None if action_type == 'cat' else nn.Sigmoid()
-
-    # Put means and std on the correct device when .cuda() or .cpu() is called
-    def _apply(self, fn):
-        super(ActorBlock, self)._apply(fn)
-        if self.means is not None:
-            self.means = fn(self.means)
-            self.scale = fn(self.scale)
-        return self
-
-    # Forward
-    def forward(self, x):
-
-        # Forward
-        x = self.Layer(x)
-        if self.activation is not None:
-            x = self.activation(x)
-
-        # Optional scaling
-        # continuous
-        if self.means is not None:
-            x = (x - 0.5) * self.scale + self.means
-            entropy = 0
-
-        return x
-
-
 # Outputs a certain type of action
 class CriticBlock(nn.Module):
     def __init__(self, feature_size, out_size):
@@ -231,6 +186,47 @@ class CriticLayer(nn.Module):
         return self.blocks(x)
 
 
+# Outputs a certain type of action
+class ActorBlock(nn.Module):
+    def __init__(self, features, action_space):
+        super().__init__()
+
+        self.cont = type(action_space) == Box
+
+        # For continous actions a desired interval can be given [mean-range:mean+range] (otherwise [0:1])
+        if self.cont:
+            self.shape = sum(action_space.shape)
+            mean = (action_space.high+action_space.low)*0.5
+            scale = (action_space.high-action_space.low)*0.5
+            self.means = torch.tensor(mean)
+            self.scale = torch.tensor(scale)
+            self.Layer = nn.Linear(features, self.shape)
+            self.activation = nn.Sigmoid()
+        else:
+            actionNum = action_space.nvec
+            self.Layer = nn.ModuleList([nn.Linear(features,num) for num in actionNum])
+
+    # Put means and std on the correct device when .cuda() or .cpu() is called
+    def _apply(self, fn):
+        super(ActorBlock, self)._apply(fn)
+        if self.cont:
+            self.means = fn(self.means)
+            self.scale = fn(self.scale)
+        return self
+
+    # Forward
+    def forward(self, x):
+
+        if self.cont:
+            x = self.Layer(x)
+            x = self.activation(x)
+            x = (x - 0.5) * self.scale + self.means
+        else:
+            x = [l(x) for l in self.Layer]
+
+        return x
+
+
 # Complete action layer for multiple action groups
 class ActorLayer(nn.Module):
     def __init__(self, features, actions):
@@ -238,11 +234,11 @@ class ActorLayer(nn.Module):
 
         # Create action groups
         self.blocks = nn.ModuleList(
-            [ActorBlock(features, action[1], action[0], action[2], action[3]) for action in actions])
+            [ActorBlock(features, action) for action in actions])
 
     # Return list of actions
     def forward(self, x):
-        outs = [block(x) for block in self.blocks]  # predict each action type
+        outs = flatten([block(x) for block in self.blocks]) # predict each action type
         return outs
 
 
@@ -551,7 +547,9 @@ class AdversarialHead(nn.Module):
         self.feat_size = feat_size
         self.action_descriptor = action_descriptor
         # number of discrete actions per type
-        self.action_num_per_type = [action[1] for action in self.action_descriptor]
+        self.action_num_per_type = flatten([
+            [num for num in action.nvec] if type(action)==MultiDiscrete else sum(action.shape)
+            for action in self.action_descriptor])
 
         # start indx of each action type (i.e. cumsum)
         self.action_num_per_type_start_idx = np.cumsum([0, *self.action_num_per_type[:-1]])

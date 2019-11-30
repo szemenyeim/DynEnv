@@ -14,7 +14,7 @@ import numpy as np
 import random
 from collections import deque
 import warnings
-# from gym.spaces import Tuple, MultiDiscrete, Box
+from gym.spaces import Tuple, MultiDiscrete, Box
 
 class DrivingEnvironment(object):
 
@@ -73,18 +73,18 @@ class DrivingEnvironment(object):
 
         # Action space
         if self.continuousActions:
-            # action_space = Tuple(self.nPlayers*[Box(-3, +3, shape=(2,))])
-            self.action_space = \
+            self.action_space = Tuple((Box(-3, +3, shape=(2,)),))
+            '''self.action_space = \
                 [self.nPlayers, [
                     ['cont', 2, [0, 0], [6, 6]],
-                ]]
+                ]]'''
         else:
-            # action_space = Tuple(self.nPlayers*[MultiDiscrete([3,3])])
-            self.action_space = \
+            self.action_space = Tuple((MultiDiscrete([3,3]),))
+            '''self.action_space = \
                 [self.nPlayers, [
                     ['cat', 3, None, None],
                     ['cat', 3, None, None],
-                ]]
+                ]]'''
 
         # Time rewards
         self.maxTime = 6000

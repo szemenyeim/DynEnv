@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 from collections import deque
 import warnings
+from gym.spaces import Tuple, MultiDiscrete, Box
 
 
 class RoboCupEnvironment(object):
@@ -57,20 +58,22 @@ class RoboCupEnvironment(object):
 
         # Action space
         if self.allowHeadTurn:
-            self.action_space =\
+            self.action_space = Tuple((MultiDiscrete([5,3,3]),Box(low=-6,high=6,shape=(1,))))
+            '''self.action_space =\
                 [self.nPlayers * 2, [
                     ['cat', 5, None, None],
                     ['cat', 3, None, None],
                     ['cat', 3, None, None],
                     ['cont',1,[0,],[12,]],
-                ]]
+                ]]'''
         else:
-            self.action_space =\
+            self.action_space = Tuple((MultiDiscrete([5,3,3]),))
+            '''self.action_space =\
                 [self.nPlayers * 2, [
                     ['cat', 5, None, None],
                     ['cat', 3, None, None],
                     ['cat', 3, None, None],
-                ]]
+                ]]'''
 
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:

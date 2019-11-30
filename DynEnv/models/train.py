@@ -11,6 +11,8 @@ from DynEnv.utils.logger import TemporalLogger
 from DynEnv.utils.utils import AgentCheckpointer
 from .storage import RolloutStorage
 
+from gym.spaces import Box
+
 
 class Runner(object):
 
@@ -38,9 +40,12 @@ class Runner(object):
         if self.is_cuda:
             self.net = self.net.cuda()
 
+        # Get number of actions
+        self.numActions = sum([sum(act.shape) if type(act) == Box else sum(act.nvec.shape) for act in self.net.action_descriptor])
+
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
-                                      len(self.net.action_descriptor), self.params.n_stack, self.net.feat_size,
+                                      self.numActions, self.params.n_stack, self.net.feat_size,
                                       is_cuda=self.is_cuda, use_full_entropy=self.params.use_full_entropy)
 
     def train(self):
