@@ -5,6 +5,7 @@ import sys
 import numpy as np
 import random
 import argparse
+import cv2
 
 # Launch game, allow user controls
 
@@ -12,6 +13,8 @@ def doRoboCup(args):
     env = RoboCupEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
                              noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, allowHeadTurn=args.use_continuous_actions)
     env.setRandomSeed(42)
+    env.reset()
+    env.renderMode = 'human'
     env.agentVisID = 1
 
     action0 = [0, 0, 0]
@@ -66,7 +69,7 @@ def doRoboCup(args):
         action = np.array([action1, ] + [action0,] * (args.num_players-1) + [action2,] + [action0,] * (args.num_players-1))
         #a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
         ret = env.step(action)
-        env.render()
+        rend = env.render()
         if ret[2]:
             break
 
@@ -75,11 +78,15 @@ def doDrive(args):
                              noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, continuousActions=args.use_continuous_actions)
     env.setRandomSeed(42)
     env.reset()
+    env.renderMode = 'human'
     env.agentVisID = 1
 
     #action1 = [random.randint(0,2), random.randint(0,2)]
     action1 = [1,1]
     action = np.array([action1,]*(args.num_players))
+
+    gameCnt = 0
+    obsCnt = 0
 
     while True:
         for event in pygame.event.get():
@@ -105,7 +112,15 @@ def doDrive(args):
 
         #a1 = np.random.randint(0,3,(nPlayers*2,2))
         ret = env.step(action)
-        env.render()
+        rend = env.render()
+
+        '''for img in rend[0]:
+            cv2.imwrite("../../images/drive/game/img%d.png" % gameCnt, img)
+            gameCnt += 1
+        for img in rend[1]:
+            cv2.imwrite("../../images/drive/obs/img%d.png" % obsCnt, img)
+            obsCnt += 1'''
+
         if ret[2]:
             break
 
@@ -115,7 +130,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Play with the env')
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.ROBO_CUP, type=DynEnvType.from_string, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.from_string, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')

@@ -393,7 +393,7 @@ class RoboCupEnvironment(object):
         if self.renderMode == 'memory':
             img = pygame.surfarray.array3d(self.screen).transpose([1,0,2])
             self.screenShots.append(cv2.cvtColor(img,cv2.COLOR_BGR2RGB))
-            pygame.display.iconify()
+            #pygame.display.iconify()
 
     def render(self):
         if self.renderMode == 'human':
