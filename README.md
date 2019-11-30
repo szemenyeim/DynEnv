@@ -125,8 +125,8 @@ Full Observation            |  Partial Observation
 
 - `reset()` Resets the environment to a new game and returns initial observations.
 - `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
-- `observationSpace` Returns information about the observations returned by the environrment. (**Note: These are not Gym Compatible, see the folowing section**)
-- `actionSpace` Returns information about the actions the environment expects.
+- `observation_space` Returns information about the observations returned by the environrment. (**Note: These are not Gym Compatible, see the folowing section**)
+- `action_space` Returns information about the actions the environment expects.
 - `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
 - `renderMode` Whether to render to a display (`'human'`) or to a memory array (`'memory'`).
 - `agentVisID` With this, you can visualize the observation of an agent during rendering.
@@ -164,7 +164,7 @@ Position information is normalized in both the observations and the full state.
 
 #### The Observation Space
 
-Due to limitations in the OpenAI gym, this part of the env is not fully compatible. The `observationSpace` variable is a list containing the following variables:
+Due to limitations in the OpenAI gym, this part of the env is not fully compatible. The `observation_space` variable is a list containing the following variables:
 
 `[nTimeSteps, nAgents, nObjectType, [<number of features for every object type>]]`
  
@@ -184,7 +184,7 @@ from DynEnv.models import *
 from torch import nn
 
 myEnv = ...
-obsSpace = myEnv.observationSpace
+obsSpace = myEnv.observation_space
 nTime = obsSpace[0]
 nPlayers = obsSpace[1]
 nObj = obsSpace[2]
@@ -195,7 +195,7 @@ myNeuralNets = [nn.Linear(objfeat,128).to(device) for objFeat in featuresPerObje
 myArranger = models.InOutArranger(nObj,nPlayers,nTime)
 
 ...
-
+actions = torch.stack([action_space.sample() for _ in range(nPlayers)]
 obs, _ = myEnv.step(actions)
 
 netInputs, counts = myArranger.rearrange_inputs(obs)
