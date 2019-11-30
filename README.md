@@ -83,26 +83,36 @@ Here are some examples of different noise and observation types
 
 #### Random Noise
 
-{% include /images/image.html url="/images/randNoise/game.gif" description="Gameplay" %}
+Full Observation            |  Partial Observation
+:-------------------------:|:-------------------------:
+![](/images/randNoise/game.gif)  |  ![](/images/randNoise/obs.gif)
 
-![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/game.gif)
-![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/obs.gif)
-![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/top.gif)
-![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/randNoise/bottom.gif)
+Top Camera            |  Bottom Camera
+:-------------------------:|:-------------------------:
+![](/images/randNoise/top.gif)  |  ![](/images/randNoise/bottom.gif)
+
 
 #### Realistic Noise
 
-![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/game.gif)
-![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/obs.gif)
-![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/top.gif)
-![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/realNoise/bottom.gif)
+
+Full Observation            |  Partial Observation
+:-------------------------:|:-------------------------:
+![](/images/realNoise/game.gif)  |  ![](/images/realNoise/obs.gif)
+
+Top Camera            |  Bottom Camera
+:-------------------------:|:-------------------------:
+![](/images/realNoise/top.gif)  |  ![](/images/realNoise/bottom.gif)
 
 #### Large, Realistic Noise
 
-![Full](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/game.gif)
-![Partial](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/obs.gif)
-![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/top.gif)
-![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/images/bigNoise/bottom.gif)
+
+Full Observation            |  Partial Observation
+:-------------------------:|:-------------------------:
+![](/images/bigNoise/game.gif)  |  ![](/images/bigNoise/obs.gif)
+
+Top Camera            |  Bottom Camera
+:-------------------------:|:-------------------------:
+![](/images/bigNoise/top.gif)  |  ![](/images/bigNoise/bottom.gif)
 
 ### Important functions and members
 
