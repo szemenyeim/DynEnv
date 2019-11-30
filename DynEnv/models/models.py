@@ -127,9 +127,15 @@ class InOutArranger(object):
             for i in range(self.nObjects)
         ]
         inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
-        return counts, inputs, maxCount, objCounts
+        return inputs, (counts, maxCount, objCounts)
 
-    def rearrange_outputs(self, counts, maxCount, outs):
+    def rearrange_outputs(self, outs, countArr):#counts, maxCount, outs:
+        device = outs[0].device
+
+        counts = countArr[0]
+        maxCount = countArr[1]
+        objCounts = countArr[2]
+
         # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
         outs = torch.stack(
             [torch.stack(
@@ -144,7 +150,11 @@ class InOutArranger(object):
                 for time in range(self.nTime)
             ])
         outs = outs.permute(0, 2, 1, 3)
-        return outs
+
+        maxNum = outs.shape[1]
+        masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
+
+        return outs, masks
 
 
 # Outputs a certain type of action
@@ -294,16 +304,13 @@ class InputLayer(nn.Module):
 
         # Object counts [type x timeStep x nPlayer]
         # for each object type, for each timestep, the number of seen objects is calculated
-        counts, inputs, maxCount, objCounts = self.arranger.rearrange_inputs(x)
+        inputs, counts = self.arranger.rearrange_inputs(x)
 
         # Call embedding block for all object types
         outs = [block(torch.tensor(obj).to(device)) for block, obj in zip(self.blocks, inputs)]
 
         # Arrange objects in tensor [TimeSteps x maxObjCnt x nPlayers x featureCnt] using padding
-        outs = self.arranger.rearrange_outputs(counts, maxCount, outs)
-
-        maxNum = outs.shape[1]
-        masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
+        outs, masks = self.arranger.rearrange_outputs(outs, counts)
 
         return outs, masks
 
