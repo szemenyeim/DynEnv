@@ -6,7 +6,7 @@ import pymunkoptions
 pymunkoptions.options["debug"] = False
 import DynEnv
 from DynEnv.models.agent import ICMAgent
-from DynEnv.examples.args import get_args
+from args import get_args
 from DynEnv.models.train import Runner
 from DynEnv.utils.utils import set_random_seeds, NetworkParameters, RewardType, AttentionTarget, AttentionType
 

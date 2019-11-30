@@ -134,9 +134,9 @@ if __name__ == '__main__':
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
-    parser.add_argument('--observationType', default=ObservationType.Partial, type=ObservationType.from_string, choices=list(ObservationType),
+    parser.add_argument('--observationType', default=ObservationType.PARTIAL, type=ObservationType.from_string, choices=list(ObservationType),
                         help='Observation type')
-    parser.add_argument('--noiseType', default=NoiseType.Realistic, type=NoiseType.from_string, choices=list(NoiseType),
+    parser.add_argument('--noiseType', default=NoiseType.REALISTIC, type=NoiseType.from_string, choices=list(NoiseType),
                         help='Noise type')
     parser.add_argument('--noiseMagnitude', type=float, default=1.0,
                         help='Noise magnitude [0-5]')
