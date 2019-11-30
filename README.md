@@ -121,7 +121,9 @@ Top Camera            |  Bottom Camera
 - `observationSpace` Returns information about the observations returned by the environrment. (**Note: These are not Gym Compatible, see the folowing section**)
 - `actionSpace` Returns information about the actions the environment expects. (**Note: These are not Gym Compatible, see the folowing section**)
 - `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
-- `render(mode='human', agentID=None)` Returns rendered images. For parital observations, a rendered image for the selected agent is also returned.
+- `renderMode` Whether to render to a display (`'human'`) or to a memory array (`'memory'`).
+- `agentVisID` With this, you can visualize the observation of an agent during rendering.
+- `render()` Returns rendered images if the render mode is `'memory'`. Does nothing otherwise, as the rendering is done by the step function due to the multi-timestep feature.
 
 ### So, what are the actions?
 
