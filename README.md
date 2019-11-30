@@ -16,9 +16,9 @@ This project contains two reinforcement learning environments based on 2D physic
 
 ## Installation
 
-~~You can install simply using pip:~~ (Not yet, be patient!) :)
+You can install simply using pip:
 
-`pip install dynenv`
+`pip install DynEnv`
 
 Or build from source:
 
@@ -40,8 +40,15 @@ myEnv = DrivingEnvironment(nPlayers)
 
 ret = myEnv.step(actions)
 ```
+
+Or create vectorized environments by using:
+
+```python
+make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude, use_continuous_actions)
+env = DynEnvType.ROBO_CUP or DynEnvType.DRIVE
+```
+
 More complex examples including 
-- vectorized environments (for which a factory function, `make_dyn_env` is provided in the `CustomVecEnv.py` file),
 - neural networks tailored for the special output format (i.e. the number of observations can vary through time),
 - logging and
 - plotting the results.
@@ -63,11 +70,13 @@ The most important part from the point of view of the neural network is the `Dyn
 
 Here are some of the important settings of the environments
 
-- **nPlayers [1-5]**: Number of total players per team. The total number of players is twice this in both environments.
+- **nPlayers [1-5/10]**: Number of total players in the environment (in the RoboCup env this is per team). The limit is 10 in the Driving, 5 in the RoboCup env.
 - **render [bool]**: Whether to visualize the environment.
 - **observationType [Full, Partial, Image]**: Image observation only supported for the RoboCup environment.
 - **noiseType [Random, Realistic]**: Realistic noise: noise magnitude and false negative rate depends on distance, proximity of other objects and sighting type. False positives and misclassifications are more likely to occur in certain situations.
 - **noiseMagnitude [0-5]**: Variable to control noise
+- **continuousActions [bool]**: Whether the driving env actions are understood as categorical or continuous. (Driving env only)
+- **allowHeadturn [bool]**: Enables head turining actions. (RoboCup env only)
 
 Here are some examples of different noise and observation types
 
@@ -92,79 +101,131 @@ Here are some examples of different noise and observation types
 ![Top camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/top.gif)
 ![Bottom camera image](https://raw.githubusercontent.com/szemenyeim/DynEnv/master/bigNoise/bottom.gif)
 
-### Important functions
+### Important functions and members
 
 - `reset()` Resets the environment to a new game and returns initial observations.
 - `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
-- `getObservationSize()` Returns information about the observations returned by the environrment.
-- `getActionSize()` Returns information about the actions the environment expects.
+- `observationSpace` Returns information about the observations returned by the environrment. (**Note: These are not Gym Compatible, see the folowing section**)
+- `actionSpace` Returns information about the actions the environment expects. (**Note: These are not Gym Compatible, see the folowing section**)
 - `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
+- `render(mode='human', agentID=None)` Returns rendered images. For parital observations, a rendered image for the selected agent is also returned.
 
 ### So, what are the actions?
 
 The environments expect an iterable object containing the actions for every player. Each player action must contain the following:
 
 #### RoboCup:
-- **Movement direction:** 0,1,2,3,4
-- **Turn:** 0,1,2
-- **Turn head:** between +/-6
-- **Kick: 0,1,2** (this is exclusive with moving or turning)
+- **Movement direction:** Categorical (5)
+- **Turn:** Categorical (3)
+- **Turn head:** Continuous [-6 +6]
+- **Kick:** Categorical (3) (this is exclusive with moving or turning)
 
 #### Driving:
-- **Gas/break:** between +/-3
-- **Turn: between** +/- 3
+- **Gas/break:** Continuous [-3 +3] or Categorical (3)
+- **Turn:** Continuous [-3 +3] or Categorical (3)
 
 ### What is returned?
 
 Both environments return the following variables in the step function:
 
-- **Full state:** The full state variables.
-- **Observations:** Observations for every robot/car. What this is exactly depends on the observationType variable.
-- **Car/Robot rewards:** Rewards for each car or robot.
-  - **Team rewards:** Shared rewards for every team. These are added to the Car/Robot rewards variables, and are not returned.
+- **Observations:** Observations for every agent. What this is exactly depends on the observationType variable.
+- **Rewards:** Rewards for each agent.
+  - **Team rewards:** Shared rewards for every team. These are added to the agent reward variables, and are not returned.
 - **Finished:** Game over flag
+- **Info:** Other important data
+  - **Full State:** The full state of the env
+  - **episode_r**: Cumulative rewards for the episode (Returned only at the end of an episode)
+  - **episode_p_r**: Cumulative positive-only rewards for the episode (Returned only at the end of an episode)
+  - **episode_g**: Goals in these episode (RoboCup env only) (Returned only at the end of an episode)
 
-Position information is normalized between +/-1 in both the observations and the full state.
+Position information is normalized in both the observations and the full state.
+
+#### The Observation Space
+
+Due to limitations in the OpenAI gym, this part of the env is not fully compatible. The `observationSpace` variable is a list containing the following variables:
+
+`[nTimeSteps, nAgents, nObjectType, [<number of features for every object type>]]`
+ 
+The observations returned are arranged as follows:
+ 
+`[nParallelEnvs x nTimeSteps x nAgents x nObjectType]`
+  
+Each element of the above list is a NumPy array containing all the observations by a single agent in a single timestep. To help contructing input layers a custom class `DynEnv.models.InOutArranger` is provided with the following two functions:
+
+- `inputs, counts = rearrange_inputs(x)`: Creates a single list of NumPy arrays. Each element of this list contains a single numpy array of all the observations for a given object type. (Warning: in some cases this might be an empty list!)
+- `outputs, masks = rearrange_outputs(inputs, counts)`: Takes a list of Torch Tensors and the counts output by the previous function, and creates a single tensor shaped [TimeSteps x maxObjCnt x nPlayers x featureCnt] by padding the second dimension to the largest number of objects seen for every robot. The masks variable is binary array shaped [TimeSteps x maxObjCnt x nPlayers], which is True for padded elements (this is in line with PyTorch's MultiHeadedAttention layer). (Warning: This assumes that the featureCnt is the same for every object time.)
+
+Here is a more comprehensive example:
+
+```python
+from DynEnv.models import *
+from torch import nn
+
+myEnv = ...
+obsSpace = myEnv.observationSpace
+nTime = obsSpace[0]
+nPlayers = obsSpace[1]
+nObj = obsSpace[2]
+featuresPerObject = obsSpace[3]
+
+device = <CUDA or CPU>
+myNeuralNets = [nn.Linear(objfeat,128).to(device) for objFeat in featuresPerObject]
+myArranger = models.InOutArranger(nObj,nPlayers,nTime)
+
+...
+
+obs, _ = myEnv.step(actions)
+
+netInputs, counts = myArranger.rearrange_inputs(obs)
+netOutputs = [myNet(torch.tensor(netInput).to(device)) for myNet,netInput in zip(myNeuralNets,netInputs)]
+outputs,masks = myArranger.rearrange_outputs(netOutputs,counts)
+
+```
 
 #### RoboCup
 
 The full state contains the following:
 
-- Balls **[position, ball owned team ID]**
-- Robots **[position, angle, team, fallen or penalized]**
+- Robots **[x, y, cos(angle), sin(angle), team, fallen or penalized]**
+- Balls **[x, y, ball owned team ID]**
 
-If the observation is full state, the robot's own position is returned in a separate list, and the x axis is flipped for team 1. Moreover, in this case the ball owned flag indicates whether the ball is owned by the robot's team, or the opponent.
+If the observation is full state, the robot's own position is returned in a separate list, and both axes are flipped and angles rotated 180 degrees for team -1. Moreover, in this case the ball owned flag indicates whether the ball is owned by the robot's team, or the opponent.
 
 The partial observation contains the following for each robot:
 
-- Balls: **[position, radius, ball owned status]**
-- Robots (self not included): **[position, radius, angle, team, fallen or penalized]**
-- Goalposts: **[position, radius]**
-- Crosses: **[position, radius]**
-- Lines: **[endpoint1, endpoint2]**
-- Center circle: **[position, radius]**
+- Balls: **[x, y, radius, ball owned status]**
+- Robots (self not included): **[x, y, radius, cos(angle), sin(angle), team, fallen or penalized]**
+- Goalposts: **[x, y, radius]**
+- Crosses: **[x, y, radius]**
+- Lines: **[x1, y1, x2, y2]**
+- Center circle: **[x, y, radius]**
 
 sigthingType can be Normal, Distant or Partial. In this case, the positions and angles are returned relative to the robot's position and head angle.
 
-The image observations contain 2D images of semantic segmentation data.
+The image observations contain 2D images of semantic labels. The images have 4 binary channels:
+
+- 0: Ball
+- 1: Robot
+- 2: Goalpost
+- 3: Line
 
 #### Driving
 
 The full state contains the following:
 
-- Cars: **[position, angle, width, height]**
-- Obstacles: **[position,  angle, width, height]**
-- Pedestrians: **[position]**
-- Lanes: **[point1, point2, type]**
+- Cars: **[x, y, cos(angle), sin(angle), width, height, finished]**
+- Obstacles: **[x, y, cos(angle), sin(angle), width, height]**
+- Pedestrians: **[x, y]**
+- Lanes: **[x1, y1, x2, y2, type]**
 
-If the observation is full state, the car's own position is returned in a separate list.
+If the observation is full state, the car's own position is returned in a separate list, identical to the Self entry below.
 
 The partial observation contains the following for each car:
 
-- Self: **[position, angle, width, height, goal]**
-- Cars: **[position, angle, width, height]**
-- Obstacles: **[position, angle, width, height]**
-- Pedestrians: **[position]**
-- Lanes: **[point1, point2, type]**
+- Self: **[x, y, cos(angle), sin(angle), width, height, goal_x, goal_y, finished]**
+- Cars: **[x, y, cos(angle), sin(angle), width, height]**
+- Obstacles: **[x, y, cos(angle), sin(angle), width, height]**
+- Pedestrians: **[x, y]**
+- Lanes: **[signed distance, cos(angle), sin(angle), type]**
 
 Widths and heights are also normalized.
