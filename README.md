@@ -114,6 +114,13 @@ Top Camera            |  Bottom Camera
 :-------------------------:|:-------------------------:
 ![](/images/bigNoise/top.gif)  |  ![](/images/bigNoise/bottom.gif)
 
+#### Driving, Realistic Noise
+
+
+Full Observation            |  Partial Observation
+:-------------------------:|:-------------------------:
+![](/images/drive/game.gif)  |  ![](/images/drive/obs.gif)
+
 ### Important functions and members
 
 - `reset()` Resets the environment to a new game and returns initial observations.
