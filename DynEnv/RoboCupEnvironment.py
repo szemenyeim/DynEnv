@@ -8,6 +8,8 @@ from .Goalpost import Goalpost
 from .Robot import Robot
 import cv2
 import numpy as np
+from collections import deque
+import warnings
 
 
 class RoboCupEnvironment(object):
@@ -22,9 +24,6 @@ class RoboCupEnvironment(object):
         self.renderVar = render
         self.sizeNorm = 10.0/noiseMagnitude if noiseMagnitude != 0.0 else 1.0
         self.allowHeadTurn = allowHeadTurn
-
-        # Which robot's observation to visualize
-        self.visId = random.randint(0,self.nPlayers*2-1)
 
         # Field setup
         self.W = 1040
@@ -118,6 +117,13 @@ class RoboCupEnvironment(object):
         self.timeStep = 100.0
         self.timeDiff = 1000.0/self.timeStep
         self.stepNum = self.maxTime/self.timeDiff/5
+        self.stepIterCnt = 50
+
+        # Visualization Parameters
+        self.agentVisID = None
+        self.renderMode = 'human'
+        self.screenShots = deque(maxlen=self.stepIterCnt)
+        self.obsVis = deque(maxlen=self.stepIterCnt//10)
 
         # Simulation settings
         self.space = pymunk.Space()
@@ -249,7 +255,7 @@ class RoboCupEnvironment(object):
         finished = False
 
         # Run simulation for 500 ms (time for every action, except the kick)
-        for i in range(50):
+        for i in range(self.stepIterCnt):
 
             # Sanity check
             actionNum = 4 if self.allowHeadTurn else 3
@@ -284,6 +290,9 @@ class RoboCupEnvironment(object):
                     observations.append([self.getFullState(robot) for robot in self.robots])
                 else:
                     observations.append([self.getRobotVision(robot) for robot in self.robots])
+
+            if self.renderVar:
+                self.render_internal()
 
         self.robotRewards[:self.nPlayers] += self.teamRewards[0]
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
@@ -375,14 +384,23 @@ class RoboCupEnvironment(object):
         self.space.debug_draw(self.draw_options)
 
     # Render
-    def render(self):
-        if not self.renderVar:
-            raise Exception(
-                "Tried to render, but the render variable is set to False. Create the env with render=True!")
+    def render_internal(self):
 
         self.drawStaticObjects()
         pygame.display.flip()
         self.clock.tick(self.timeStep)
+
+        if self.renderMode == 'memory':
+            img = pygame.surfarray.array3d(self.screen).transpose([1,0,2])
+            self.screenShots.append(cv2.cvtColor(img,cv2.COLOR_BGR2RGB))
+            pygame.display.iconify()
+
+    def render(self):
+        if self.renderMode == 'human':
+            warnings.warn("env.render(): This function does nothing in human render mode.\n"
+                  "If you want to render into memory, set the renderMode variable to 'memory'!")
+            return
+        return self.screenShots, self.obsVis
 
     # Ball free kick
     def ballFreeKickProcess(self,team):
@@ -1195,7 +1213,7 @@ class RoboCupEnvironment(object):
                 cv2.circle(topCamImg[0],       (int(tProj[0,0]),int(tProj[1,0])),  tRad, 1, -1)
                 cv2.circle(bottomCamImg[0],    (int(bProj[0,0]),int(bProj[1,0])),  bRad, 1, -1)
 
-        if self.renderVar and robot.id == self.visId:
+        if self.renderVar and self.agentVisID is not None and robot.id == self.agentVisID:
 
             # Visualization image size
             H = self.W//2-50
@@ -1238,14 +1256,20 @@ class RoboCupEnvironment(object):
                 color = (0,0,255) if ball[0] == SightingType.Normal else (0,0,127)
                 cv2.circle(img,(int(xOffs+ball[1].x),int(-ball[1].y+H)),int(ball[2]),color,-1)
 
-            cv2.imshow(("Robot %d" % robot.id),img)
-            c = cv2.waitKey(1)
-            if c == 13:
-                cv2.imwrite("roboObs.png",img)
-                pygame.image.save(self.screen,"roboGame.png")
-            if self.observationType == ObservationType.Image:
-                cv2.imshow("Bottom",colorize(bottomCamImg))
-                cv2.imshow("Top",colorize(topCamImg))
+            if self.renderMode == 'human':
+                cv2.imshow(("Robot %d" % robot.id),img)
+                c = cv2.waitKey(1)
+                if c == 13:
+                    cv2.imwrite("roboObs.png",img)
+                    pygame.image.save(self.screen,"roboGame.png")
+                if self.observationType == ObservationType.Image:
+                    cv2.imshow("Bottom",colorize(bottomCamImg))
+                    cv2.imshow("Top",colorize(topCamImg))
+            else:
+                if self.observationType == ObservationType.Image:
+                    self.obsVis.append([topCamImg, bottomCamImg])
+                else:
+                    self.obsVis.append(img)
 
         if self.observationType == ObservationType.Image:
             return np.concatenate((topCamImg,bottomCamImg))

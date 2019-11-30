@@ -12,6 +12,8 @@ import pymunk.pygame_util
 import pygame
 import numpy as np
 import random
+from collections import deque
+import warnings
 # from gym.spaces import Tuple, MultiDiscrete, Box
 
 class DrivingEnvironment(object):
@@ -31,8 +33,6 @@ class DrivingEnvironment(object):
 
             print("Image type observation is not supported for this environment")
             exit(0)
-
-        self.visId = random.randint(0,self.nPlayers-1)
 
         # Setup scene
         self.W = 1750
@@ -91,6 +91,13 @@ class DrivingEnvironment(object):
         self.elapsed = 0
         self.allFinished = False
         self.stepNum = self.maxTime/self.timeDiff
+        self.stepIterCnt = 10
+
+        # Visualization Parameters
+        self.agentVisID = None
+        self.renderMode = 'human'
+        self.screenShots = deque(maxlen=self.stepIterCnt)
+        self.obsVis = deque(maxlen=self.stepIterCnt//10)
 
         # Episode rewards
         self.episodeRewards = np.array([0.0,]*self.nPlayers)
@@ -197,7 +204,7 @@ class DrivingEnvironment(object):
         observations = []
 
         # Run simulation for 100 ms (time for every action)
-        for i in range(10):
+        for i in range(self.stepIterCnt):
 
             # Sanity check
             if actions.shape != (len(self.cars),2):
@@ -233,6 +240,9 @@ class DrivingEnvironment(object):
                     observations.append([self.getFullState(car) for car in self.cars])
                 else:
                     observations.append([self.getCarVision(car) for car in self.cars])
+
+            if self.renderVar:
+                self.render_internal()
 
 
         # Reward finishing
@@ -289,14 +299,22 @@ class DrivingEnvironment(object):
         self.space.debug_draw(self.draw_options)
 
     # Render
-    def render(self):
-
-        if not self.renderVar:
-            raise Exception("Tried to render, but the render variable is set to False. Create the env with render=True!")
+    def render_internal(self):
 
         self.drawStaticObjects()
         pygame.display.flip()
         self.clock.tick(self.timeStep)
+
+        if self.renderMode == 'memory':
+            img = pygame.surfarray.array3d(self.screen).transpose([1, 0, 2])
+            self.screenShots.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            pygame.display.iconify()
+
+    def render(self):
+        if self.renderMode == 'human':
+            warnings.warn("env.render(): This function does nothing in human render mode. If you want to render into memory, set the renderMode variable to 'memory'!")
+            return
+        return self.screenShots, self.obsVis
 
     # Process actions
     def processAction(self,action,car):
@@ -798,7 +816,7 @@ class DrivingEnvironment(object):
         obsDets = [obs for i,obs in enumerate(obsDets) if obs[0] != SightingType.NoSighting and obs[0] != SightingType.Misclassified]
         laneDets = [lane for i,lane in enumerate(laneDets) if lane[0] != SightingType.NoSighting]
 
-        if self.renderVar and self.cars.index(car) == self.visId:
+        if self.renderVar and self.agentVisID is not None and self.cars.index(car) == self.agentVisID:
 
             # Visualization image size
             H = self.H//2
@@ -855,11 +873,14 @@ class DrivingEnvironment(object):
                 point = ped[1]
                 cv2.circle(img,(int(point.x+W),int(-point.y+H)),5,color,-1)
 
-            cv2.imshow(("Car %d" % self.cars.index(car)),img)
-            c = cv2.waitKey(1)
-            if c == 13:
-                cv2.imwrite("drivingObs.png",img)
-                pygame.image.save(self.screen,"drivingGame.png")
+            if self.renderMode == 'human':
+                cv2.imshow(("Car %d" % self.cars.index(car)), img)
+                c = cv2.waitKey(1)
+                if c == 13:
+                    cv2.imwrite("drivingObs.png", img)
+                    pygame.image.save(self.screen, "drivingGame.png")
+            else:
+                self.obsVis.append(img)
 
         # Convert to numpy
         selfDet = np.array([[normalize(selfDet[1].x,self.normX, self.mean),normalize(selfDet[1].y,self.normY, self.mean),selfDet[2],selfDet[3],

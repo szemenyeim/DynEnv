@@ -12,6 +12,7 @@ def doRoboCup(args):
     env = RoboCupEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
                              noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, allowHeadTurn=args.use_continuous_actions)
     env.setRandomSeed(42)
+    env.agentVisID = 1
 
     action0 = [0, 0, 0]
     action1 = [0, 0, 0]
@@ -74,6 +75,7 @@ def doDrive(args):
                              noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude, continuousActions=args.use_continuous_actions)
     env.setRandomSeed(42)
     env.reset()
+    env.agentVisID = 1
 
     #action1 = [random.randint(0,2), random.randint(0,2)]
     action1 = [1,1]
@@ -113,7 +115,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Play with the env')
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.from_string, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.ROBO_CUP, type=DynEnvType.from_string, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
