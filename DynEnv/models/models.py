@@ -95,24 +95,24 @@ class Indexer(object):
 
 class InOutArranger(object):
 
-    def __init__(self, nObjects, nPlayers, nTime) -> None:
+    def __init__(self, nObjectTypes, nPlayers, nTime) -> None:
         super().__init__()
 
         self.nTime = nTime
         self.nPlayers = nPlayers
-        self.nObjects = nObjects
-        self.indexer = Indexer(self.nObjects)
+        self.nObjectTypes = nObjectTypes
+        self.indexer = Indexer(self.nObjectTypes)
 
     def rearrange_inputs(self, x):
         # Object counts [type x timeStep x nPlayer]
         # for each object type, for each timestep, the number of seen objects is calculated
-        counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjects)]
+        counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjectTypes)]
         objCounts = torch.tensor(
             [
                 [
                     # sum of the object types for a given timestep and player
                     sum([
-                        counts[obj_type][time][player] for obj_type in range(self.nObjects)
+                        counts[obj_type][time][player] for obj_type in range(self.nObjectTypes)
                     ])
                     for player in range(self.nPlayers)
                 ]
@@ -125,12 +125,12 @@ class InOutArranger(object):
                 flatten([sightings[i] for sightings in time if len(sightings[i])])
                 for time in x
             ])
-            for i in range(self.nObjects)
+            for i in range(self.nObjectTypes)
         ]
         inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
         return inputs, (counts, maxCount, objCounts)
 
-    def rearrange_outputs(self, outs, countArr):#counts, maxCount, outs:
+    def rearrange_outputs(self, outs, countArr):  # counts, maxCount, outs:
         device = outs[0].device
 
         counts = countArr[0]
@@ -156,6 +156,7 @@ class InOutArranger(object):
         masks = [ObsMask.createMask(counts, maxNum).to(device) for counts in objCounts]
 
         return outs, masks
+
 
 # Outputs a certain type of action
 class CriticBlock(nn.Module):
@@ -196,15 +197,15 @@ class ActorBlock(nn.Module):
         # For continous actions a desired interval can be given [mean-range:mean+range] (otherwise [0:1])
         if self.cont:
             self.shape = sum(action_space.shape)
-            mean = (action_space.high+action_space.low)*0.5
-            scale = (action_space.high-action_space.low)*0.5
+            mean = (action_space.high + action_space.low) * 0.5
+            scale = (action_space.high - action_space.low) * 0.5
             self.means = torch.tensor(mean)
             self.scale = torch.tensor(scale)
             self.Layer = nn.Linear(features, self.shape)
             self.activation = nn.Sigmoid()
         else:
             actionNum = action_space.nvec
-            self.Layer = nn.ModuleList([nn.Linear(features,num) for num in actionNum])
+            self.Layer = nn.ModuleList([nn.Linear(features, num) for num in actionNum])
 
     # Put means and std on the correct device when .cuda() or .cpu() is called
     def _apply(self, fn):
@@ -238,7 +239,7 @@ class ActorLayer(nn.Module):
 
     # Return list of actions
     def forward(self, x):
-        outs = flatten([block(x) for block in self.blocks]) # predict each action type
+        outs = flatten([block(x) for block in self.blocks])  # predict each action type
         return outs
 
 
@@ -273,26 +274,19 @@ class EmbedBlock(nn.Module):
 
 # Complete input layer
 class InputLayer(nn.Module):
-    def __init__(self, inputs, features, nEnvs):
+    def __init__(self, features_per_object_type, features, nEnvs, nPlayers, nObjectTypes, nTime):
         super(InputLayer, self).__init__()
 
-        # To be added in the future
-        if len(inputs) != 4:
-            raise Exception("Image and Full observation types are not yet supported")
-
-        # Number of features of different input object types
-        inputNums = inputs[-1]
-
         # Basic params
-        self.nTime = inputs[0]
-        self.nPlayers = inputs[1] * nEnvs
-        self.nObjects = inputs[2]
+        self.nTime = nTime
+        self.nPlayers = nPlayers * nEnvs
+        self.nObjectTypes = nObjectTypes
 
         # Helper class for arranging tensor
-        self.arranger = InOutArranger(self.nObjects, self.nPlayers, self.nTime)
+        self.arranger = InOutArranger(self.nObjectTypes, self.nPlayers, self.nTime)
 
         # Create embedding blocks for them
-        self.blocks = nn.ModuleList([EmbedBlock(input, features) for input in inputNums])
+        self.blocks = nn.ModuleList([EmbedBlock(input, features) for input in features_per_object_type])
 
     def forward(self, x):
         # Get device
@@ -313,23 +307,23 @@ class InputLayer(nn.Module):
 
 # Layer for reducing timeStep and Objects dimension via attention
 class AttentionLayer(nn.Module):
-    def __init__(self, features, num_heads=1):
+    def __init__(self, feature_size, num_heads=1):
         super(AttentionLayer, self).__init__()
 
-        self.features = features
+        self.feature_size = feature_size
 
         # objAtt implements self attention between objects seen in the same timestep
-        self.objAtt = nn.MultiheadAttention(features, num_heads)
+        self.objAtt = nn.MultiheadAttention(feature_size, num_heads)
 
         # Temp att attends between sightings at different timesteps
-        self.tempAtt = nn.MultiheadAttention(features, num_heads)
+        self.tempAtt = nn.MultiheadAttention(feature_size, num_heads)
 
         # Relu and group norm
-        self.bn = nn.LayerNorm(features)
+        self.bn = nn.LayerNorm(feature_size)
 
         # Confidence layer
         self.confLayer = nn.Sequential(
-            nn.Linear(features, 1),
+            nn.Linear(feature_size, 1),
             nn.Sigmoid()
         )
 
@@ -380,17 +374,17 @@ class AttentionLayer(nn.Module):
 
 # LSTM Layer
 class LSTMLayer(nn.Module):
-    def __init__(self, nPlayers, feature, hidden, nEnvs, nSteps):
+    def __init__(self, nPlayers, feature_size, hidden_size, nEnvs, nSteps):
         super(LSTMLayer, self).__init__()
 
         # Params
         self.nPlayers = nPlayers
         self.nEnvs = nEnvs
-        self.feature = feature
-        self.hidden = hidden
+        self.feature_size = feature_size
+        self.hidden_size = hidden_size
 
         # Init LSTM cell
-        self.cell = nn.LSTMCell(feature, hidden)
+        self.cell = nn.LSTMCell(feature_size, hidden_size)
 
         # first call buffer generator, as reset needs the self.h buffer
         self._generate_buffers(next(self.parameters()).device, nSteps)
@@ -415,9 +409,9 @@ class LSTMLayer(nn.Module):
             self._generate_buffers(device, nSteps)
 
     def _generate_buffers(self, device, nSteps):
-        self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for _ in range(nSteps)]
-        self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden)).to(device) for _ in range(nSteps)]
-        self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature)).to(device) for _ in range(nSteps)]
+        self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device) for _ in range(nSteps)]
+        self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device) for _ in range(nSteps)]
+        self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature_size)).to(device) for _ in range(nSteps)]
 
     # Put means and std on the correct device when .cuda() or .cpu() is called
     def _apply(self, fn):
@@ -449,18 +443,17 @@ class LSTMLayer(nn.Module):
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
 class DynEnvFeatureExtractor(nn.Module):
-    def __init__(self, inputs, feature, num_envs, num_rollout):
+    def __init__(self, features_per_object_type, feature_size, num_envs, num_rollout, num_players, num_obj_types,
+                 num_time):
         super().__init__()
 
-        nPlayers = inputs[1]
-
         # feature encoding
-        self.InNet = InputLayer(inputs, feature, num_envs)
-        self.AttNet = AttentionLayer(feature)
+        self.InNet = InputLayer(features_per_object_type, feature_size, num_envs, num_players, num_obj_types, num_time)
+        self.AttNet = AttentionLayer(feature_size)
 
-        self.hidden_size = feature
-        self.LSTM = LSTMLayer(nPlayers, feature, self.hidden_size, num_envs, num_rollout)
-        self.bn = nn.LayerNorm(feature)
+        self.hidden_size = feature_size
+        self.LSTM = LSTMLayer(num_players, feature_size, self.hidden_size, num_envs, num_rollout)
+        self.bn = nn.LayerNorm(feature_size)
 
     # Reset fun for lstm
     def reset(self, reset_indices=None):
@@ -548,7 +541,7 @@ class AdversarialHead(nn.Module):
         self.action_descriptor = action_descriptor
         # number of discrete actions per type
         self.action_num_per_type = flatten([
-            [num for num in action.nvec] if type(action)==MultiDiscrete else sum(action.shape)
+            [num for num in action.nvec] if type(action) == MultiDiscrete else sum(action.shape)
             for action in self.action_descriptor])
 
         # start indx of each action type (i.e. cumsum)
@@ -616,7 +609,7 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, in_size, feat_size,
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type, feat_size,
                  forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
@@ -627,13 +620,13 @@ class ICMNet(nn.Module):
         :param action_descriptor: dimensionality of the action space, pass env.action_space.n
         :param attn_target:
         :param attn_type:
-        :param in_size: input size of the AdversarialHeads
+        :param features_per_object_type: input size of the AdversarialHeads
         :param feat_size: size of the feature space
         """
         super().__init__()
 
         # constants
-        self.in_size = in_size  # pixels i.e. state
+        self.features_per_object_type = features_per_object_type  # pixels i.e. state
         self.feat_size = feat_size
         self.action_descriptor = action_descriptor
         self.num_actions = len(self.action_descriptor)
@@ -696,26 +689,28 @@ class ICMNet(nn.Module):
 
 
 class A2CNet(nn.Module):
-    def __init__(self, num_envs, num_players, action_descriptor, in_size, feature_size, num_rollout):
+    def __init__(self, num_envs, num_players, action_descriptor, features_per_object_type, feature_size, num_rollout, num_obj_types,
+                 num_time):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
         :param num_envs: 
         :param n_stack: number of frames stacked
         :param action_descriptor: size of the action space, pass env.action_space.n
-        :param in_size: input size of the LSTMCell of the FeatureEncoderNet
+        :param features_per_object_type: input size of the LSTMCell of the FeatureEncoderNet
         """
         super().__init__()
 
         print("in case of multiple envs, reset_recurrent_buffers shall be revisited to handle non-simultaneous resets")
         # constants
-        self.in_size = in_size  # in_size
+        self.features_per_object_type = features_per_object_type
         self.feature_size = feature_size
         self.action_descriptor = action_descriptor
         self.num_players = num_players
         self.num_envs = num_envs
 
-        self.feat_enc_net = DynEnvFeatureExtractor(self.in_size, self.feature_size, self.num_envs, num_rollout)
+        self.feat_enc_net = DynEnvFeatureExtractor(self.features_per_object_type, self.feature_size, self.num_envs, num_rollout,
+                                                   num_players, num_obj_types, num_time)
 
         self.actor = ActorLayer(self.feature_size, self.action_descriptor)
         self.critic = CriticLayer(self.feature_size)
