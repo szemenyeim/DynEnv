@@ -15,7 +15,7 @@ def get_args():
                         help='train flag (False->load model)')
     parser.add_argument('--cuda', action='store_true', default=True,
                         help='CUDA flag')
-    parser.add_argument('--log-dir', type=str, default="./log",
+    parser.add_argument('--log-dir', type=str, default="../../log",
                         help='log directory')
     parser.add_argument('--seed', type=int, default=42, metavar='SEED',
                         help='random seed')
