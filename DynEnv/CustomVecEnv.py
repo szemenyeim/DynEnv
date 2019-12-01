@@ -203,16 +203,14 @@ def _flatten_obs(obs, space):
 def make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude,
                  use_continuous_actions):
     if env is DynEnvType.ROBO_CUP:
-        envs = [lambda: RoboCupEnvironment(nPlayers=num_players, nTimeSteps=5, render=render,
-                                           observationType=observationType,
+        envs = [lambda: RoboCupEnvironment(nPlayers=num_players, render=render, observationType=observationType,
                                            noiseType=noiseType, noiseMagnitude=noiseMagnitude,
                                            allowHeadTurn=use_continuous_actions)
                 for _ in range(num_envs)]
         env = CustomSubprocVecEnv(envs)
         name = "RoboCup"
     elif env is DynEnvType.DRIVE:
-        envs = [lambda: DrivingEnvironment(nPlayers=num_players, nTimeSteps=1, render=render,
-                                           observationType=observationType,
+        envs = [lambda: DrivingEnvironment(nPlayers=num_players, render=render, observationType=observationType,
                                            noiseType=noiseType, noiseMagnitude=noiseMagnitude,
                                            continuousActions=use_continuous_actions)
                 for _ in range(num_envs)]

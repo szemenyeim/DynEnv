@@ -21,8 +21,7 @@ from .cutils import *
 
 class DrivingEnvironment(object):
 
-    def __init__(self, nPlayers, nTimeSteps=1, render=False, observationType=ObservationType.Partial,
-                 noiseType=NoiseType.Realistic,
+    def __init__(self, nPlayers, render=False, observationType=ObservationType.Partial, noiseType=NoiseType.Realistic,
                  noiseMagnitude=2, continuousActions=False):
 
         # Basic settings
@@ -240,8 +239,7 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers, self.nTimeSteps, self.renderVar, self.observationType, self.noiseType,
-                      self.noiseMagnitude)
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude)
         observations = []
         if self.observationType == ObservationType.Full:
             observations.append([self.getFullState(car) for car in self.cars])
