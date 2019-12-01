@@ -164,9 +164,35 @@ Position information is normalized in both the observations and the full state.
 
 #### The Observation Space
 
-Due to limitations in the OpenAI gym, this part of the env is not fully compatible. The `observation_space` variable is a list containing the following variables:
+Due to limitations in the OpenAI gym, this part of the environment is not fully compatible. The `observation_space` variable is an instance of `gym.space.Space`, however, the meaning is slightly different.
+I.e. querying the `observation_space` variable and calling `.sample()` on it will get you a fully valid observation format, it does not cover every form of observations an environment can produce. Let us elaborate on that!
 
-`[nTimeSteps, nAgents, nObjectType, [<number of features for every object type>]]`
+Due to the fact that in every time step each agent can see different number of objects (such as cars in the _Driving_ environment), including 0 as a valid number for each object type (not to mention false positive sightings or misclassifications), we cannot give an observation space format which covers all possibilities. However, what we can do is to _assume_ that each object type is present in the observation with a single instance, thus including every necessary information about the object space.
+
+Here is an example for the Driving environment how the observation space looks like (we use extensively the `Dict` gym space, as it enables to describe what is contained, note that prefixes are present as for our network the order in the `featuresPerObject` - see below example - matters):
+
+```python
+...
+# subspace for cars
+ car_space = Dict({
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+            "orientation": Box(-1, 1, shape=(2,)),
+            "width_height": Box(-10, 10, shape=(2,)),
+            "finished": MultiBinary(1)
+        })
+...
+
+# assemble observation space
+self.observation_space = Dict({
+                "0_self": self_space,
+                "1_car": car_space,
+                "2_obstacle": obstacle_space,
+                "3_pedestrian": pedestrian_space,
+                "4_lane": lane_space
+            })
+
+```
+
  
 The observations returned are arranged as follows:
  
@@ -185,14 +211,14 @@ from torch import nn
 
 myEnv = ...
 obsSpace = myEnv.observation_space
-nTime = obsSpace[0]
-nPlayers = obsSpace[1]
-nObj = obsSpace[2]
-featuresPerObject = obsSpace[3]
+nTime =  5 if env is DynEnvType.ROBO_CUP else 1
+nPlayers = ...
+nObjectTypes = len(obsSpace.spaces.keys())
+featuresPerObject = [flatdim(s) for s in obsSpace.spaces.values()]
 
 device = <CUDA or CPU>
 myNeuralNets = [nn.Linear(objfeat,128).to(device) for objFeat in featuresPerObject]
-myArranger = models.InOutArranger(nObj,nPlayers,nTime)
+myArranger = models.InOutArranger(nObjectTypes,nPlayers,nTime)
 
 ...
 actions = torch.stack([action_space.sample() for _ in range(nPlayers)]
@@ -226,7 +252,7 @@ The partial observation contains the following for each robot:
 
 Ball owned status is 0 if the ball is not owned, +1 if the ball is owned by the robot's team and -1 if owned by the opposite team.
 
-In the partiel sighting case, the positions and angles are returned relative to the robot's position and head angle.
+In the partial sighting case, the positions and angles are returned relative to the robot's position and head angle.
 
 The image observations contain 2D images of semantic labels. The images have 4 binary channels:
 
