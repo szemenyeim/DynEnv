@@ -125,7 +125,7 @@ Full Observation            |  Partial Observation
 
 - `reset()` Resets the environment to a new game and returns initial observations.
 - `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
-- `observation_space` Returns information about the observations returned by the environrment. (**Note: These are not Gym Compatible, see the folowing section**)
+- `observation_space` Returns information about the observations returned by the environrment.
 - `action_space` Returns information about the actions the environment expects.
 - `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
 - `renderMode` Whether to render to a display (`'human'`) or to a memory array (`'memory'`).
@@ -208,8 +208,10 @@ outputs,masks = myArranger.rearrange_outputs(netOutputs,counts,device)
 
 The full state contains the following:
 
-- Robots **[x, y, cos(angle), sin(angle), team, fallen or penalized]**
-- Balls **[x, y, ball owned team ID, closest robot status]**
+- Robots **[x, y, cos(angle), sin(angle), team ID, fallen or penalized]**
+- Balls **[x, y, ball owned by team ID, closest robot status]**
+
+'Team ID' is +/-1. 'Fallen or penalized' and 'closest robot status' are binary numbers. The latter is 1 for the robot closest to the ball from each team.
 
 If the observation is full state, the robot's own position is returned in a separate list, and both axes are flipped and angles rotated 180 degrees for team -1. Moreover, in this case the ball owned flag indicates whether the ball is owned by the robot's team, or the opponent.
 
@@ -221,6 +223,8 @@ The partial observation contains the following for each robot:
 - Crosses: **[x, y, radius]**
 - Lines: **[x1, y1, x2, y2]**
 - Center circle: **[x, y, radius]**
+
+Ball owned status is 0 if the ball is not owned, +1 if the ball is owned by the robot's team and -1 if owned by the opposite team.
 
 In the partiel sighting case, the positions and angles are returned relative to the robot's position and head angle.
 
@@ -239,6 +243,8 @@ The full state contains the following:
 - Obstacles: **[x, y, cos(angle), sin(angle), width, height]**
 - Pedestrians: **[x, y]**
 - Lanes: **[x1, y1, x2, y2, type]**
+
+Lane type is 0 for standard lanes, 1 for the middle lane and -1 for the edge of the road.
 
 If the observation is full state, the car's own position is returned in a separate list, identical to the Self entry below.
 
