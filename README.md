@@ -216,7 +216,7 @@ If the observation is full state, the robot's own position is returned in a sepa
 The partial observation contains the following for each robot:
 
 - Balls: **[x, y, radius, ball owned status]**
-- Robots (self not included): **[x, y, radius, cos(angle), sin(angle), team, fallen or penalized]**
+- Robots (self not included): **[x, y, cos(angle), sin(angle), team, fallen or penalized]**
 - Goalposts: **[x, y, radius]**
 - Crosses: **[x, y, radius]**
 - Lines: **[x1, y1, x2, y2]**
