@@ -28,7 +28,7 @@ class Runner(object):
         self.params = params
 
         """Logger"""
-        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards","ep_pos_rewards"])
+        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards","ep_pos_rewards","ep_goals"])
         self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp, log_dir)
 
         """Environment"""
@@ -115,15 +115,13 @@ class Runner(object):
                 last_p_r = np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]).mean()
                 last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
 
-                """Get goals for robocup env"""
-                if len(self.storage.goals):
-                    goals = np.array(self.storage.goals).sum(axis=0)
-                else:
-                    goals = [0,0]
+                """Get goals"""
+                goals = np.array(self.storage.goals).sum(axis=0)
 
                 self.logger.log(
                              **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
-                                "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:])})
+                                "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]),
+                                "ep_goals": goals})
 
                 print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
                       % (int(num_update/updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
@@ -152,7 +150,7 @@ class Runner(object):
 
         self.env.close()
 
-        self.logger.save(*["ep_rewards","ep_pos_rewards"])
+        self.logger.save(*["ep_rewards","ep_pos_rewards","ep_goals"])
         self.params.save(self.logger.data_dir, self.timestamp)
 
     def episode_rollout(self):
