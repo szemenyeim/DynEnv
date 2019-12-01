@@ -17,8 +17,7 @@ from .cutils import *
 
 class RoboCupEnvironment(object):
 
-    def __init__(self, nPlayers, render=False, observationType=ObservationType.Partial, noiseType=NoiseType.Realistic,
-                 noiseMagnitude=2, allowHeadTurn=False):
+    def __init__(self,nPlayers,render=False,observationType = ObservationType.PARTIAL, noiseType = NoiseType.REALISTIC, noiseMagnitude = 2, allowHeadTurn = False):
 
         # Basic settings
         self.nTimeSteps = 5
@@ -75,7 +74,7 @@ class RoboCupEnvironment(object):
         })
 
 
-        if self.observationType == ObservationType.Full:
+        if self.observationType == ObservationType.FULL:
             self.observation_space = [5, self.nPlayers * 2, 3, [4, 6, 6]]
 
             self.observation_space = Dict({
@@ -86,7 +85,7 @@ class RoboCupEnvironment(object):
 
 
 
-        elif self.observationType == ObservationType.Image:
+        elif self.observationType == ObservationType.IMAGE:
             self.observation_space = [5, self.nPlayers * 2, [4, 480, 640]]
         else:
             self.observation_space = [5, self.nPlayers * 2, 6, [5, 6, 3, 3, 4, 3]]
@@ -123,7 +122,7 @@ class RoboCupEnvironment(object):
         if noiseMagnitude < 0 or noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
             exit(0)
-        if observationType == ObservationType.Full and noiseMagnitude > 0:
+        if observationType == ObservationType.FULL and noiseMagnitude > 0:
             print(
                 "Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
         self.randBase = 0.01 * noiseMagnitude
@@ -299,7 +298,7 @@ class RoboCupEnvironment(object):
         self.__init__(self.nPlayers, self.observationType, self.noiseType, self.noiseMagnitude)
         observations = []
         for i in range(5):
-            if self.observationType == ObservationType.Full:
+            if self.observationType == ObservationType.FULL:
                 observations.append([self.getFullState(robot) for robot in self.robots])
             else:
                 observations.append([self.getRobotVision(robot) for robot in self.robots])
@@ -353,7 +352,7 @@ class RoboCupEnvironment(object):
 
             # Get observations every 100 ms
             if i % 10 == 9:
-                if self.observationType == ObservationType.Full:
+                if self.observationType == ObservationType.FULL:
                     observations.append([self.getFullState(robot) for robot in self.robots])
                 else:
                     observations.append([self.getRobotVision(robot) for robot in self.robots])
@@ -1143,7 +1142,7 @@ class RoboCupEnvironment(object):
                                       self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5))])
 
         # FP Balls near robots
-        if self.noiseType == NoiseType.Realistic:
+        if self.noiseType == NoiseType.REALISTIC:
             for rob in robDets:
                 if rob[0] == SightingType.Normal and random.random() < self.randBase * 10 and rob[1].length < 250:
                     if random.random() < self.randBase * 8:
@@ -1162,7 +1161,7 @@ class RoboCupEnvironment(object):
                      cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
         lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
 
-        if self.observationType == ObservationType.Image:
+        if self.observationType == ObservationType.IMAGE:
 
             # Initialize images
             bottomCamImg = np.zeros((4, 480, 640))
@@ -1351,16 +1350,16 @@ class RoboCupEnvironment(object):
                 if c == 13:
                     cv2.imwrite("roboObs.png", img)
                     pygame.image.save(self.screen, "roboGame.png")
-                if self.observationType == ObservationType.Image:
+                if self.observationType == ObservationType.IMAGE:
                     cv2.imshow("Bottom", colorize(bottomCamImg))
                     cv2.imshow("Top", colorize(topCamImg))
             else:
-                if self.observationType == ObservationType.Image:
+                if self.observationType == ObservationType.IMAGE:
                     self.obsVis.append([topCamImg, bottomCamImg])
                 else:
                     self.obsVis.append(img)
 
-        if self.observationType == ObservationType.Image:
+        if self.observationType == ObservationType.IMAGE:
             return np.concatenate((topCamImg, bottomCamImg))
 
         # Convert to numpy

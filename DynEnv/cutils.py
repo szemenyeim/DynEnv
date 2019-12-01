@@ -9,47 +9,56 @@ class DynEnvType(IntEnum):
     DRIVE = 1
 
     def __str__(self):
-        return self.name
+        return self.name.lower()
+
+    def __repr__(self):
+        return str(self)
 
     @staticmethod
-    def from_string(s):
+    def argparse(s):
         try:
-            return NoiseType[s]
+            return DynEnvType[s.upper()]
         except KeyError:
-            raise ValueError()
+            return s
 
 
 # Type of noise to be added
 class NoiseType(IntEnum):
-    Random = 0
-    Realistic = 1
+    RANDOM = 0
+    REALISTIC = 1
 
     def __str__(self):
-        return self.name
+        return self.name.lower()
+
+    def __repr__(self):
+        return str(self)
 
     @staticmethod
-    def from_string(s):
+    def argparse(s):
         try:
-            return NoiseType[s]
+            return NoiseType[s.upper()]
         except KeyError:
-            raise ValueError()
+            return s
 
 
 # Observation types
 class ObservationType(IntEnum):
-    Full = 0
-    Partial = 1
-    Image = 2
+    FULL = 0
+    PARTIAL = 1
+    IMAGE = 2
 
     def __str__(self):
-        return self.name
+        return self.name.lower()
+
+    def __repr__(self):
+        return str(self)
 
     @staticmethod
-    def from_string(s):
+    def argparse(s):
         try:
-            return NoiseType[s]
+            return ObservationType[s.upper()]
         except KeyError:
-            raise ValueError()
+            return s
 
 
 # Enum for object collision handling
@@ -296,14 +305,14 @@ def addNoiseLine(obj,noiseType, magn, rand, maxDist):
         noiseVec2 = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
 
         # Add random noise if simple noise and random FN
-        if noiseType == NoiseType.Random:
+        if noiseType == NoiseType.RANDOM:
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] += noiseVec1
             obj[2] += noiseVec2
 
         # Else add bigger noise to distant lines (also bigger probability of FN)
-        elif noiseType == NoiseType.Realistic:
+        elif noiseType == NoiseType.REALISTIC:
 
             # Get distances of points and average dist
             multiplier1 = 0.25 + 3.75*obj[1].get_length_sqrd()/maxDist
@@ -327,7 +336,7 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
         angleNoise = (random.random() - 0.5) * magn * 0.1
 
         # Add random noise if simple noise and random FN
-        if noiseType == NoiseType.Random:
+        if noiseType == NoiseType.RANDOM:
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] *= distNoise
@@ -337,7 +346,7 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
             obj[3] = math.sin(ang)
 
         # Else add bigger noise to distant lines (also bigger probability of FN)
-        elif noiseType == NoiseType.Realistic:
+        elif noiseType == NoiseType.REALISTIC:
 
             # Get distances of points and average dist
             multiplier1 = 0.25 + 3.75 * obj[1]*obj[1] / maxDist
@@ -365,14 +374,14 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
         noiseVec = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
 
         # Add random noise to position and size and FN
-        if noiseType == NoiseType.Random:
+        if noiseType == NoiseType.RANDOM:
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] += noiseVec
             obj[2] *= (1-(random.random()-0.5)*0.2)
 
         # Realistic noise
-        elif noiseType == NoiseType.Realistic:
+        elif noiseType == NoiseType.REALISTIC:
 
             # Add larger noise to distant objetcs
             sightingType = obj[0]
@@ -415,7 +424,7 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
         noiseVec = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
 
         # Add random noise to position and size and FN
-        if noiseType == NoiseType.Random:
+        if noiseType == NoiseType.RANDOM:
 
             # Change to FN
             if random.random() < rand:
@@ -437,7 +446,7 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
                 obj[1]  = newPos
 
         # Realistic noise
-        elif noiseType == NoiseType.Realistic:
+        elif noiseType == NoiseType.REALISTIC:
 
             # Add larger noise to distant objetcs
             sightingType = obj[0]

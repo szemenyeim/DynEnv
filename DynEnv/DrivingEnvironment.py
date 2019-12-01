@@ -21,8 +21,7 @@ from .cutils import *
 
 class DrivingEnvironment(object):
 
-    def __init__(self, nPlayers, render=False, observationType=ObservationType.Partial, noiseType=NoiseType.Realistic,
-                 noiseMagnitude=2, continuousActions=False):
+    def __init__(self,nPlayers,render=False,observationType = ObservationType.PARTIAL,noiseType = NoiseType.REALISTIC, noiseMagnitude = 2, continuousActions = False):
 
         # Basic settings
         self.observationType = observationType
@@ -35,7 +34,7 @@ class DrivingEnvironment(object):
         self.nObjectType = 5
         self.continuousActions = continuousActions
 
-        if self.observationType == ObservationType.Image:
+        if self.observationType == ObservationType.IMAGE:
             print("Image type observation is not supported for this environment")
             exit(0)
 
@@ -55,7 +54,7 @@ class DrivingEnvironment(object):
         if noiseMagnitude < 0 or noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
             exit(0)
-        if observationType == ObservationType.Full and noiseMagnitude > 0:
+        if observationType == ObservationType.FULL and noiseMagnitude > 0:
             print(
                 "Warning: Full observation type does not support noisy observations, but your noise magnitude is set"
                 " to a non-zero value! (The noise setting has no effect in this case)")
@@ -95,7 +94,7 @@ class DrivingEnvironment(object):
             "position": Box(-self.mean, +self.mean, shape=(2,)),
         })
 
-        if self.observationType == ObservationType.Full:
+        if self.observationType == ObservationType.FULL:
 
             full_lane_space = Dict({
                 "signed_distance": Box(-2 * self.mean, +2 * self.mean, shape=(1,)),
@@ -241,7 +240,7 @@ class DrivingEnvironment(object):
     def reset(self):
         self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude)
         observations = []
-        if self.observationType == ObservationType.Full:
+        if self.observationType == ObservationType.FULL:
             observations.append([self.getFullState(car) for car in self.cars])
         else:
             observations.append([self.getCarVision(car) for car in self.cars])
@@ -295,7 +294,7 @@ class DrivingEnvironment(object):
 
             # Get observations every 100 ms
             if i % 10 == 9:
-                if self.observationType == ObservationType.Full:
+                if self.observationType == ObservationType.FULL:
                     observations.append([self.getFullState(car) for car in self.cars])
                 else:
                     observations.append([self.getCarVision(car) for car in self.cars])
@@ -881,7 +880,7 @@ class DrivingEnvironment(object):
                                     [SightingType.Normal, dist, c, s, random.randint(-1, 1)])
 
         # FP Pedestrians near cars and obstacles
-        if self.noiseType == NoiseType.Realistic:
+        if self.noiseType == NoiseType.REALISTIC:
             for c in carDets:
                 if c[0] == SightingType.Normal and random.random() < self.randBase * 10 and c[1].length < 250:
                     offset = pymunk.Vec2d(2 * random.random() - 1.0, 2 * random.random() - 1.0) * 10

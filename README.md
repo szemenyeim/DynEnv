@@ -175,7 +175,7 @@ The observations returned are arranged as follows:
 Each element of the above list is a NumPy array containing all the observations by a single agent in a single timestep. To help contructing input layers a custom class `DynEnv.models.InOutArranger` is provided with the following two functions:
 
 - `inputs, counts = rearrange_inputs(x)`: Creates a single list of NumPy arrays. Each element of this list contains a single numpy array of all the observations for a given object type. (Warning: in some cases this might be an empty list!)
-- `outputs, masks = rearrange_outputs(inputs, counts)`: Takes a list of Torch Tensors and the counts output by the previous function, and creates a single tensor shaped [TimeSteps x maxObjCnt x nPlayers x featureCnt] by padding the second dimension to the largest number of objects seen for every robot. The masks variable is binary array shaped [TimeSteps x maxObjCnt x nPlayers], which is True for padded elements (this is in line with PyTorch's MultiHeadedAttention layer). (Warning: This assumes that the featureCnt is the same for every object time.)
+- `outputs, masks = rearrange_outputs(inputs, counts, device)`: Takes a list of Torch Tensors and the counts output by the previous function, and creates a single tensor shaped [TimeSteps x maxObjCnt x nPlayers x featureCnt] by padding the second dimension to the largest number of objects seen for every robot. The masks variable is binary array shaped [TimeSteps x maxObjCnt x nPlayers], which is True for padded elements (this is in line with PyTorch's MultiHeadedAttention layer). (Warning: This assumes that the featureCnt is the same for every object time.)
 
 Here is a more comprehensive example:
 
@@ -200,7 +200,7 @@ obs, _ = myEnv.step(actions)
 
 netInputs, counts = myArranger.rearrange_inputs(obs)
 netOutputs = [myNet(torch.tensor(netInput).to(device)) for myNet,netInput in zip(myNeuralNets,netInputs)]
-outputs,masks = myArranger.rearrange_outputs(netOutputs,counts)
+outputs,masks = myArranger.rearrange_outputs(netOutputs,counts,device)
 
 ```
 
