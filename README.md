@@ -209,20 +209,20 @@ outputs,masks = myArranger.rearrange_outputs(netOutputs,counts,device)
 The full state contains the following:
 
 - Robots **[x, y, cos(angle), sin(angle), team, fallen or penalized]**
-- Balls **[x, y, ball owned team ID]**
+- Balls **[x, y, ball owned team ID, closest robot status]**
 
 If the observation is full state, the robot's own position is returned in a separate list, and both axes are flipped and angles rotated 180 degrees for team -1. Moreover, in this case the ball owned flag indicates whether the ball is owned by the robot's team, or the opponent.
 
 The partial observation contains the following for each robot:
 
-- Balls: **[x, y, radius, ball owned status]**
+- Balls: **[x, y, radius, ball owned status, closest robot status]**
 - Robots (self not included): **[x, y, cos(angle), sin(angle), team, fallen or penalized]**
 - Goalposts: **[x, y, radius]**
 - Crosses: **[x, y, radius]**
 - Lines: **[x1, y1, x2, y2]**
 - Center circle: **[x, y, radius]**
 
-sigthingType can be Normal, Distant or Partial. In this case, the positions and angles are returned relative to the robot's position and head angle.
+In the partiel sighting case, the positions and angles are returned relative to the robot's position and head angle.
 
 The image observations contain 2D images of semantic labels. The images have 4 binary channels:
 
