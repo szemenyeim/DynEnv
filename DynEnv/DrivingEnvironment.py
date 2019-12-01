@@ -303,6 +303,7 @@ class DrivingEnvironment(object):
             finished = True
             info['episode_r'] = self.episodeRewards
             info['episode_p_r'] = self.episodePosRewards
+            info['episode_g'] = [sum([car.finished and not car.crashed for car in self.cars]), sum([car.crashed for car in self.cars])]
             # print(self.episodeRewards)
 
         t2 = time.clock()

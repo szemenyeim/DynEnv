@@ -158,7 +158,7 @@ Both environments return the following variables in the step function:
   - **Full State:** The full state of the env
   - **episode_r**: Cumulative rewards for the episode (Returned only at the end of an episode)
   - **episode_p_r**: Cumulative positive-only rewards for the episode (Returned only at the end of an episode)
-  - **episode_g**: Goals in these episode (RoboCup env only) (Returned only at the end of an episode)
+  - **episode_g**: Goals in these episode. For RoboCup this is goals per team, for the Driving env the first value is the number of cars that reached their destination without crashing, the second is the number of crashed cars. (Returned only at the end of an episode)
 
 Position information is normalized in both the observations and the full state.
 
