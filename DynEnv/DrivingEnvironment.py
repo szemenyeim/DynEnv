@@ -229,7 +229,7 @@ class DrivingEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude)
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude, self.continuousActions)
         observations = []
         if self.observationType == ObservationType.FULL:
             observations.append([self.getFullState(car) for car in self.cars])

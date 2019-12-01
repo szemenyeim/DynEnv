@@ -17,7 +17,8 @@ from .cutils import *
 
 class RoboCupEnvironment(object):
 
-    def __init__(self,nPlayers,render=False,observationType = ObservationType.PARTIAL, noiseType = NoiseType.REALISTIC, noiseMagnitude = 2, allowHeadTurn = False):
+    def __init__(self, nPlayers, render=False, observationType = ObservationType.PARTIAL,
+                 noiseType = NoiseType.REALISTIC, noiseMagnitude = 2, allowHeadTurn = False):
 
         # Basic settings
         self.nTimeSteps = 5
@@ -53,18 +54,6 @@ class RoboCupEnvironment(object):
         # Observation and action spaces
         # Observation space
 
-
-        robot_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "orientation": Box(-1, 1, shape=(2,)),
-            "team": MultiBinary(1),
-            "fallen": MultiBinary(1),
-            "penalized": MultiBinary(1)
-        })
-        ball_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "team": MultiBinary(1),
-        })
         line_space = Dict({
             "position": Box(-self.mean * 2, +self.mean * 2, shape=(4,)),
         })
@@ -75,11 +64,21 @@ class RoboCupEnvironment(object):
 
 
         if self.observationType == ObservationType.FULL:
-            self.observation_space = [5, self.nPlayers * 2, 3, [4, 6, 6]]
+            ball_space = Dict({
+                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+                "team": MultiBinary(1),
+                "closest": MultiBinary(1),
+            })
+            robot_space = Dict({
+                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+                "orientation": Box(-1, 1, shape=(2,)),
+                "team": MultiBinary(1),
+                "penalized or penalized": MultiBinary(1)
+            })
 
             self.observation_space = Dict({
-                "0_ball" : ball_space, #todo:not good for sure
-                "1_self" : robot_space, #todo: check whther sequence is the same
+                "0_ball" : ball_space,
+                "1_self" : robot_space,
                 "2_robot": robot_space
             })
 
@@ -88,7 +87,21 @@ class RoboCupEnvironment(object):
         elif self.observationType == ObservationType.IMAGE:
             self.observation_space = [5, self.nPlayers * 2, [4, 480, 640]]
         else:
-            self.observation_space = [5, self.nPlayers * 2, 6, [5, 6, 3, 3, 4, 3]]
+
+            ball_space = Dict({
+                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+                "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
+                "team": MultiBinary(1),
+                "closest": MultiBinary(1),
+            })
+
+            robot_space = Dict({
+                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+                "orientation": Box(-1, 1, shape=(2,)),
+                "team": MultiBinary(1),
+                "fallen": MultiBinary(1),
+                "penalized or penalized": MultiBinary(1)
+            })
 
             self.observation_space = Dict({
                 "0_ball": ball_space, #todo:not good for sure
@@ -102,21 +115,8 @@ class RoboCupEnvironment(object):
         # Action space
         if self.allowHeadTurn:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-6, high=6, shape=(1,))))
-            '''self.action_space =\
-                [self.nPlayers * 2, [
-                    ['cat', 5, None, None],
-                    ['cat', 3, None, None],
-                    ['cat', 3, None, None],
-                    ['cont',1,[0,],[12,]],
-                ]]'''
         else:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
-            '''self.action_space =\
-                [self.nPlayers * 2, [
-                    ['cat', 5, None, None],
-                    ['cat', 3, None, None],
-                    ['cat', 3, None, None],
-                ]]'''
 
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
@@ -295,7 +295,7 @@ class RoboCupEnvironment(object):
 
     # Reset env
     def reset(self):
-        self.__init__(self.nPlayers, self.observationType, self.noiseType, self.noiseMagnitude)
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude, self.allowHeadTurn)
         observations = []
         for i in range(5):
             if self.observationType == ObservationType.FULL:
