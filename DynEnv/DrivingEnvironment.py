@@ -93,13 +93,12 @@ class DrivingEnvironment(object):
         pedestrian_space = Dict({
             "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
         })
-        lane_space = Dict({
-            "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
-            "orientation": Box(-1, 1, shape=(2,)),
-            "type": Box(-1, 1, shape=(1,))
-        })
 
         if self.observationType == ObservationType.FULL:
+            lane_space = Dict({
+                "points": Box(-self.mean * 2, self.mean * 2, shape=(4,)),
+                "type": Box(-1, 1, shape=(1,))
+            })
             self.observation_space = Dict({
                 "0_self": self_space,
                 "1_car": car_space,
@@ -108,6 +107,11 @@ class DrivingEnvironment(object):
                 "4_lane": lane_space
             })
         else:
+            lane_space = Dict({
+                "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
+                "orientation": Box(-1, 1, shape=(2,)),
+                "type": Box(-1, 1, shape=(1,))
+            })
             self.observation_space = Dict({
                 "0_self": self_space,
                 "1_car": car_space,
