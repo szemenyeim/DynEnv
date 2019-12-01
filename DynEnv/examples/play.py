@@ -83,7 +83,7 @@ def doDrive(args):
     env.setRandomSeed(42)
     env.reset()
     env.renderMode = 'human'
-    env.agentVisID = 1
+    env.agentVisID = 0
 
     #action1 = [random.randint(0,2), random.randint(0,2)]
     action1 = [1,1]
