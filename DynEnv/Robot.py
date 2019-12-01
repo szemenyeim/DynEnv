@@ -50,6 +50,7 @@ class Robot(object):
         self.joint = PivotJoint(self.leftFoot.body,self.rightFoot.body,(pos[0],pos[1]))
         self.joint.error_bias = 0.1
         self.rotJoint = RotaryLimitJoint(self.leftFoot.body,self.rightFoot.body,0,0)
+        self.jointRemoved = False
 
         # Basic properties
         self.team = team

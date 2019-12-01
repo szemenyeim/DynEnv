@@ -724,10 +724,11 @@ class RoboCupEnvironment(object):
         robot.rightFoot.color = (255, 0, 0)
 
         # Set moving variables
-        if robot.kicking:
+        if robot.kicking and robot.jointRemoved:
             robot.kicking = False
             # If the robot was kicking, the joint between its legs was removed. It needs to be added back
             self.space.add(robot.joint)
+            robot.jointRemoved = False
 
     # Robot update function
     def tick(self, robot):
@@ -752,7 +753,9 @@ class RoboCupEnvironment(object):
                 # 500 ms into the kick the actual movement starts
                 if robot.moveTime + time > 500 and robot.moveTime <= 500:
                     # Remove joint between legs to allow the leg to move independently
-                    self.space.remove(robot.joint)
+                    if not robot.jointRemoved:
+                        self.space.remove(robot.joint)
+                        robot.jointRemoved = True
 
                     # Set velocity
                     velocity = pymunk.Vec2d(robot.velocity * 2.5, 0)
@@ -776,7 +779,9 @@ class RoboCupEnvironment(object):
                     foot.body.position = robot.initPos
 
                     # Add joint back
-                    self.space.add(robot.joint)
+                    if robot.jointRemoved:
+                        self.space.add(robot.joint)
+                        robot.jointRemoved = False
 
             # If the movement is over
             if robot.moveTime <= 0:
