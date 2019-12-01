@@ -32,11 +32,6 @@ if __name__ == '__main__':
     max3 = np.array(f['ep_rewards']['max'])
     print(np.max(pos3),np.max(max3))
 
-    ep = range(pos3.shape[0])
-    plt.figure()
-    plt.plot(ep,pos01,ep,pos1,ep,pos3)
-    plt.show()
-
     print("Drive")
     print("RCM")
     fName = "../../log/Driving/time_log_2019-11-25 18_27_42.hdf5"
@@ -56,3 +51,8 @@ if __name__ == '__main__':
     pos5 = np.array(f['ep_rewards']['mean'])
     max5 = np.array(f['ep_rewards']['max'])
     print(np.max(pos5),np.max(max5))
+
+    ep = range(pos1.shape[0])
+    plt.figure()
+    plt.plot(ep,pos5)
+    plt.show()

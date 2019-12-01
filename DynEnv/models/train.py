@@ -7,8 +7,8 @@ import torch.nn as nn
 
 np.set_printoptions(precision=1)
 
-from DynEnv.utils.logger import TemporalLogger
-from DynEnv.utils.utils import AgentCheckpointer
+from ..utils.logger import TemporalLogger
+from ..utils.utils import AgentCheckpointer
 from .storage import RolloutStorage
 
 from gym.spaces import Box

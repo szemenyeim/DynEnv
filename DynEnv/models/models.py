@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
-from DynEnv.utils.utils import AttentionType, AttentionTarget
+from ..utils.utils import AttentionType, AttentionTarget
 from gym.spaces import MultiDiscrete, Box
 
 flatten = lambda l: [item for sublist in l for item in sublist]

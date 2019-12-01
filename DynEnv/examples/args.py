@@ -1,5 +1,5 @@
 import argparse
-from DynEnv import *
+from ...DynEnv import *
 
 
 def get_args():
