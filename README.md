@@ -167,7 +167,9 @@ Position information is normalized in both the observations and the full state.
 Due to limitations in the OpenAI gym, this part of the environment is not fully compatible. The `observation_space` variable is an instance of `gym.space.Space`, however, the meaning is slightly different.
 I.e. querying the `observation_space` variable and calling `.sample()` on it will get you a fully valid observation format, it does not cover every form of observations an environment can produce. Let us elaborate on that!
 
-Due to the fact that in every time step each agent can see different number of objects (such as cars in the _Driving_ environment), including 0 as a valid number for each object type (not to mention false positive sightings or misclassifications), we cannot give an observation space format which covers all possibilities. However, what we can do is to _assume_ that each object type is present in the observation with a single instance, thus including every necessary information about the object space.
+##### Gym-like observation space descriptor
+
+Due to the fact that in every time step each agent can see different number of objects (such as cars in the _Driving_ environment), including 0 as a valid number for each object type (not to mention false positive sightings or misclassifications), we cannot give an observation space format which covers all possibilities. However, what we can do is to _assume_ that each object type is present in the observation with a single instance, thus including every necessary information about the object space (but be aware that multiple observations from the same object type can be in the list of observations).
 
 Here is an example for the Driving environment how the observation space looks like (we use extensively the `Dict` gym space, as it enables to describe what is contained, note that prefixes are present as for our network the order in the `featuresPerObject` - see below example - matters):
 
@@ -193,7 +195,8 @@ self.observation_space = Dict({
 
 ```
 
- 
+ ##### List of observations
+
 The observations returned are arranged as follows:
  
 `[nParallelEnvs x nTimeSteps x nAgents x nObjectType]`
@@ -209,6 +212,7 @@ Here is a more comprehensive example:
 from DynEnv.models import *
 from torch import nn
 
+# setup environment, query all required variables
 myEnv = ...
 obsSpace = myEnv.observation_space
 nTime =  5 if env is DynEnvType.ROBO_CUP else 1
@@ -216,14 +220,18 @@ nPlayers = ...
 nObjectTypes = len(obsSpace.spaces.keys())
 featuresPerObject = [flatdim(s) for s in obsSpace.spaces.values()]
 
+# create neural network and rearrange inputs
 device = <CUDA or CPU>
 myNeuralNets = [nn.Linear(objfeat,128).to(device) for objFeat in featuresPerObject]
 myArranger = models.InOutArranger(nObjectTypes,nPlayers,nTime)
 
 ...
+# create sample action and step
 actions = torch.stack([action_space.sample() for _ in range(nPlayers)]
 obs, _ = myEnv.step(actions)
 
+# summary
+# rearrange inputs - forward - rearrange outputs
 netInputs, counts = myArranger.rearrange_inputs(obs)
 netOutputs = [myNet(torch.tensor(netInput).to(device)) for myNet,netInput in zip(myNeuralNets,netInputs)]
 outputs,masks = myArranger.rearrange_outputs(netOutputs,counts,device)
