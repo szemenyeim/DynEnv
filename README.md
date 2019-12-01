@@ -6,6 +6,18 @@ This project contains two reinforcement learning environments based on 2D physic
 - **Robot Soccer SPL League (RoboCupEnvironment):** Here, two teams of robots are competing to play soccer.
 - **Autonomous driving environment (DrivingEnvironment):** Here, two teams of cars try to get to their unique destinations as quickly as possible without crashing or hitting pedestrians. The teams are not competing here, but only cars on the same team are allowed to share information (to model human drivers).
 
+
+## Table of contents
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [Usage](#usage)
+    * [Model structure](#model-structure)
+    * [Parameters](#parameters)
+    * [Important functions and members](#important-functions-and-members)
+    * [So, what are the actions?](#so-what-are-the-actions)
+    * [What is returned?](#what-is-returned)
+
+
 ## Requirements
 
 - Python 3.6+
