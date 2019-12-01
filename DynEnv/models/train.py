@@ -116,7 +116,7 @@ class Runner(object):
                 last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
 
                 """Get goals"""
-                goals = np.array(self.storage.goals).sum(axis=0)
+                goals = np.array(self.storage.goals)
 
                 self.logger.log(
                              **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
@@ -129,7 +129,7 @@ class Runner(object):
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
-                      "[", goals[0], ":", goals[1], "]")
+                      "[", goals.sum(axis=0)[0], ":", goals.sum(axis=0)[1], "]")
 
                 r_loss = 0
                 p_loss = 0
