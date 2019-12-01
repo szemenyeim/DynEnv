@@ -1,4 +1,4 @@
-from ...DynEnv import *
+from DynEnv import *
 import pygame
 from pygame.locals import *
 import sys
