@@ -764,6 +764,7 @@ class DrivingEnvironment(object):
                      self.buildings]  # Buildings are always seen
         pedDets = [isSeenInRadius(p.getPos(), None, 0, selfDet[1], ang, self.maxVisDist[0], self.maxVisDist[1]) for p in
                    self.pedestrians]
+        #laneDets = np.concatenate([r.getCarLaneDistances(selfDet[1],ang) for r in self.roads])
         laneDets = []
         for l in self.roads:
             laneDets += [getLineInRadius(l.Lanes[i + l.nLanes], selfDet[1], ang, self.maxVisDist[0])

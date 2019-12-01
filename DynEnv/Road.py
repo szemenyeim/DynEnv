@@ -1,6 +1,7 @@
 import copy
 import math
-from .cutils import LanePosition
+from .cutils import LanePosition, SightingType
+import numpy as np
 
 
 class Road:
@@ -27,6 +28,42 @@ class Road:
         self.Lanes = [[self.points[0] + i*width*self.normal,self.points[1] + i*width*self.normal] for i in range(-nLanes,nLanes+1)]
         self.Walkways = [[self.points[0] + (nLanes+1)*width*self.normal,self.points[1] + (nLanes+1)*width*self.normal],
         [self.points[0] - (nLanes+1)*width*self.normal,self.points[1] - (nLanes+1)*width*self.normal] ]if hasWalkway else []
+
+    # get distances from a Lane
+    def getCarLaneDistances(self,carPos,carAngle):
+        # Get difference
+        pt = carPos - self.points[0]
+
+        # Distance from middle
+        dist = self.direction.cross(pt)/self.width
+        if abs(dist) > 5:
+            return np.array([[SightingType.NoSighting, 0, 0, 0, 0],])
+
+        # Lane IDs
+        laneTypes = np.array([1,] * self.nLanes + [-1,] * self.nLanes)
+
+        # Angles
+        a = self.direction.angle - carAngle
+        c = math.cos(a)
+        s = math.sin(a)
+
+        # Flip distance and lanes
+        if c >= 0:
+            laneTypes *= -1
+            c *= -1
+            s *= -1
+
+        # Angles for every lane
+        c = np.array([c,]*self.nLanes*2)
+        s = np.array([s,]*self.nLanes*2)
+
+        # SightingTypes
+        sighting = np.array([SightingType.Normal,]*self.nLanes*2)
+
+        # get distances
+        distances = ((dist + 0.5) + np.array([i for i in range(-self.nLanes,self.nLanes)]))*4
+
+        return np.stack([sighting,distances,c,s,laneTypes]).T
 
     # Decide if point ios on the road
     def isPointOnRoad(self,point,angle):
