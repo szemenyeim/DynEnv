@@ -5,9 +5,8 @@ import pymunkoptions
 
 pymunkoptions.options["debug"] = False
 import DynEnv
-from DynEnv import DynEnvType
 from DynEnv.models.agent import ICMAgent
-from args import get_args
+from DynEnv.examples.args import get_args
 from DynEnv.models.train import Runner
 from DynEnv.utils.utils import set_random_seeds, NetworkParameters, RewardType, AttentionTarget, AttentionType
 
@@ -34,7 +33,7 @@ if __name__ == '__main__':
 
     # agent
     agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,
-                     args.forward_coeff, args.icm_beta, args.rollout_size, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
+                     args.forward_coeff, args.icm_beta, args.rollout_size, 5 if args.env is DynEnv.DynEnvType.ROBO_CUP else 1, lr=args.lr)
 
     # params
     param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,

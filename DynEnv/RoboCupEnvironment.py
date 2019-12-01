@@ -292,7 +292,16 @@ class RoboCupEnvironment(object):
 
     # Reset env
     def reset(self):
+        # Agent ID and render mode must survive init
+        agentID = self.agentVisID
+        renderMode = self.renderMode
+
         self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude, self.allowHeadTurn)
+
+        self.agentVisID = agentID
+        self.renderMode = renderMode
+
+        # First observations
         observations = []
         for i in range(5):
             if self.observationType == ObservationType.FULL:

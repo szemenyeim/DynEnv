@@ -29,6 +29,8 @@ def doRoboCup(args):
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     sys.exit(0)
+                elif event.key == K_RETURN:
+                    env.reset()
                 elif event.key == K_w:
                     action1[0] = 1
                 elif event.key == K_s:
@@ -132,13 +134,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Play with the env')
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.from_string, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.argparse, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
-    parser.add_argument('--observationType', default=ObservationType.PARTIAL, type=ObservationType.from_string, choices=list(ObservationType),
+    parser.add_argument('--observationType', default=ObservationType.PARTIAL, type=ObservationType.argparse, choices=list(ObservationType),
                         help='Observation type')
-    parser.add_argument('--noiseType', default=NoiseType.REALISTIC, type=NoiseType.from_string, choices=list(NoiseType),
+    parser.add_argument('--noiseType', default=NoiseType.REALISTIC, type=NoiseType.argparse, choices=list(NoiseType),
                         help='Noise type')
     parser.add_argument('--noiseMagnitude', type=float, default=1.0,
                         help='Noise magnitude [0-5]')
