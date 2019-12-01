@@ -1,17 +1,13 @@
-import multiprocessing
-from collections import OrderedDict
-
 import itertools
+import multiprocessing
 
-import gym
 import numpy as np
-
-from .cutils import DynEnvType
-from .RoboCupEnvironment import RoboCupEnvironment
-from .DrivingEnvironment import DrivingEnvironment
-
-from stable_baselines.common.vec_env.base_vec_env import VecEnv, CloudpickleWrapper
 from stable_baselines.common.tile_images import tile_images
+from stable_baselines.common.vec_env.base_vec_env import VecEnv, CloudpickleWrapper
+
+from .DrivingEnvironment import DrivingEnvironment
+from .RoboCupEnvironment import RoboCupEnvironment
+from .cutils import DynEnvType
 
 
 def _worker(remote, parent_remote, env_fn_wrapper):
@@ -195,7 +191,7 @@ def _flatten_obs(obs, space):
     assert isinstance(obs, (list, tuple)), "expected list or tuple of observations per environment"
     assert len(obs) > 0, "need observations from at least one environment"
 
-    numT = space[0]
+    numT = len(obs[0])
     rearranged = [list(itertools.chain.from_iterable([obs[env][time] for env in range(len(obs))])) for time in
                   range(numT)]
     return rearranged
@@ -207,7 +203,7 @@ def _flatten_obs(obs, space):
 def make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude,
                  use_continuous_actions):
     if env is DynEnvType.ROBO_CUP:
-        envs = [lambda: RoboCupEnvironment(nPlayers=num_players, render=render,
+        envs = [lambda: RoboCupEnvironment(nPlayers=num_players, nTimeSteps=5, render=render,
                                            observationType=observationType,
                                            noiseType=noiseType, noiseMagnitude=noiseMagnitude,
                                            allowHeadTurn=use_continuous_actions)
@@ -215,7 +211,7 @@ def make_dyn_env(env, num_envs, num_players, render, observationType, noiseType,
         env = CustomSubprocVecEnv(envs)
         name = "RoboCup"
     elif env is DynEnvType.DRIVE:
-        envs = [lambda: DrivingEnvironment(nPlayers=num_players, render=render,
+        envs = [lambda: DrivingEnvironment(nPlayers=num_players, nTimeSteps=1, render=render,
                                            observationType=observationType,
                                            noiseType=noiseType, noiseMagnitude=noiseMagnitude,
                                            continuousActions=use_continuous_actions)
