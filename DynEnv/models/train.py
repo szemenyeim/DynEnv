@@ -117,7 +117,7 @@ class Runner(object):
 
                 """Get goals for robocup env"""
                 if len(self.storage.goals):
-                    goals = [sum(self.storage.goals[:][0]),sum(self.storage.goals[:][1])]
+                    goals = np.array(self.storage.goals).sum(axis=0)
                 else:
                     goals = [0,0]
 
