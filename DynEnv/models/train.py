@@ -29,7 +29,7 @@ class Runner(object):
 
         """Logger"""
         self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards","ep_pos_rewards"])
-        self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp)
+        self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp, log_dir)
 
         """Environment"""
         self.env = env
