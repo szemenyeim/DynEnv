@@ -41,7 +41,7 @@ class Road:
         if abs(dist) >= self.nLanes*self.width+5:
             return LanePosition.OffRoad
         else:
-            pos = LanePosition.OffRoad
+            pos = LanePosition.OverRoad
 
             # Ged logituinal distance from starting point
             dirDist = self.direction.dot(pt)

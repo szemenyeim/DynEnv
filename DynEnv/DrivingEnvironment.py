@@ -304,7 +304,7 @@ class DrivingEnvironment(object):
             info['episode_r'] = self.episodeRewards
             info['episode_p_r'] = self.episodePosRewards
             info['episode_g'] = [sum([car.finished and not car.crashed for car in self.cars]), sum([car.crashed for car in self.cars])]
-            # print(self.episodeRewards)
+        print(self.episodeRewards)
 
         t2 = time.clock()
         # print((t2 - t1) * 1000)
@@ -403,10 +403,10 @@ class DrivingEnvironment(object):
         car.prevPos = car.getPos()
 
         # crash for leaving road
-        if car.position == LanePosition.OffRoad:
+        if car.position >= LanePosition.OverRoad:
             if not car.finished:
                 # If reached goal finish and add reward
-                if (car.getPos() - car.goal).length < self.distThreshold:
+                if car.position == LanePosition.OverRoad and (car.getPos() - car.goal).length < self.distThreshold:
                     car.position = LanePosition.AtGoal
                     car.finished = True
                     self.carRewards[index] += (self.maxTime - self.elapsed) / 100
@@ -512,7 +512,7 @@ class DrivingEnvironment(object):
             position = min(position, rPos)
 
         # Return
-        return position == LanePosition.OffRoad
+        return position >= LanePosition.OverRoad
 
     # Is point out of the field
     def isOut(self, pos):

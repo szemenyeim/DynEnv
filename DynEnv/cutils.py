@@ -142,7 +142,8 @@ class LanePosition(IntEnum):
     AtGoal = 0
     InRightLane = 1
     InOpposingLane = 2
-    OffRoad = 3
+    OverRoad = 3
+    OffRoad = 4
 
 # Type of observation
 class SightingType(IntEnum):
