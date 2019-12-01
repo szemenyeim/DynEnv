@@ -62,18 +62,18 @@ class RoboCupEnvironment(object):
             "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
         })
 
+        robot_space = Dict({
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+            "orientation": Box(-1, 1, shape=(2,)),
+            "team": Box(-1, 1, shape=(1,)),
+            "penalized or penalized": MultiBinary(1)
+        })
 
         if self.observationType == ObservationType.FULL:
             ball_space = Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
                 "team": Box(-1, 1, shape=(1,)),
                 "closest": MultiBinary(1),
-            })
-            robot_space = Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "orientation": Box(-1, 1, shape=(2,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "penalized or penalized": MultiBinary(1)
             })
 
             self.observation_space = Dict({
@@ -91,13 +91,6 @@ class RoboCupEnvironment(object):
                 "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
                 "team": Box(-1, 1, shape=(1,)),
                 "closest": MultiBinary(1),
-            })
-
-            robot_space = Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "orientation": Box(-1, 1, shape=(2,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "penalized or penalized": MultiBinary(1)
             })
 
             self.observation_space = Dict({
