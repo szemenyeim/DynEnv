@@ -93,40 +93,27 @@ class DrivingEnvironment(object):
         pedestrian_space = Dict({
             "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
         })
+        lane_space = Dict({
+            "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
+            "orientation": Box(-1, 1, shape=(2,)),
+            "type": Box(-1, 1, shape=(1,))
+        })
 
         if self.observationType == ObservationType.FULL:
-
-            full_lane_space = Dict({
-                "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
-                "orientation": Box(-1, 1, shape=(2,)),
-                "type": MultiBinary(1)
-            })
-
             self.observation_space = Dict({
                 "0_self": self_space,
                 "1_car": car_space,
                 "2_obstacle": obstacle_space,
                 "3_pedestrian": pedestrian_space,
-                "4_lane": full_lane_space
+                "4_lane": lane_space
             })
-
-
-
         else:
-            self.observation_space = [1, self.nPlayers, 5, [9, 7, 6, 2, 4]]
-
-            partial_lane_space = Dict({
-                "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
-                "orientation": Box(-1, 1, shape=(2,)),
-                "type": MultiBinary(1)
-            })
-
             self.observation_space = Dict({
                 "0_self": self_space,
                 "1_car": car_space,
                 "2_obstacle": obstacle_space,
                 "3_pedestrian": pedestrian_space,
-                "4_lane": partial_lane_space
+                "4_lane": lane_space
             })
 
         # Action space

@@ -66,13 +66,13 @@ class RoboCupEnvironment(object):
         if self.observationType == ObservationType.FULL:
             ball_space = Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "team": MultiBinary(1),
+                "team": Box(-1, 1, shape=(1,)),
                 "closest": MultiBinary(1),
             })
             robot_space = Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
                 "orientation": Box(-1, 1, shape=(2,)),
-                "team": MultiBinary(1),
+                "team": Box(-1, 1, shape=(1,)),
                 "penalized or penalized": MultiBinary(1)
             })
 
@@ -81,30 +81,27 @@ class RoboCupEnvironment(object):
                 "1_self" : robot_space,
                 "2_robot": robot_space
             })
-
-
-
         elif self.observationType == ObservationType.IMAGE:
-            self.observation_space = [5, self.nPlayers * 2, [4, 480, 640]]
+
+            self.observation_space = Box(0, 1, shape=(4, 480, 640))
         else:
 
             ball_space = Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
                 "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
-                "team": MultiBinary(1),
+                "team": Box(-1, 1, shape=(1,)),
                 "closest": MultiBinary(1),
             })
 
             robot_space = Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
                 "orientation": Box(-1, 1, shape=(2,)),
-                "team": MultiBinary(1),
-                "fallen": MultiBinary(1),
+                "team": Box(-1, 1, shape=(1,)),
                 "penalized or penalized": MultiBinary(1)
             })
 
             self.observation_space = Dict({
-                "0_ball": ball_space, #todo:not good for sure
+                "0_ball": ball_space,
                 "1_robot": robot_space,
                 "2_goalpost":goalpost_space,
                 "3_cross" :cross_space,

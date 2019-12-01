@@ -37,14 +37,14 @@ def get_args():
                         help='number of frames stacked')
     parser.add_argument('--rollout-size', type=int, default=10, metavar='ROLLOUT_SIZE',
                         help='rollout size')
-    parser.add_argument('--num-updates', type=int, default=60000, metavar='NUM_UPDATES',
+    parser.add_argument('--num-updates', type=int, default=6000, metavar='NUM_UPDATES',
                         help='number of updates')
     parser.add_argument('--use-full-entropy', type=bool, default=False, metavar='USE_FULL_ENTROPY',
                         help='use full entropy, not just batch entropy')
 
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.argparse, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.ROBO_CUP, type=DynEnvType.argparse, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
