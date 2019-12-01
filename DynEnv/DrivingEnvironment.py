@@ -43,7 +43,7 @@ class DrivingEnvironment(object):
         self.H = 1000
 
         # Normalization parameters
-        self.mean = 5.0
+        self.mean = 2.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
         self.normW = 1.0 / 7.5
@@ -73,31 +73,31 @@ class DrivingEnvironment(object):
 
         # spaces for all cases
         self_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "orientation": Box(-1, 1, shape=(2,)),
             "width_height": Box(-10, 10, shape=(2,)),
-            "goal_position": Box(-self.mean, +self.mean, shape=(2,)),
+            "goal_position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "finished": MultiBinary(1)
         })
         car_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "orientation": Box(-1, 1, shape=(2,)),
             "width_height": Box(-10, 10, shape=(2,)),
             "finished": MultiBinary(1)
         })
         obstacle_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "orientation": Box(-1, 1, shape=(2,)),
             "width_height": Box(-10, 10, shape=(2,)),
         })
         pedestrian_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
         })
 
         if self.observationType == ObservationType.FULL:
 
             full_lane_space = Dict({
-                "signed_distance": Box(-2 * self.mean, +2 * self.mean, shape=(1,)),
+                "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
                 "orientation": Box(-1, 1, shape=(2,)),
                 "type": MultiBinary(1)
             })
@@ -116,7 +116,7 @@ class DrivingEnvironment(object):
             self.observation_space = [1, self.nPlayers, 5, [9, 7, 6, 2, 4]]
 
             partial_lane_space = Dict({
-                "signed_distance": Box(-2 * self.mean, +2 * self.mean, shape=(1,)),
+                "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
                 "orientation": Box(-1, 1, shape=(2,)),
                 "type": MultiBinary(1)
             })
@@ -132,17 +132,8 @@ class DrivingEnvironment(object):
         # Action space
         if self.continuousActions:
             self.action_space = Tuple((Box(-3, +3, shape=(2,)),))
-            '''self.action_space = \
-                [self.nPlayers, [
-                    ['cont', 2, [0, 0], [6, 6]],
-                ]]'''
         else:
             self.action_space = Tuple((MultiDiscrete([3, 3]),))
-            '''self.action_space = \
-                [self.nPlayers, [
-                    ['cat', 3, None, None],
-                    ['cat', 3, None, None],
-                ]]'''
 
         # Time rewards
         self.maxTime = 6000
@@ -975,7 +966,7 @@ class DrivingEnvironment(object):
                             obsDets]).astype('float32')
         pedDets = np.array(
             [[normalize(ped[1].x, self.normX), normalize(ped[1].y, self.normY)] for ped in pedDets]).astype('float32')
-        laneDets = np.array([[normalize(lane[1], self.normW), lane[2], lane[3], lane[4]] for lane in laneDets]).astype(
+        laneDets = np.array([[normalize(lane[1], self.normX), lane[2], lane[3], lane[4]] for lane in laneDets]).astype(
             'float32')
 
         # return

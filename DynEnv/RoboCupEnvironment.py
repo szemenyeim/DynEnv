@@ -46,7 +46,7 @@ class RoboCupEnvironment(object):
         self.ballRadius = 5
 
         # Normalization variables
-        self.mean = 1.0
+        self.mean = 2.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
 
@@ -55,22 +55,22 @@ class RoboCupEnvironment(object):
 
 
         robot_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "orientation": Box(-1, 1, shape=(2,)),
             "team": MultiBinary(1),
             "fallen": MultiBinary(1),
             "penalized": MultiBinary(1)
         })
         ball_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "team": MultiBinary(1),
         })
         line_space = Dict({
-            "position": Box(-self.mean, +self.mean, shape=(4,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(4,)),
         })
         cross_space = goalpost_space=center_circle_space= Dict({
-            "position": Box(-self.mean, +self.mean, shape=(2,)),
-            "radius": Box(-self.mean, +self.mean, shape=(1,)),
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+            "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
         })
 
 
