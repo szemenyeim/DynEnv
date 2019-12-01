@@ -333,8 +333,8 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
     if obj[0]:
 
         # Create random distance and angle noise
-        distNoise = 1 - (random.random() - 0.5) * magn * 0.1
-        angleNoise = (random.random() - 0.5) * magn * 0.1
+        distNoise = (random.random() - 0.5) * magn
+        angleDiff = (random.random() - 0.5) * magn
 
         # Add random noise if simple noise and random FN
         if noiseType == NoiseType.RANDOM:
@@ -342,7 +342,7 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
                 obj[0] = SightingType.NoSighting
             obj[1] *= distNoise
             ang = math.atan2(obj[3],obj[2])
-            ang += angleNoise
+            ang += angleNoise * angleDiff
             obj[2] = math.cos(ang)
             obj[3] = math.sin(ang)
 
@@ -355,9 +355,10 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
             if random.random() < rand * multiplier1:
                 obj[0] = SightingType.NoSighting
 
-            obj[1] *= (distNoise + (1-distNoise) * multiplier1 / 2)
+            diff = distNoise*multiplier1
+            obj[1] += diff
             ang = math.atan2(obj[3],obj[2])
-            ang += angleNoise * multiplier1 / 2
+            ang += angleNoise * multiplier1 / 5 * angleDiff
             obj[2] = math.cos(ang)
             obj[3] = math.sin(ang)
 
@@ -459,7 +460,7 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
                 multiplier = range*3
             elif sightingType == sightingType.Partial:
                 multiplier = range*4
-            newPos = obj[1]+noiseVec*multiplier/4
+            newPos = obj[1]+noiseVec*multiplier
 
             # Random misclassification if the flag is set
             if random.random() < rand*multiplier:
@@ -469,7 +470,7 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
                 obj[0] = SightingType.Misclassified
 
             # Apply noise
-            angleDiff = (random.random() - 0.5) * magn * angleNoise
+            angleDiff = (random.random() - 0.5) * magn * angleNoise * 0.25
             ang = math.atan2(obj[3], obj[2])
             ang += angleDiff
             obj[2] = math.cos(ang)
@@ -558,6 +559,10 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
     ang = angle(points[1]-points[0])-obsAngle
     c = math.cos(ang)
     s = math.sin(ang)
+    if c >= 0:
+        c *= -1
+        s *= -1
+        dist *= -1
 
     return [SightingType.Normal, dist, c, s]
 

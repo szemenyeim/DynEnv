@@ -43,7 +43,7 @@ class DrivingEnvironment(object):
         self.H = 1000
 
         # Normalization parameters
-        self.mean = 2.0 if ObservationType.PARTIAL else 1.0
+        self.mean = 5.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
         self.normW = 1.0 / 7.5
