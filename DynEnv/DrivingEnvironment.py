@@ -968,7 +968,7 @@ class DrivingEnvironment(object):
                             obsDets]).astype('float32')
         pedDets = np.array(
             [[normalize(ped[1].x, self.normX), normalize(ped[1].y, self.normY)] for ped in pedDets]).astype('float32')
-        laneDets = np.array([[normalize(lane[1], self.normX), lane[2], lane[3], lane[4]] for lane in laneDets]).astype(
+        laneDets = np.array([[normalize(lane[1], self.normW), lane[2], lane[3], lane[4]] for lane in laneDets]).astype(
             'float32')
 
         # return

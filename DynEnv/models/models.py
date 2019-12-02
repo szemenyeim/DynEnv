@@ -483,7 +483,7 @@ class AttentionNet(nn.Module):
         self.attention = nn.Linear(self.attention_size, self.attention_size)
 
     def forward(self, target, attn=None):
-        return target * F.softmax(self.attention(target if attn is None else attn), dim=-1)
+        return target * (F.softmax(self.attention(target if attn is None else attn), dim=-1))
 
 
 class ForwardNet(nn.Module):
