@@ -764,12 +764,12 @@ class DrivingEnvironment(object):
                      self.buildings]  # Buildings are always seen
         pedDets = [isSeenInRadius(p.getPos(), None, 0, selfDet[1], ang, self.maxVisDist[0], self.maxVisDist[1]) for p in
                    self.pedestrians]
-        #laneDets = np.concatenate([r.getCarLaneDistances(selfDet[1],ang) for r in self.roads])
-        laneDets = []
+        laneDets = np.concatenate([r.getCarLaneDistances(selfDet[1],ang) for r in self.roads])
+        '''laneDets = []
         for l in self.roads:
             laneDets += [getLineInRadius(l.Lanes[i + l.nLanes], selfDet[1], ang, self.maxVisDist[0])
                          + [(1 if abs(i) == l.nLanes else (-1 if i == 0 else 0)), ]
-                         for i in range(-l.nLanes, l.nLanes + 1)]
+                         for i in range(-l.nLanes, l.nLanes + 1)]'''
 
         # Remove objects not seen (this is to reduce computation down the road)
         carDets = [c for i, c in enumerate(carDets) if c[0] != SightingType.NoSighting]
@@ -968,7 +968,7 @@ class DrivingEnvironment(object):
                             obsDets]).astype('float32')
         pedDets = np.array(
             [[normalize(ped[1].x, self.normX), normalize(ped[1].y, self.normY)] for ped in pedDets]).astype('float32')
-        laneDets = np.array([[normalize(lane[1], self.normW), lane[2], lane[3], lane[4]] for lane in laneDets]).astype(
+        laneDets = np.array([[lane[1], lane[2], lane[3], lane[4]] for lane in laneDets]).astype(
             'float32')
 
         # return

@@ -36,7 +36,7 @@ class Road:
 
         # Distance from middle
         dist = self.direction.cross(pt)/self.width
-        if abs(dist) > 5:
+        if abs(dist) > 10:
             return np.array([[SightingType.NoSighting, 0, 0, 0, 0],])
 
         # Lane IDs
@@ -61,7 +61,7 @@ class Road:
         sighting = np.array([SightingType.Normal,]*self.nLanes*2)
 
         # get distances
-        distances = ((dist + 0.5) + np.array([i for i in range(-self.nLanes,self.nLanes)]))*4
+        distances = ((dist + 0.5) + np.array([i for i in range(-self.nLanes,self.nLanes)]))*5
 
         return np.stack([sighting,distances,c,s,laneTypes]).T
 
