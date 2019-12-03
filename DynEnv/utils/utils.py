@@ -338,9 +338,10 @@ class AgentCheckpointer(object):
             torch.save(agent.state_dict(), join(self.data_dir, f"agent_best_reward_{self.timestamp}"))
 
         # save agent at specific time intervals
-        if self.update_cntr in self.log_points.keys():
-            torch.save(agent.state_dict(),
-                       join(self.data_dir, f"agent_step_{self.log_points[self.update_cntr]}_{self.timestamp}"))
+        for val in self.log_points.keys():
+            if val >= self.update_cntr > val - step:
+                torch.save(agent.state_dict(),
+                           join(self.data_dir, f"agent_step_{self.log_points[self.update_cntr]}_{self.timestamp}"))
 
 
 from matplotlib import rc
