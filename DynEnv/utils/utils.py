@@ -313,7 +313,7 @@ class AgentCheckpointer(object):
         self.update_cntr = 0
         self.best_loss = np.inf
         self.best_reward = -np.inf
-        log_keys = np.int32(self.num_updates * np.array(log_points)).tolist()
+        log_keys = np.int32(self.num_updates * np.array(log_points)-1).tolist()
         self.log_points = dict(zip(log_keys, log_points))
 
         # file structure
@@ -341,7 +341,7 @@ class AgentCheckpointer(object):
         for val in self.log_points.keys():
             if val >= self.update_cntr > val - step:
                 torch.save(agent.state_dict(),
-                           join(self.data_dir, f"agent_step_{self.log_points[self.update_cntr]}_{self.timestamp}"))
+                           join(self.data_dir, f"agent_step_{self.update_cntr}_{self.timestamp}"))
 
 
 from matplotlib import rc
