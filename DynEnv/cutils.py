@@ -1,7 +1,38 @@
-from pymunk import Vec2d, Body
-import math, random, copy
+import copy
+import math
+import random
 from enum import IntEnum
+
 import numpy as np
+from pymunk import Vec2d, Body
+from stable_baselines.common.vec_env import SubprocVecEnv
+
+from .DrivingEnvironment import DrivingEnvironment
+from .RoboCupEnvironment import RoboCupEnvironment
+
+
+def make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude,
+                 use_continuous_actions):
+    if env is DynEnvType.ROBO_CUP:
+        envs = [lambda: RoboCupEnvironment(nPlayers=num_players, render=render, observationType=observationType,
+                                           noiseType=noiseType, noiseMagnitude=noiseMagnitude,
+                                           allowHeadTurn=use_continuous_actions,
+                                           obs_space_cast=True)
+                for _ in range(num_envs)]
+        env = SubprocVecEnv(envs)
+        name = "RoboCup"
+    elif env is DynEnvType.DRIVE:
+        envs = [lambda: DrivingEnvironment(nPlayers=num_players, render=render, observationType=observationType,
+                                           noiseType=noiseType, noiseMagnitude=noiseMagnitude,
+                                           continuousActions=use_continuous_actions,
+                                           obs_space_cast=True)
+                for _ in range(num_envs)]
+        env = SubprocVecEnv(envs)
+        name = "Driving"
+    else:
+        raise ValueError
+
+    return env, name
 
 
 class DynEnvType(IntEnum):
@@ -73,49 +104,48 @@ class CollisionType(IntEnum):
 
 # Car friction callback
 def friction_car(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,5e-5,1e-5)
+    apply_friction(body, gravity, damping, dt, 5e-5, 1e-5)
 
 
 # Car friction callback crashed
 def friction_car_crashed(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,5e-4,2e-5)
+    apply_friction(body, gravity, damping, dt, 5e-4, 2e-5)
 
 
 # Dead pedestrian friction
 def friction_pedestrian_dead(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,5e-2,2e-4)
+    apply_friction(body, gravity, damping, dt, 5e-2, 2e-4)
 
 
 # Robot friction callback
 def friction_robot(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,1e-3,1e-2)
+    apply_friction(body, gravity, damping, dt, 1e-3, 1e-2)
 
 
 # Ball friction callback
 def friction_ball(body, gravity, damping, dt):
-    apply_friction(body,gravity,damping,dt,3e-2,2e-3,5e-2)
+    apply_friction(body, gravity, damping, dt, 3e-2, 2e-3, 5e-2)
 
 
-def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0):
-
+def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin=0.0):
     # Update velocity
     Body.update_velocity(body, gravity, damping, dt)
 
     # Get friction coefficients for velocity and angular velocity
     m = body.mass
-    factor = friction*m
-    rotFactor = rotFriction*m
+    factor = friction * m
+    rotFactor = rotFriction * m
 
     # Get velocity params
     x = body.velocity.x
     y = body.velocity.y
-    length = 1.0/(abs(x)+abs(y) + 1e-5)
+    length = 1.0 / (abs(x) + abs(y) + 1e-5)
     theta = body.angular_velocity
 
     # Spinning objects turn sideways
-    a = [x*factor*length, y*factor*length]
-    a[0] += a[1]*spin*theta
-    a[1] -= a[0]*spin*theta
+    a = [x * factor * length, y * factor * length]
+    a[0] += a[1] * spin * theta
+    a[1] -= a[0] * spin * theta
 
     # If too slow, simply stop
     if abs(x) < factor:
@@ -134,7 +164,7 @@ def apply_friction(body, gravity, damping, dt, friction, rotFriction, spin = 0.0
         theta -= rotFactor if theta > 0 else -rotFactor
 
     # Set velocity
-    body.velocity = Vec2d(x,y)
+    body.velocity = Vec2d(x, y)
     body.angular_velocity = theta
 
 
@@ -145,6 +175,7 @@ class LanePosition(IntEnum):
     OverRoad = 3
     OffRoad = 4
 
+
 # Type of observation
 class SightingType(IntEnum):
     NoSighting = 0
@@ -153,49 +184,54 @@ class SightingType(IntEnum):
     Normal = 3
     Misclassified = 4
 
+
 # Types of object-ocject interaction
 class InteractionType(IntEnum):
     NoInter = 0
     Nearby = 1
     Occlude = 2
 
+
 # Camera parameters
 focal = 543.6
 A = np.array([
     [focal, 0, 319.5],
     [0, -focal, 239.5],
-    [0,0,1]
+    [0, 0, 1]
 ])
 
 # 2*pi
-twoPi = math.pi*2
+twoPi = math.pi * 2
 
 # Camera orientation and rotation
-bottomAng = (0.6929+0.25)
+bottomAng = (0.6929 + 0.25)
 bottomRot = np.array([
-        [1, 0, 0],
-        [0, np.cos(bottomAng), -np.sin(bottomAng)],
-        [0, np.sin(bottomAng), np.cos(bottomAng)]
-    ])
+    [1, 0, 0],
+    [0, np.cos(bottomAng), -np.sin(bottomAng)],
+    [0, np.sin(bottomAng), np.cos(bottomAng)]
+])
 
-bottomTr = np.concatenate((np.concatenate((bottomRot, np.array([[0,], [53.774,], [5.071,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
-bottomTr = np.matmul(A,np.linalg.inv(bottomTr)[:3])
+bottomTr = np.concatenate(
+    (np.concatenate((bottomRot, np.array([[0, ], [53.774, ], [5.071, ]])), axis=1), np.array([[0, 0, 0, 1, ], ])),
+    axis=0)
+bottomTr = np.matmul(A, np.linalg.inv(bottomTr)[:3])
 
 # Top camera
-topAng = (0.0209+0.25)
+topAng = (0.0209 + 0.25)
 topRot = np.array([
-        [1, 0, 0],
-        [0, np.cos(topAng), -np.sin(topAng)],
-        [0, np.sin(topAng), np.cos(topAng)]
-    ])
+    [1, 0, 0],
+    [0, np.cos(topAng), -np.sin(topAng)],
+    [0, np.sin(topAng), np.cos(topAng)]
+])
 
-topTr = np.concatenate((np.concatenate((topRot, np.array([[0,], [58.364,], [5.871,]])), axis=1),np.array([[0,0,0,1,],])),axis=0)
-topTr = np.matmul(A,np.linalg.inv(topTr)[:3])
+topTr = np.concatenate(
+    (np.concatenate((topRot, np.array([[0, ], [58.364, ], [5.871, ]])), axis=1), np.array([[0, 0, 0, 1, ], ])), axis=0)
+topTr = np.matmul(A, np.linalg.inv(topTr)[:3])
 
-angleNoise = math.pi/180
+angleNoise = math.pi / 180
 
-def projectPoints(points,compRadius = True):
 
+def projectPoints(points, compRadius=True):
     # Project points
     topProj = np.matmul(topTr, points)
     bottomProj = np.matmul(bottomTr, points)
@@ -211,38 +247,39 @@ def projectPoints(points,compRadius = True):
         tRad = np.sqrt(np.sum(np.square(topProj[:, 0] - topProj[:, 1])))
         bRad = np.sqrt(np.sum(np.square(bottomProj[:, 0] - bottomProj[:, 1])))
 
-    return topProj,math.ceil(tRad),bottomProj,math.ceil(bRad)
+    return topProj, math.ceil(tRad), bottomProj, math.ceil(bRad)
+
 
 # Get x coordinates on a conic defined by params for y values in a range between [0-yRange)
-def getConicPoints(yRange,center,params):
-
+def getConicPoints(yRange, center, params):
     # y Coordinates of the image (transform to 0 center conic)
-    yCoord = np.arange(0,yRange)-center[1]
+    yCoord = np.arange(0, yRange) - center[1]
 
     # Precompute 4*a and 1/2a
     a = params[0]
-    a4 = 4*a
-    overa = 1.0/(2*a)
+    a4 = 4 * a
+    overa = 1.0 / (2 * a)
 
     # Create b and c coefficients for every y
-    b = yCoord*params[2] + params[3]
-    c = yCoord*(yCoord*params[1] + params[4])+params[5]
+    b = yCoord * params[2] + params[3]
+    c = yCoord * (yCoord * params[1] + params[4]) + params[5]
 
     # Compute determinants
-    sqr = b*b-a4*c
+    sqr = b * b - a4 * c
     ind = sqr >= 0
 
     # Solve equations for nonnegative determinants
     sqrt = np.sqrt(sqr[ind])
-    x1 = np.round((-b[ind] + sqrt)*overa+center[0])
-    x2 = np.round((-b[ind] - sqrt)*overa+center[0])
+    x1 = np.round((-b[ind] + sqrt) * overa + center[0])
+    x2 = np.round((-b[ind] - sqrt) * overa + center[0])
 
     # Create image coorinates
     yCoord = np.round(yCoord + center[1])
-    c1 = np.vstack( (x1, yCoord[ind]) ).astype('int32').transpose()
-    c2 = np.vstack( (x2, yCoord[ind]) ).astype('int32').transpose()
+    c1 = np.vstack((x1, yCoord[ind])).astype('int32').transpose()
+    c2 = np.vstack((x2, yCoord[ind])).astype('int32').transpose()
 
-    return c1,c2
+    return c1, c2
+
 
 # Estimate conic parameters from five points
 def estimateConic(points):
@@ -251,59 +288,71 @@ def estimateConic(points):
 
     # Setup parameter matrix: Every row is [x^2, y^2, xy, x, y, 1]
     X = np.array([
-        [points[0,0]*points[0,0],points[0,1]*points[0,1],points[0,0]*points[0,1],points[0,0],points[0,1],1],
-        [points[1,0]*points[1,0],points[1,1]*points[1,1],points[1,0]*points[1,1],points[1,0],points[1,1],1],
-        [points[2,0]*points[2,0],points[2,1]*points[2,1],points[2,0]*points[2,1],points[2,0],points[2,1],1],
-        [points[3,0]*points[3,0],points[3,1]*points[3,1],points[3,0]*points[3,1],points[3,0],points[3,1],1],
-        [points[4,0]*points[4,0],points[4,1]*points[4,1],points[4,0]*points[4,1],points[4,0],points[4,1],1],
-        [points[5,0]*points[5,0],points[5,1]*points[5,1],points[5,0]*points[5,1],points[5,0],points[5,1],1],
-        [points[6,0]*points[6,0],points[6,1]*points[6,1],points[6,0]*points[6,1],points[6,0],points[6,1],1],
-        [points[7,0]*points[7,0],points[7,1]*points[7,1],points[7,0]*points[7,1],points[7,0],points[7,1],1]
+        [points[0, 0] * points[0, 0], points[0, 1] * points[0, 1], points[0, 0] * points[0, 1], points[0, 0],
+         points[0, 1], 1],
+        [points[1, 0] * points[1, 0], points[1, 1] * points[1, 1], points[1, 0] * points[1, 1], points[1, 0],
+         points[1, 1], 1],
+        [points[2, 0] * points[2, 0], points[2, 1] * points[2, 1], points[2, 0] * points[2, 1], points[2, 0],
+         points[2, 1], 1],
+        [points[3, 0] * points[3, 0], points[3, 1] * points[3, 1], points[3, 0] * points[3, 1], points[3, 0],
+         points[3, 1], 1],
+        [points[4, 0] * points[4, 0], points[4, 1] * points[4, 1], points[4, 0] * points[4, 1], points[4, 0],
+         points[4, 1], 1],
+        [points[5, 0] * points[5, 0], points[5, 1] * points[5, 1], points[5, 0] * points[5, 1], points[5, 0],
+         points[5, 1], 1],
+        [points[6, 0] * points[6, 0], points[6, 1] * points[6, 1], points[6, 0] * points[6, 1], points[6, 0],
+         points[6, 1], 1],
+        [points[7, 0] * points[7, 0], points[7, 1] * points[7, 1], points[7, 0] * points[7, 1], points[7, 0],
+         points[7, 1], 1]
     ])
 
     # Solve equation
-    u,s,vt = np.linalg.svd(X)
+    u, s, vt = np.linalg.svd(X)
     a = -vt[-1]
     return a
 
+
 # Class color scheme for visualization
 classColors = [
-    (0,0,255),
-    (0,255,0),
-    (255,0,0),
-    (255,255,255),
+    (0, 0, 255),
+    (0, 255, 0),
+    (255, 0, 0),
+    (255, 255, 255),
 ]
+
 
 # Visualization function
 def colorize(img):
-    cImg = np.zeros((img.shape[1],img.shape[2],3)).astype('uint8')
-    for i in range(0,len(classColors)):
-        ind = len(classColors)-1-i
-        cImg[img[ind]==1] = classColors[ind]
+    cImg = np.zeros((img.shape[1], img.shape[2], 3)).astype('uint8')
+    for i in range(0, len(classColors)):
+        ind = len(classColors) - 1 - i
+        cImg[img[ind] == 1] = classColors[ind]
     return cImg
 
-def normalize(pt,normFactor, mean = None, team = None):
-    if mean is None:
-        mean = 0
-    if team is None:
-        team = 1
-    return ((pt*normFactor)-mean)*2*team
 
-def normalizeAfterScale(pt,normFactor, mean = None, team = None):
+def normalize(pt, normFactor, mean=None, team=None):
     if mean is None:
         mean = 0
     if team is None:
         team = 1
-    return (pt-mean)*normFactor*team
+    return ((pt * normFactor) - mean) * 2 * team
+
+
+def normalizeAfterScale(pt, normFactor, mean=None, team=None):
+    if mean is None:
+        mean = 0
+    if team is None:
+        team = 1
+    return (pt - mean) * normFactor * team
+
 
 # Add noise to a line sighting
-def addNoiseLine(obj,noiseType, magn, rand, maxDist):
-
+def addNoiseLine(obj, noiseType, magn, rand, maxDist):
     if obj[0]:
 
         # Create random position noise
-        noiseVec1 = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
-        noiseVec2 = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
+        noiseVec1 = Vec2d((random.random() - 0.5), (random.random() - 0.5)) * magn
+        noiseVec2 = Vec2d((random.random() - 0.5), (random.random() - 0.5)) * magn
 
         # Add random noise if simple noise and random FN
         if noiseType == NoiseType.RANDOM:
@@ -316,20 +365,19 @@ def addNoiseLine(obj,noiseType, magn, rand, maxDist):
         elif noiseType == NoiseType.REALISTIC:
 
             # Get distances of points and average dist
-            multiplier1 = 0.25 + 3.75*obj[1].get_length_sqrd()/maxDist
-            multiplier2 = 0.25 + 3.75*obj[2].get_length_sqrd()/maxDist
-            multiplier = (multiplier1+multiplier2)*0.5
+            multiplier1 = 0.25 + 3.75 * obj[1].get_length_sqrd() / maxDist
+            multiplier2 = 0.25 + 3.75 * obj[2].get_length_sqrd() / maxDist
+            multiplier = (multiplier1 + multiplier2) * 0.5
 
-            if random.random() < rand*multiplier:
+            if random.random() < rand * multiplier:
                 obj[0] = SightingType.NoSighting
 
-            obj[1] += noiseVec1*multiplier1/2
-            obj[2] += noiseVec2*multiplier2/2
+            obj[1] += noiseVec1 * multiplier1 / 2
+            obj[2] += noiseVec2 * multiplier2 / 2
 
 
 # Add noise to lane
-def addNoiseLane(obj,noiseType, magn, rand, maxDist):
-
+def addNoiseLane(obj, noiseType, magn, rand, maxDist):
     if obj[0]:
 
         # Create random distance and angle noise
@@ -341,7 +389,7 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] *= distNoise
-            ang = math.atan2(obj[3],obj[2])
+            ang = math.atan2(obj[3], obj[2])
             ang += angleNoise * angleDiff
             obj[2] = math.cos(ang)
             obj[3] = math.sin(ang)
@@ -350,22 +398,21 @@ def addNoiseLane(obj,noiseType, magn, rand, maxDist):
         elif noiseType == NoiseType.REALISTIC:
 
             # Get distances of points and average dist
-            multiplier1 = 0.25 + 3.75 * obj[1]*obj[1] / maxDist
+            multiplier1 = 0.25 + 3.75 * obj[1] * obj[1] / maxDist
 
             if random.random() < rand * multiplier1:
                 obj[0] = SightingType.NoSighting
 
-            diff = distNoise*multiplier1
+            diff = distNoise * multiplier1
             obj[1] += diff
-            ang = math.atan2(obj[3],obj[2])
+            ang = math.atan2(obj[3], obj[2])
             ang += angleNoise * multiplier1 / 5 * angleDiff
             obj[2] = math.cos(ang)
             obj[3] = math.sin(ang)
 
 
 # Add random noise to other sightings
-def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
-
+def addNoise(obj, noiseType, interaction, magn, rand, maxDist, misClass=False):
     if interaction == InteractionType.Occlude:
         obj[0] = SightingType.NoSighting
         return obj
@@ -373,57 +420,58 @@ def addNoise(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
     if obj[0]:
 
         # Random position noise
-        noiseVec = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
+        noiseVec = Vec2d((random.random() - 0.5), (random.random() - 0.5)) * magn
 
         # Add random noise to position and size and FN
         if noiseType == NoiseType.RANDOM:
             if random.random() < rand:
                 obj[0] = SightingType.NoSighting
             obj[1] += noiseVec
-            obj[2] *= (1-(random.random()-0.5)*0.2)
+            obj[2] *= (1 - (random.random() - 0.5) * 0.2)
 
         # Realistic noise
         elif noiseType == NoiseType.REALISTIC:
 
             # Add larger noise to distant objetcs
             sightingType = obj[0]
-            range = 0.25 + 3.75*obj[1].get_length_sqrd()/maxDist
+            range = 0.25 + 3.75 * obj[1].get_length_sqrd() / maxDist
             multiplier = range
             if interaction == InteractionType.Nearby:
-                multiplier= range*2
+                multiplier = range * 2
             if sightingType == SightingType.Distant:
-                multiplier = range*3
+                multiplier = range * 3
             elif sightingType == sightingType.Partial:
-                multiplier = range*4
-            newPos = obj[1]+noiseVec*multiplier/4
+                multiplier = range * 4
+            newPos = obj[1] + noiseVec * multiplier / 4
 
             # positive if object moved farther
-            diff = (newPos.length-obj[1].length)
+            diff = (newPos.length - obj[1].length)
 
             # Random misclassification if the flag is set
-            if random.random() < rand*multiplier:
+            if random.random() < rand * multiplier:
                 sightingType = SightingType.NoSighting
-            if misClass and random.random() < rand*multiplier/2:
+            if misClass and random.random() < rand * multiplier / 2:
                 sightingType = SightingType.Misclassified
 
             # The sign of the noise on the object size is determined by whether it moved closer due to position noise
             obj[0] = sightingType
             obj[1] = newPos
-            obj[2] *= 1+(random.random() * 0.1 * diff)
+            obj[2] *= 1 + (random.random() * 0.1 * diff)
+
 
 # Function to change sighting type of occluded objects
-def filterOcclude(obj,interaction):
+def filterOcclude(obj, interaction):
     if interaction == InteractionType.Occlude:
         obj[0] = SightingType.NoSighting
     return obj
 
-# Add noise to polynom
-def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = False):
 
+# Add noise to polynom
+def addNoiseRect(obj, noiseType, interaction, magn, rand, maxDist, misClass=False):
     if obj[0]:
 
         # Random position noise
-        noiseVec = Vec2d((random.random()-0.5),(random.random()-0.5))*magn
+        noiseVec = Vec2d((random.random() - 0.5), (random.random() - 0.5)) * magn
 
         # Add random noise to position and size and FN
         if noiseType == NoiseType.RANDOM:
@@ -434,39 +482,39 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
             else:
                 newPos = obj[1] + noiseVec
                 # Compute rotation
-                angleDiff = (random.random()-0.5)*magn*angleNoise
+                angleDiff = (random.random() - 0.5) * magn * angleNoise
                 ang = math.atan2(obj[3], obj[2])
                 ang += angleDiff
                 obj[2] = math.cos(ang)
                 obj[3] = math.sin(ang)
                 # Center corner points and rotate
                 if obj[4] is not None:
-                    obj[4] = [pt-obj[1] for pt in obj[4]]
+                    obj[4] = [pt - obj[1] for pt in obj[4]]
                     [pt.rotate(angleDiff) for pt in obj[4]]
-                    obj[4] = [pt+obj[1] for pt in obj[4]]
+                    obj[4] = [pt + obj[1] for pt in obj[4]]
                 # Compute new center and add it to corners
-                obj[1]  = newPos
+                obj[1] = newPos
 
         # Realistic noise
         elif noiseType == NoiseType.REALISTIC:
 
             # Add larger noise to distant objetcs
             sightingType = obj[0]
-            range = 0.25 + 3.75*obj[1].length/maxDist
+            range = 0.25 + 3.75 * obj[1].length / maxDist
             multiplier = range
             if interaction == InteractionType.Nearby:
-                multiplier= range*2
+                multiplier = range * 2
             if sightingType == SightingType.Distant:
-                multiplier = range*3
+                multiplier = range * 3
             elif sightingType == sightingType.Partial:
-                multiplier = range*4
-            newPos = obj[1]+noiseVec*multiplier
+                multiplier = range * 4
+            newPos = obj[1] + noiseVec * multiplier
 
             # Random misclassification if the flag is set
-            if random.random() < rand*multiplier:
+            if random.random() < rand * multiplier:
                 obj[0] = SightingType.NoSighting
                 return
-            if misClass and random.random() < rand*multiplier/2:
+            if misClass and random.random() < rand * multiplier / 2:
                 obj[0] = SightingType.Misclassified
 
             # Apply noise
@@ -478,27 +526,28 @@ def addNoiseRect(obj,noiseType,interaction, magn, rand, maxDist, misClass = Fals
 
             # Center corners and rotate
             if obj[4] is not None:
-                obj[4] = [pt-obj[1] for pt in obj[4]]
+                obj[4] = [pt - obj[1] for pt in obj[4]]
                 [pt.rotate(angleDiff) for pt in obj[4]]
-                obj[4] = [pt+newPos for pt in obj[4]]
+                obj[4] = [pt + newPos for pt in obj[4]]
             # Compute new center and add it to corners
             obj[1] = newPos
 
+
 # Is there interaction between the two sightings
-def doesInteract(obj1,obj2,radius,canOcclude=True):
+def doesInteract(obj1, obj2, radius, canOcclude=True):
     if obj2 is None or obj1 is None:
         return InteractionType.NoInter
 
     # Proximity check
     type = InteractionType.NoInter
-    if (obj1-obj2).length < radius:
+    if (obj1 - obj2).length < radius:
         type = InteractionType.Nearby
 
     # Check for occlusions
     if canOcclude:
 
         # Distance between the line going towards ob1 (LoS) and the position of obj2
-        dist = obj1.cross(obj2)/obj1.length
+        dist = obj1.cross(obj2) / obj1.length
 
         # If obj2 falls in the LoS and is closer, there is occlusion
         if abs(dist) < radius and obj1.get_length_sqrd() < obj2.get_length_sqrd():
@@ -506,11 +555,11 @@ def doesInteract(obj1,obj2,radius,canOcclude=True):
 
     return type
 
-# Is object seen in radius
-def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
 
+# Is object seen in radius
+def isSeenInRadius(point, corners, angle, obsPt, obsAngle, maxDist, distantDist):
     # Center point and get distance
-    trPt = point-obsPt
+    trPt = point - obsPt
     dist = trPt.get_length_sqrd()
 
     # Decide normal and distant sighting
@@ -533,30 +582,28 @@ def isSeenInRadius(point,corners,angle,obsPt,obsAngle,maxDist,distantDist):
         trPt.rotate(-obsAngle)
         trAngle = angle - obsAngle
 
-        return [seen,trPt,math.cos(trAngle),math.sin(trAngle),corners]
+        return [seen, trPt, math.cos(trAngle), math.sin(trAngle), corners]
 
-
-    return [SightingType.NoSighting,]
+    return [SightingType.NoSighting, ]
 
 
 # Quick angle computation (the pymunk one checks the length for some strange reason making it very slow)
 def angle(corner):
-    return math.atan2(corner.y,corner.x)
+    return math.atan2(corner.y, corner.x)
 
 
 # Return line parameters within a certain radius
-def getLineInRadius(points,obsPt,obsAngle,maxDist):
-
+def getLineInRadius(points, obsPt, obsAngle, maxDist):
     # Get signed distance
-    lineD = points[1]-points[0]
-    dist = (lineD.cross(obsPt) + points[0].cross(points[1]))/lineD.length
+    lineD = points[1] - points[0]
+    dist = (lineD.cross(obsPt) + points[0].cross(points[1])) / lineD.length
 
     # Check visibility
-    if dist*dist > maxDist:
-        return [SightingType.NoSighting,]
+    if dist * dist > maxDist:
+        return [SightingType.NoSighting, ]
 
     # Get angle
-    ang = angle(points[1]-points[0])-obsAngle
+    ang = angle(points[1] - points[0]) - obsAngle
     c = math.cos(ang)
     s = math.sin(ang)
     if c >= 0:
@@ -567,10 +614,9 @@ def getLineInRadius(points,obsPt,obsAngle,maxDist):
     return [SightingType.Normal, dist, c, s]
 
 
-def getViewBlockAngle(centerAngle,corners):
-
+def getViewBlockAngle(centerAngle, corners):
     # Get relative angles and distances
-    angles = np.array([angle(corner)-centerAngle for corner in corners])
+    angles = np.array([angle(corner) - centerAngle for corner in corners])
     distances = np.array([corner.get_length_sqrd() for corner in corners])
 
     # Transform angles into the +/- pi interval
@@ -582,10 +628,10 @@ def getViewBlockAngle(centerAngle,corners):
     maxIdx = np.argmax(angles)
     cIdx = np.argmin(distances)
 
-    return angles,minIdx,maxIdx,cIdx
+    return angles, minIdx, maxIdx, cIdx
 
-def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
 
+def doesInteractPoly(elem1, elem2, radius, canOcclude=True):
     # Default value
     ret = InteractionType.NoInter
 
@@ -599,7 +645,7 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
     corners = elem2[4]
 
     # Check proximity
-    if radius > 0 and (point2-point1).get_length_sqrd() < radius:
+    if radius > 0 and (point2 - point1).get_length_sqrd() < radius:
         ret = InteractionType.Nearby
 
     if canOcclude:
@@ -607,7 +653,7 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
         angle2 = angle(point2)
 
         # Get blocked interval
-        angles,minIdx,maxIdx,closestIdx = getViewBlockAngle(angle2,corners)
+        angles, minIdx, maxIdx, closestIdx = getViewBlockAngle(angle2, corners)
 
         # Get min and max angles
         minAngle = angles[minIdx]
@@ -632,16 +678,16 @@ def doesInteractPoly(elem1,elem2,radius,canOcclude=True):
             # If one of the extreme points is the closest
             if closestIdx == minIdx or closestIdx == maxIdx:
                 # Check if objects is on the far side of the line between extreme points
-                if ((p2-p1).cross(point1-p1) < 0):
+                if ((p2 - p1).cross(point1 - p1) < 0):
                     ret = InteractionType.Occlude
             # Otherwise it needs to be on the far side of two lines
-            elif ((p2-pm).cross(point1-pm) < 0) and ((pm-p1).cross(point1-p1) < 0):
+            elif ((p2 - pm).cross(point1 - pm) < 0) and ((pm - p1).cross(point1 - p1) < 0):
                 ret = InteractionType.Occlude
 
     return ret
 
-def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0,allowPartial=True):
 
+def isSeenInArea(point, dir1, dir2, maxDist, angle, radius=0, allowPartial=True):
     # Get object sighting
     seen = SightingType.NoSighting
     rotPt = None
@@ -690,11 +736,11 @@ def isSeenInArea(point,dir1,dir2,maxDist,angle,radius=0,allowPartial=True):
         rotPt = copy.copy(point)
         rotPt.rotate(-angle)
 
-    return [seen,rotPt,radius]
+    return [seen, rotPt, radius]
+
 
 # Checks if line is visible
-def isLineInArea(p1,p2,dir1,dir2,maxDist,angle):
-
+def isLineInArea(p1, p2, dir1, dir2, maxDist, angle):
     # Defaults
     seen = SightingType.NoSighting
 
@@ -723,15 +769,15 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,angle):
             # Othervise, compute intersection of FoV and the p1-p2 line
             else:
                 # Check which line intersects closer to p1
-                inter1 = p1.cross(dir1)/dir1.cross(p2-p1)
-                inter2 = p1.cross(dir2)/dir2.cross(p2-p1)
+                inter1 = p1.cross(dir1) / dir1.cross(p2 - p1)
+                inter2 = p1.cross(dir2) / dir2.cross(p2 - p1)
                 if inter1 < 1 and inter2 < 1:
-                    inter = max(inter1,inter2)
+                    inter = max(inter1, inter2)
                 else:
-                    inter = min(inter1,inter2)
+                    inter = min(inter1, inter2)
 
                 # Compute the intesection position
-                pt1 = p1+inter*(p2-p1)
+                pt1 = p1 + inter * (p2 - p1)
                 seen = SightingType.Partial
 
             # If p2 is inside, we see it
@@ -740,15 +786,15 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,angle):
             # Othervise, compute intersection of FoV and the p2-p1 line
             else:
                 # Check which line intersects closer to p2
-                inter1 = p2.cross(dir1)/dir1.cross(p1-p2)
-                inter2 = p2.cross(dir2)/dir2.cross(p1-p2)
+                inter1 = p2.cross(dir1) / dir1.cross(p1 - p2)
+                inter2 = p2.cross(dir2) / dir2.cross(p1 - p2)
                 if inter1 < 1 and inter2 < 1:
-                    inter = max(inter1,inter2)
+                    inter = max(inter1, inter2)
                 else:
-                    inter = min(inter1,inter2)
+                    inter = min(inter1, inter2)
 
                 # Compute the intesection position
-                pt2 = p2+inter*(p1-p2)
+                pt2 = p2 + inter * (p1 - p2)
                 seen = SightingType.Partial
 
             # Are the points close enough
@@ -764,4 +810,4 @@ def isLineInArea(p1,p2,dir1,dir2,maxDist,angle):
             if pt1.x < 0 or pt2.x < 0:
                 seen = SightingType.NoSighting
 
-    return [seen,pt1,pt2]
+    return [seen, pt1, pt2]
