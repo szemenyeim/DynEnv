@@ -183,7 +183,7 @@ I.e. querying the `observation_space` variable and calling `.sample()` on it wil
 
 Due to the fact that in every time step each agent can see different number of objects (such as cars in the _Driving_ environment), including 0 as a valid number for each object type (not to mention false positive sightings or misclassifications), we cannot give an observation space format which covers all possibilities. However, what we can do is to _assume_ that each object type is present in the observation with a single instance, thus including every necessary information about the object space (but be aware that multiple observations from the same object type can be in the list of observations).
 
-Here is an example for the Driving environment how the observation space looks like (we use extensively the `Dict` gym space, as it enables to describe what is contained, note that prefixes are present as for our network the order in the `featuresPerObject` - see below example - matters):
+Here is an example for the Driving environment how the observation space looks like (we use extensively the `Dict` gym space, as it enables to describe what is contained):
 
 ```python
 ...
@@ -197,13 +197,13 @@ Here is an example for the Driving environment how the observation space looks l
 ...
 
 # assemble observation space
-self.observation_space = Dict({
-                "0_self": self_space,
-                "1_car": car_space,
-                "2_obstacle": obstacle_space,
-                "3_pedestrian": pedestrian_space,
-                "4_lane": lane_space
-            })
+self.observation_space = Tuple([
+                self_space,
+                car_space,
+                obstacle_space,
+                pedestrian_space,
+                lane_space
+            ])
 
 ```
 
@@ -229,8 +229,8 @@ myEnv = ...
 obsSpace = myEnv.observation_space
 nTime =  5 if env is DynEnvType.ROBO_CUP else 1
 nPlayers = ...
-nObjectTypes = len(obsSpace.spaces.keys())
-featuresPerObject = [flatdim(s) for s in obsSpace.spaces.values()]
+featuresPerObject = [flatdim(s) for s in obsSpace.spaces]
+nObjectTypes = len(featuresPerObject)
 
 # create neural network and rearrange inputs
 device = <CUDA or CPU>

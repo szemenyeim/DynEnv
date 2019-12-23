@@ -17,8 +17,8 @@ from .cutils import *
 
 class RoboCupEnvironment(object):
 
-    def __init__(self, nPlayers, render=False, observationType = ObservationType.PARTIAL,
-                 noiseType = NoiseType.REALISTIC, noiseMagnitude = 2, allowHeadTurn = False):
+    def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL,
+                 noiseType=NoiseType.REALISTIC, noiseMagnitude=2, allowHeadTurn=False):
 
         # Basic settings
         self.nTimeSteps = 5
@@ -57,7 +57,7 @@ class RoboCupEnvironment(object):
         line_space = Dict({
             "position": Box(-self.mean * 2, +self.mean * 2, shape=(4,)),
         })
-        cross_space = goalpost_space=center_circle_space= Dict({
+        cross_space = goalpost_space = center_circle_space = Dict({
             "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
             "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
         })
@@ -76,11 +76,11 @@ class RoboCupEnvironment(object):
                 "closest": MultiBinary(1),
             })
 
-            self.observation_space = Dict({
-                "0_ball" : ball_space,
-                "1_self" : robot_space,
-                "2_robot": robot_space
-            })
+            self.observation_space = Tuple([
+                ball_space,
+                robot_space,
+                robot_space
+            ])
         elif self.observationType == ObservationType.IMAGE:
 
             self.observation_space = Box(0, 1, shape=(4, 480, 640))
@@ -93,14 +93,14 @@ class RoboCupEnvironment(object):
                 "closest": MultiBinary(1),
             })
 
-            self.observation_space = Dict({
-                "0_ball": ball_space,
-                "1_robot": robot_space,
-                "2_goalpost":goalpost_space,
-                "3_cross" :cross_space,
-                "4_line": line_space,
-                "5_center_circle": center_circle_space
-            })
+            self.observation_space = Tuple([
+                ball_space,
+                robot_space,
+                goalpost_space,
+                cross_space,
+                line_space,
+                center_circle_space
+            ])
 
         # Action space
         if self.allowHeadTurn:
@@ -289,7 +289,8 @@ class RoboCupEnvironment(object):
         agentID = self.agentVisID
         renderMode = self.renderMode
 
-        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude, self.allowHeadTurn)
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude,
+                      self.allowHeadTurn)
 
         self.agentVisID = agentID
         self.renderMode = renderMode
@@ -572,7 +573,7 @@ class RoboCupEnvironment(object):
         # Create discounted personal rewards for the robots involved
         for i, id in enumerate(self.ball.lastKicked):
             rew = currReward[0] * (self.kickDiscount ** i) if id < self.nPlayers else currReward[1] * (
-                        self.kickDiscount ** i)
+                    self.kickDiscount ** i)
             self.robotRewards[id] += rew
             self.robotPosRewards[id] += max(0.0, rew)
 

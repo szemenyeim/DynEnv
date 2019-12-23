@@ -32,8 +32,8 @@ class ICMAgent(nn.Module):
         self.is_cuda = torch.cuda.is_available()
 
 
-        self.features_per_object_type = [flatdim(s) for s in obs_space.spaces.values()]
-        self.num_obj_types = len(obs_space.spaces.keys())
+        self.features_per_object_type = [flatdim(s) for s in obs_space.spaces]
+        self.num_obj_types = len(self.features_per_object_type)
 
         # networks
         self.icm = ICMNet(self.num_envs, self.num_players, self.action_descriptor, attn_target, attn_type, self.features_per_object_type,

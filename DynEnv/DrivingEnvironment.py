@@ -99,26 +99,26 @@ class DrivingEnvironment(object):
                 "points": Box(-self.mean * 2, self.mean * 2, shape=(4,)),
                 "type": Box(-1, 1, shape=(1,))
             })
-            self.observation_space = Dict({
-                "0_self": self_space,
-                "1_car": car_space,
-                "2_obstacle": obstacle_space,
-                "3_pedestrian": pedestrian_space,
-                "4_lane": lane_space
-            })
+            self.observation_space = Tuple([
+                self_space,
+                car_space,
+                obstacle_space,
+                pedestrian_space,
+                lane_space
+            ])
         else:
             lane_space = Dict({
                 "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
                 "orientation": Box(-1, 1, shape=(2,)),
                 "type": Box(-1, 1, shape=(1,))
             })
-            self.observation_space = Dict({
-                "0_self": self_space,
-                "1_car": car_space,
-                "2_obstacle": obstacle_space,
-                "3_pedestrian": pedestrian_space,
-                "4_lane": lane_space
-            })
+            self.observation_space = Tuple([
+                self_space,
+                car_space,
+                obstacle_space,
+                pedestrian_space,
+                lane_space
+            ])
 
         # Action space
         if self.continuousActions:
