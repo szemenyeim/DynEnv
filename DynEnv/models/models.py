@@ -1,13 +1,14 @@
+import itertools
 from typing import List
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from gym.spaces import MultiDiscrete, Box
 from torch.distributions import Categorical
 
 from ..utils.utils import AttentionType, AttentionTarget
-from gym.spaces import MultiDiscrete, Box
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -104,6 +105,12 @@ class InOutArranger(object):
         self.indexer = Indexer(self.nObjectTypes)
 
     def rearrange_inputs(self, x):
+
+        # reorder observations
+        numT = len(x[0])
+        x = [list(itertools.chain.from_iterable([x[env][time] for env in range(len(x))])) for time in
+             range(numT)]
+
         # Object counts [type x timeStep x nPlayer]
         # for each object type, for each timestep, the number of seen objects is calculated
         counts = [[[len(sightings[i]) for sightings in time] for time in x] for i in range(self.nObjectTypes)]
@@ -130,7 +137,7 @@ class InOutArranger(object):
         inputs = [np.stack(objects) if len(objects) else np.array([]) for objects in inputs]
         return inputs, (counts, maxCount, objCounts)
 
-    def rearrange_outputs(self, outs, countArr, device):#counts, maxCount, outs:
+    def rearrange_outputs(self, outs, countArr, device):  # counts, maxCount, outs:
 
         counts = countArr[0]
         maxCount = countArr[1]
@@ -608,7 +615,8 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type, feat_size,
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type,
+                 feat_size,
                  forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
@@ -688,7 +696,8 @@ class ICMNet(nn.Module):
 
 
 class A2CNet(nn.Module):
-    def __init__(self, num_envs, num_players, action_descriptor, features_per_object_type, feature_size, num_rollout, num_obj_types,
+    def __init__(self, num_envs, num_players, action_descriptor, features_per_object_type, feature_size, num_rollout,
+                 num_obj_types,
                  num_time):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
@@ -708,7 +717,8 @@ class A2CNet(nn.Module):
         self.num_players = num_players
         self.num_envs = num_envs
 
-        self.feat_enc_net = DynEnvFeatureExtractor(self.features_per_object_type, self.feature_size, self.num_envs, num_rollout,
+        self.feat_enc_net = DynEnvFeatureExtractor(self.features_per_object_type, self.feature_size, self.num_envs,
+                                                   num_rollout,
                                                    num_players, num_obj_types, num_time)
 
         self.actor = ActorLayer(self.feature_size, self.action_descriptor)

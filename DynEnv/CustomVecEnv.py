@@ -4,6 +4,7 @@ import multiprocessing
 import numpy as np
 from stable_baselines.common.tile_images import tile_images
 from stable_baselines.common.vec_env.base_vec_env import VecEnv, CloudpickleWrapper
+from stable_baselines.common.vec_env import SubprocVecEnv
 
 from .DrivingEnvironment import DrivingEnvironment
 from .RoboCupEnvironment import RoboCupEnvironment
@@ -205,16 +206,18 @@ def make_dyn_env(env, num_envs, num_players, render, observationType, noiseType,
     if env is DynEnvType.ROBO_CUP:
         envs = [lambda: RoboCupEnvironment(nPlayers=num_players, render=render, observationType=observationType,
                                            noiseType=noiseType, noiseMagnitude=noiseMagnitude,
-                                           allowHeadTurn=use_continuous_actions)
+                                           allowHeadTurn=use_continuous_actions,
+                                           obs_space_cast=True)
                 for _ in range(num_envs)]
-        env = CustomSubprocVecEnv(envs)
+        env = SubprocVecEnv(envs)
         name = "RoboCup"
     elif env is DynEnvType.DRIVE:
         envs = [lambda: DrivingEnvironment(nPlayers=num_players, render=render, observationType=observationType,
                                            noiseType=noiseType, noiseMagnitude=noiseMagnitude,
-                                           continuousActions=use_continuous_actions)
+                                           continuousActions=use_continuous_actions,
+                                           obs_space_cast=True)
                 for _ in range(num_envs)]
-        env = CustomSubprocVecEnv(envs)
+        env = SubprocVecEnv(envs)
         name = "Driving"
     else:
         raise ValueError

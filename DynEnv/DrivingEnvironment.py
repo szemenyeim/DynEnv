@@ -1,16 +1,13 @@
 # coding=utf-8
-import math
-import random
 import time
 import warnings
 from collections import deque
 
 import cv2
-import numpy as np
 import pygame
 import pymunk
 import pymunk.pygame_util
-from gym.spaces import Tuple, MultiDiscrete, Box, Dict, MultiBinary
+from gym.spaces import Tuple, MultiDiscrete, Box, Dict, MultiBinary, Space
 
 from .Car import Car
 from .Obstacle import Obstacle
@@ -21,7 +18,8 @@ from .cutils import *
 
 class DrivingEnvironment(object):
 
-    def __init__(self,nPlayers,render=False,observationType = ObservationType.PARTIAL,noiseType = NoiseType.REALISTIC, noiseMagnitude = 2, continuousActions = False):
+    def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
+                 noiseMagnitude=2, continuousActions=False, obs_space_cast=False):
 
         # Basic settings
         self.observationType = observationType
@@ -33,6 +31,7 @@ class DrivingEnvironment(object):
         self.nTimeSteps = 1
         self.nObjectType = 5
         self.continuousActions = continuousActions
+        self.obs_space_cast = obs_space_cast
 
         if self.observationType == ObservationType.IMAGE:
             print("Image type observation is not supported for this environment")
@@ -218,13 +217,20 @@ class DrivingEnvironment(object):
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
 
+        # only for vectorized environments
+        if self.obs_space_cast:
+            # IMPORTANT: the following step is needed to fool
+            # the SubprocVecEnv of stable-baselines
+            self.observation_space.__class__ = Space
+
     # Reset env
     def reset(self):
         # Agent ID and render mode must survive init
         agentID = self.agentVisID
         renderMode = self.renderMode
 
-        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude, self.continuousActions)
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude,
+                      self.continuousActions)
 
         self.agentVisID = agentID
         self.renderMode = renderMode
@@ -307,8 +313,9 @@ class DrivingEnvironment(object):
             finished = True
             info['episode_r'] = self.episodeRewards
             info['episode_p_r'] = self.episodePosRewards
-            info['episode_g'] = [sum([car.finished and not car.crashed for car in self.cars]), sum([car.crashed for car in self.cars])]
-            #print(self.episodeRewards)
+            info['episode_g'] = [sum([car.finished and not car.crashed for car in self.cars]),
+                                 sum([car.crashed for car in self.cars])]
+            # print(self.episodeRewards)
 
         t2 = time.clock()
         # print((t2 - t1) * 1000)
@@ -764,7 +771,7 @@ class DrivingEnvironment(object):
                      self.buildings]  # Buildings are always seen
         pedDets = [isSeenInRadius(p.getPos(), None, 0, selfDet[1], ang, self.maxVisDist[0], self.maxVisDist[1]) for p in
                    self.pedestrians]
-        laneDets = np.concatenate([r.getCarLaneDistances(selfDet[1],ang) for r in self.roads])
+        laneDets = np.concatenate([r.getCarLaneDistances(selfDet[1], ang) for r in self.roads])
         '''laneDets = []
         for l in self.roads:
             laneDets += [getLineInRadius(l.Lanes[i + l.nLanes], selfDet[1], ang, self.maxVisDist[0])

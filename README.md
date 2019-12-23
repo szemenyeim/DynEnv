@@ -56,8 +56,7 @@ ret = myEnv.step(actions)
 Or create vectorized environments by using:
 
 ```python
-make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude, use_continuous_actions)
-env = DynEnvType.ROBO_CUP or DynEnvType.DRIVE
+env, env_name = make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude, use_continuous_actions)
 ```
 
 More complex examples including 
@@ -137,7 +136,7 @@ Full Observation            |  Partial Observation
 
 - `reset()` Resets the environment to a new game and returns initial observations.
 - `setRandomSeed(seed)` Sets the environment seed, resets the environment and returns initial observations.
-- `observation_space` Returns information about the observations returned by the environrment.
+- `observation_space` Returns information about the observations returned by the environrment. For the exact meaning please refer to [The Observation Space](#the-observation-space) section.
 - `action_space` Returns information about the actions the environment expects.
 - `step(actions)` Performs one step. This consists of several simulation steps (10 for the Driving and 50 for the RoboCup environments). It returns observations for every 10 simulation steps and full state for the last step.
 - `renderMode` Whether to render to a display (`'human'`) or to a memory array (`'memory'`).
@@ -177,7 +176,25 @@ Position information is normalized in both the observations and the full state.
 #### The Observation Space
 
 Due to limitations in the OpenAI gym, this part of the environment is not fully compatible. The `observation_space` variable is an instance of `gym.space.Space`, however, the meaning is slightly different.
-I.e. querying the `observation_space` variable and calling `.sample()` on it will get you a fully valid observation format, it does not cover every form of observations an environment can produce. Let us elaborate on that!
+The main differences are:
+- the observation space only gives you a placeholder for each object type to be observed (as dynamic length observation spaces are not supported in OpenAI gym)
+- the `.sample()` method will not work without a slight modification (see example below) - following the example, you will get a valid observation format.
+
+Unfortunately, to provide an interface as close to gym as possible, we were forced to break some methods in our observation space (mainly to be able to use the `SubprocVecEnv` method from `stable-baselines`), while providing as much information about the observation space as possible.
+We needed to upcast the observation space to `gym.space.Space` from `gym.space.Tuple` to be able to vectorize the environments (we could have implemented a custom environment, but the goal was to avoid writing custom code to maintain a clean API for the users). This step did not result in any loss of information, but if you would like to use methods not implemented in the base class (i.e. `gym.space.Space`), you should downcast the environment.
+```python
+env, env_name = make_dyn_env(...)
+
+# raises NotImplementedError
+env.sample()
+
+# downcast observation space and it works !
+env.observation_space.__class__ = gym.spaces.Tuple
+env.sample()
+
+```
+
+I.e. querying the `observation_space` variable after the trick and calling `.sample()` on it will get you a fully valid observation format, it does not cover every form of observations an environment can produce. Let us elaborate on that!
 
 ##### Gym-like observation space descriptor
 

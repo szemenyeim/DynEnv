@@ -54,7 +54,7 @@ class Runner(object):
         obs = self.env.reset()
         self.storage.states.append(obs)
 
-        """Variables for propoer logging"""
+        """Variables for proper logging"""
         epLen = self.env.get_attr('stepNum')[0]
         updatesPerEpisode = epLen/self.params.rollout_size
 

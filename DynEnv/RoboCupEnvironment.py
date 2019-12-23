@@ -4,10 +4,9 @@ import warnings
 from collections import deque
 
 import cv2
-import numpy as np
 import pygame
 import pymunk.pygame_util
-from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Discrete, Dict
+from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Dict, Space
 
 from .Ball import Ball
 from .Goalpost import Goalpost
@@ -17,8 +16,8 @@ from .cutils import *
 
 class RoboCupEnvironment(object):
 
-    def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL,
-                 noiseType=NoiseType.REALISTIC, noiseMagnitude=2, allowHeadTurn=False):
+    def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
+                 noiseMagnitude=2, allowHeadTurn=False, obs_space_cast=False):
 
         # Basic settings
         self.nTimeSteps = 5
@@ -29,6 +28,7 @@ class RoboCupEnvironment(object):
         self.renderVar = render
         self.sizeNorm = 10.0 / noiseMagnitude if noiseMagnitude != 0.0 else 1.0
         self.allowHeadTurn = allowHeadTurn
+        self.obs_space_cast = obs_space_cast
 
         # Field setup
         self.W = 1040
@@ -282,6 +282,12 @@ class RoboCupEnvironment(object):
             pygame.display.set_caption("Robot Soccer")
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
+
+        # only for vectorized environments
+        if self.obs_space_cast:
+            # IMPORTANT: the following step is needed to fool
+            # the SubprocVecEnv of stable-baselines
+            self.observation_space.__class__ = Space
 
     # Reset env
     def reset(self):
