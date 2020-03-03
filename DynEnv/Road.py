@@ -5,6 +5,9 @@ import numpy as np
 
 
 class Road:
+
+    laneScaleFactor = 0.1
+
     def __init__(self,nLanes,width,points,hasWalkway = True):
 
         # Basic parameters
@@ -61,7 +64,7 @@ class Road:
         sighting = np.array([SightingType.Normal,]*self.nLanes*2)
 
         # get distances
-        distances = ((dist + 0.5) + np.array([i for i in range(-self.nLanes,self.nLanes)]))*5
+        distances = ((dist + 0.5) + np.array([i for i in range(-self.nLanes,self.nLanes)]))*self.width*self.laneScaleFactor
 
         return np.stack([sighting,distances,c,s,laneTypes]).T
 
