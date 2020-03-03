@@ -912,27 +912,27 @@ class DrivingEnvironment(object):
                 points = build[4]
                 cv2.fillConvexPoly(img, np.array([(int(p.x + W), int(-p.y + H)) for p in points]), color)
 
-            # draw self
-            color = (0, 255, 255)
-            points = [p - car.getPos() for p in selfDet[4]]
-            cv2.fillConvexPoly(img, np.array([(int(p.x + W), int(-p.y + H)) for p in points]), color)
-
             # draw lane (color based on type)
             for lane in laneDets:
-                color = (0, 0, 255) if lane[4] == 1 else ((0, 255, 0) if lane[4] == -1 else (255, 255, 255))
+                color = (127, 127, 255) if lane[4] == -1 else ((127, 255, 127) if lane[4] == 1 else (255, 255, 255))
                 if lane[0] != SightingType.Normal:
                     color = (color[0] // 2, color[1] // 2, color[2] // 2)
 
                 # Get line points from params
                 a = lane[2]
                 b = -lane[3]
-                rho = -lane[1]
+                rho = -lane[1]/Road.laneScaleFactor
                 x0 = b * rho
                 y0 = a * rho
                 pt1 = (int(np.round(x0 - 5000 * a) + W), int(H - np.round(y0 + 5000 * b)))
                 pt2 = (int(np.round(x0 + 5000 * a) + W), int(H - np.round(y0 - 5000 * b)))
 
-                cv2.line(img, pt1, pt2, color, 2)
+                cv2.line(img, pt1, pt2, color, 30)
+
+            # draw self
+            color = (0, 255, 255)
+            points = [p - car.getPos() for p in selfDet[4]]
+            cv2.fillConvexPoly(img, np.array([(int(p.x + W), int(-p.y + H)) for p in points]), color)
 
             # draw cars
             for c in carDets:
