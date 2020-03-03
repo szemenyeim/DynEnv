@@ -921,8 +921,8 @@ class DrivingEnvironment(object):
                 # Get line points from params
                 a = lane[2]
                 b = -lane[3]
-                print(a,b)
-                rho = -lane[1]/Road.laneScaleFactor*np.sign(-lane[4])
+                rho = -lane[1]/Road.laneScaleFactor
+                print(lane[1],lane[4])
                 x0 = b * rho
                 y0 = a * rho
                 pt1 = (int(np.round(x0 - 5000 * a) + W), int(H - np.round(y0 + 5000 * b)))

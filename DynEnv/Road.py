@@ -49,12 +49,14 @@ class Road:
         a = self.direction.angle - carAngle
         c = math.cos(a)
         s = math.sin(a)
+        distMult = 1
 
         # Flip distance and lanes
         if c >= 0:
             laneTypes *= -1
             c *= -1
             s *= -1
+            distMult = -1
 
         # Angles for every lane
         c = np.array([c,]*self.nLanes*2)
@@ -66,7 +68,7 @@ class Road:
         # get distances
         distances = ((dist + 0.5) + np.array([i for i in range(-self.nLanes,self.nLanes)]))*self.width*self.laneScaleFactor
 
-        return np.stack([sighting,distances,c,s,laneTypes]).T
+        return np.stack([sighting,distances*distMult,c,s,laneTypes]).T
 
     # Decide if point ios on the road
     def isPointOnRoad(self,point,angle):
