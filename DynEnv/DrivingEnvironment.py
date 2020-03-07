@@ -125,6 +125,38 @@ class DrivingEnvironment(object):
         else:
             self.action_space = Tuple((MultiDiscrete([3, 3]),))
 
+        # Spaces for state reconstruction
+
+        # Car
+        self.car_state = [
+            4,
+            Dict({
+                "Position(2),Orientation(2),WH(2)": Box(-1.0, +1.0, shape=(6,)),
+                "confidence": MultiBinary(1),
+            })]
+
+        # Obstacle
+        self.obstacle_state = [
+            4,
+            Dict({
+                "Position(2),WH(2)": Box(-1.0, +1.0, shape=(4,)),
+                "confidence": MultiBinary(1),
+            })]
+
+        # Pedestrian
+        self.ped_state = [
+            6,  # Estimate 4 robots from one grid cells
+            Dict({
+                "Position": Box(-1.0, +1.0, shape=(2,)),
+                "confidence": MultiBinary(1),
+            })]
+
+        self.full_state_space = [
+            self.car_state,
+            self.obstacle_state,
+            self.ped_state
+        ]
+
         # Time rewards
         self.maxTime = 6000
         self.elapsed = 0

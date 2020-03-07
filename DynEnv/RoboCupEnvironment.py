@@ -6,7 +6,7 @@ from collections import deque
 import cv2
 import pygame
 import pymunk.pygame_util
-from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Dict, Space
+from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Dict, Space, Discrete
 
 from .Ball import Ball
 from .Goalpost import Goalpost
@@ -107,6 +107,29 @@ class RoboCupEnvironment(object):
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-6, high=6, shape=(1,))))
         else:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
+
+        # Spaces for state reconstruction
+        # Ball
+        self.ball_state = [
+            1,
+            Dict({
+                "position": Box(-1.0, +1.0, shape=(2,)),
+                "team": Discrete(2),
+                "confidence": MultiBinary(1),
+            })]
+
+        # Robot
+        self.robot_state = [
+            4, # Estimate 4 robots from one grid cells
+            Dict({
+                "Position(2),Orientation(2)": Box(-1.0, +1.0, shape=(6,)),
+                "team, active, confidence": MultiBinary(3),
+            })]
+
+        self.full_state_space = [
+            self.robot_state,
+            self.ball_state
+        ]
 
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
