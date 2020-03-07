@@ -168,12 +168,13 @@ class Runner(object):
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
 
             # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)
+            fullStates = [s['Full State'] for s in state]
             agentFinished = torch.tensor([[agent[-1] for agent in s['Full State'][0]] for s in state]).bool()
 
             # save episode reward
             self.storage.log_episode_rewards(state)
 
-            self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features)
+            self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features, fullStates)
 
         # Note:
         # get the estimate of the final reward

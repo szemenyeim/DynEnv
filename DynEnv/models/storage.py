@@ -41,6 +41,7 @@ class RolloutStorage(object):
         self.episode_rewards = sliceable_deque(maxlen=num_envs*10)
         self.episode_pos_rewards = sliceable_deque(maxlen=num_envs*10)
         self.goals = sliceable_deque(maxlen=num_envs)
+        self.full_state_targets = sliceable_deque(maxlen=rollout_size)
         self.use_full_entropy = use_full_entropy
 
         # initialize the buffers with zeros
@@ -112,7 +113,7 @@ class RolloutStorage(object):
         """
         return self.states[step]
 
-    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features):
+    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features, fullStates):
         """
         Inserts new data into the log for each environment at index step
 
@@ -125,9 +126,11 @@ class RolloutStorage(object):
         :param value: tensor of the values
         :param dones: numpy array of the dones (boolean)
         :param features: tensor of the features
+        :param fullStates: list of the full states
         :return:
         """
         self.states.append(obs)
+        self.full_state_targets.append(fullStates)
 
         self.rewards[step].copy_(torch.from_numpy(reward).view(-1))
         self.agentFinished[step].copy_(agent_finished.view(-1))
