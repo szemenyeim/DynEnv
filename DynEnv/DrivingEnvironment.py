@@ -157,6 +157,8 @@ class DrivingEnvironment(object):
             self.ped_state
         ]
 
+        self.feature_grid_size = (10,10)
+
         # Time rewards
         self.maxTime = 6000
         self.elapsed = 0

@@ -131,6 +131,8 @@ class RoboCupEnvironment(object):
             self.ball_state
         ]
 
+        self.feature_grid_size = (6,9)
+
         # Vision settings
         if noiseMagnitude < 0 or noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
