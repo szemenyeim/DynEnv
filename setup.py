@@ -25,6 +25,7 @@ setuptools.setup(
         'pymunk',
         'pygame',
         'gym',
+        'tensorflow',
         'stable-baselines',
         'torch',
         'pandas',
