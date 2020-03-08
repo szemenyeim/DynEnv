@@ -77,7 +77,7 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
+            icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished, self.storage.full_state_targets)
             icm_loss = sum(icm_losses)
 
             """Assemble loss"""

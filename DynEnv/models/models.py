@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from gym.spaces import MultiDiscrete, Box
+from gym.spaces import MultiDiscrete, Box, MultiBinary, Discrete
 from torch.distributions import Categorical
 
 from ..utils.utils import AttentionType, AttentionTarget
@@ -616,7 +616,7 @@ class AdversarialHead(nn.Module):
 
 class ICMNet(nn.Module):
     def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type,
-                 feat_size,
+                 feat_size,state_space,feature_grid_size,
                  forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
@@ -647,11 +647,13 @@ class ICMNet(nn.Module):
         self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
+        self.recon_net = ReconNet(self.feat_size,state_space,feature_grid_size)
+
         self.loss_attn_flag = attn_target is AttentionTarget.ICM_LOSS and attn_type is AttentionType.SINGLE_ATTENTION
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
 
-    def forward(self, features, action, agentFinished):
+    def forward(self, features, action, agentFinished, current_targets):
         """
 
         feature: current encoded state
@@ -666,6 +668,8 @@ class ICMNet(nn.Module):
         current_features = features[:-1, :, :]
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
+
+        recon_loss = self.recon_net(current_features, current_targets)
 
         # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)
@@ -783,3 +787,49 @@ class A2CNet(nn.Module):
 
         return (actions, log_probs, action_probs, values,
                 features)  # ide is jön egy feature bypass a self(state-ből)
+
+
+class ReconNet(nn.Module):
+
+    def __init__(self, inplanes, classDefs, size):
+        super().__init__()
+
+        self.classDefs = classDefs
+        self.size = size
+        self.inplanes = inplanes
+
+        self.MSEIndices = []
+        self.BCEIndices = []
+        self.CEIndices = []
+
+        self.numChannels = 0
+        for classDef in classDefs:
+            for i in range(classDef[0]):
+                for j, x in enumerate(classDef[1].spaces.values()):
+                    t = type(x)
+                    if t == Discrete:
+                        self.CEIndices += range(self.numChannels,self.numChannels+x.n)
+                        self.numChannels += x.n
+                    elif t == MultiBinary:
+                        self.BCEIndices += range(self.numChannels,self.numChannels+x.n)
+                        self.numChannels += x.n
+                    elif t == Box:
+                        self.MSEIndices += range(self.numChannels,self.numChannels+x.shape[0])
+                        self.numChannels += x.shape[0]
+
+        self.nn = nn.ConvTranspose2d(inplanes,self.numChannels,size)
+
+        self.mse = nn.MSELoss()
+        self.bce = nn.BCELoss()
+        self.ce = nn.CrossEntropyLoss()
+
+    def forward(self, x, targets):
+
+        x = x.reshape([-1,self.inplanes,1,1])
+
+        preds = self.nn(x)
+
+        preds[:,self.MSEIndices] = torch.tanh(preds[:,self.MSEIndices])
+        preds[:,self.BCEIndices] = torch.sigmoid(preds[:,self.BCEIndices])
+
+        pass
