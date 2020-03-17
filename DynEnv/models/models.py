@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from gym.spaces import MultiDiscrete, Box, MultiBinary, Discrete
 from torch.distributions import Categorical
 
-from ..utils.utils import AttentionType, AttentionTarget
+from ..utils.utils import AttentionType, AttentionTarget, build_targets
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -616,7 +616,7 @@ class AdversarialHead(nn.Module):
 
 class ICMNet(nn.Module):
     def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type,
-                 feat_size,state_space,feature_grid_size,
+                 feat_size, state_space, feature_grid_size, target_defs,
                  forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
@@ -647,7 +647,7 @@ class ICMNet(nn.Module):
         self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
-        self.recon_net = ReconNet(self.feat_size,state_space,feature_grid_size)
+        self.recon_net = ReconNet(self.feat_size, state_space, feature_grid_size, target_defs)
 
         self.loss_attn_flag = attn_target is AttentionTarget.ICM_LOSS and attn_type is AttentionType.SINGLE_ATTENTION
         if self.loss_attn_flag:
@@ -791,45 +791,146 @@ class A2CNet(nn.Module):
 
 class ReconNet(nn.Module):
 
-    def __init__(self, inplanes, classDefs, size):
+    def __init__(self, inplanes, classDefs, size, target_defs):
         super().__init__()
 
-        self.classDefs = classDefs
+        self.classDefs = []
         self.size = size
         self.inplanes = inplanes
+        self.target_defs = target_defs
+        self.ignore_thres = 0.45
 
+        self.PosIndices = []
         self.MSEIndices = []
         self.BCEIndices = []
         self.CEIndices = []
 
         self.numChannels = 0
         for classDef in classDefs:
+            currClassDef = []
             for i in range(classDef[0]):
-                for j, x in enumerate(classDef[1].spaces.values()):
+                for j, data in enumerate(classDef[1].spaces.items()):
+                    key,x = data
                     t = type(x)
                     if t == Discrete:
                         self.CEIndices += range(self.numChannels,self.numChannels+x.n)
                         self.numChannels += x.n
+                        currClassDef += ['cat',]
                     elif t == MultiBinary:
                         self.BCEIndices += range(self.numChannels,self.numChannels+x.n)
                         self.numChannels += x.n
+                        currClassDef += ['bin',]*x.n if key != "confidence" else ['conf',]
                     elif t == Box:
-                        self.MSEIndices += range(self.numChannels,self.numChannels+x.shape[0])
+                        if key == 'position':
+                            self.PosIndices += range(self.numChannels,self.numChannels+x.shape[0])
+                        else:
+                            self.MSEIndices += range(self.numChannels,self.numChannels+x.shape[0])
                         self.numChannels += x.shape[0]
+                        currClassDef += [key, ]*x.shape[0]
+            self.classDefs.append([classDef[0], currClassDef])
 
         self.nn = nn.ConvTranspose2d(inplanes,self.numChannels,size)
 
-        self.mse = nn.MSELoss()
-        self.bce = nn.BCELoss()
-        self.ce = nn.CrossEntropyLoss()
+        self.mse_loss = nn.MSELoss()
+        self.bce_loss = nn.BCELoss()
+        self.ce_loss = nn.CrossEntropyLoss()
 
     def forward(self, x, targets):
 
         x = x.reshape([-1,self.inplanes,1,1])
 
+        if targets is not None:
+            targets = flatten(flatten(list(targets)))
+
+        FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
+        LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
+        ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
+
         preds = self.nn(x)
 
         preds[:,self.MSEIndices] = torch.tanh(preds[:,self.MSEIndices])
         preds[:,self.BCEIndices] = torch.sigmoid(preds[:,self.BCEIndices])
+        preds[:,self.PosIndices] = torch.sigmoid(preds[:,self.PosIndices])
+
+        predOffs = 0
+        nGy,nGx = self.size
+
+        for classInd,(cDef,predInfo) in enumerate(zip(self.classDefs,self.target_defs)):
+            nA = cDef[0]
+            elemIDs = cDef[1]
+            nElems = len(elemIDs)
+            lenA = nElems//nA
+            elemDesc = elemIDs[:lenA]
+
+            cPreds = preds[:,predOffs:predOffs+nElems]
+            cPreds = cPreds.view((-1,nA,lenA,nGy,nGx)).permute((0,1,3,4,2)).contiguous()
+            predOffs += nElems
+
+            ind = [i for i,x in enumerate(elemDesc) if x == 'position']
+            x = cPreds[...,ind[0]]
+            y = cPreds[...,ind[1]]
+            ind = [i for i,x in enumerate(elemDesc) if x == 'conf']
+            pred_conf = cPreds[...,ind[0]]
+            ind = [i for i,x in enumerate(elemDesc) if x == 'cat']
+            pred_class = cPreds[...,ind] if ind else None
+            ind = [i for i,x in enumerate(elemDesc) if x == 'bin']
+            pred_bins = cPreds[...,ind] if ind else None
+            ind = [i for i, x in enumerate(elemDesc) if x not in ['position','bin','conf','cat']]
+            pred_cont = cPreds[..., ind] if ind else None
+
+            # Calculate offsets for each grid
+            grid_x = torch.arange(nGx).repeat(nGy, 1).view([1, 1, nGy, nGx]).type(FloatTensor)
+            grid_y = torch.arange(nGy).repeat(nGx, 1).t().view([1, 1, nGy, nGx]).type(FloatTensor)
+
+            # Add offset and scale with anchors
+            pred_coords = torch.stack([x.detach() + grid_x,y.detach() + grid_y],-1)
+
+            if targets is not None:
+
+                nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls = build_targets(
+                    pred_coords=pred_coords.cpu().detach(),
+                    pred_conf=pred_conf.cpu().detach(),
+                    targets=targets,
+                    num_anchors=nA,
+                    grid_size_y=nGy,
+                    grid_size_x=nGx,
+                    ignore_thres=self.ignore_thres,
+                    predInfo=predInfo,
+                    classInd=classInd
+                )
+
+                nProposals = int((pred_conf > 0.5).sum().item())
+                recall = float(nCorrect / nGT) if nGT else 1
+                precision = float(nCorrect / nProposals)
+
+                # Handle masks
+                mask = mask.type(ByteTensor).bool()
+                conf_mask = conf_mask.type(ByteTensor).bool()
+
+                # Handle target variables
+                tx = tx.type(FloatTensor)
+                ty = ty.type(FloatTensor)
+                tbin = tbin.type(FloatTensor)
+                tcont = tcont.type(FloatTensor)
+                tconf = tconf.type(FloatTensor)
+                tcls = tcls.type(LongTensor)
+
+                # Get conf mask where gt and where there is no gt
+                conf_mask_true = mask
+                conf_mask_false = conf_mask ^ mask
+
+                # Mask outputs to ignore non-existing objects
+                loss_x = self.mse_loss(x[mask], tx[mask])
+                loss_y = self.mse_loss(y[mask], ty[mask])
+                loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else 0
+                loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else 0
+                loss_conf = 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
+                    pred_conf[conf_mask_true], tconf[conf_mask_true])
+                loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else 0
+                loss = loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
+
+            else:
+                pass
+
 
         pass
