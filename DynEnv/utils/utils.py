@@ -363,3 +363,99 @@ def plot_typography(usetex=True, small=12, medium=14, big=16):
     rc('ytick', labelsize=small)  # fontsize of the tick labels
     rc('legend', fontsize=small)  # legend fontsize
     rc('figure', titlesize=big)  # fontsize of the figure title
+
+
+def get_anchor_distances(x, y, preds):
+    return (x - preds[:,0])**2 + (y - preds[:,1])**2
+
+def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
+                  grid_size_x, ignore_thres, predInfo, classInd):
+    nB = len(targets)
+    nA = num_anchors
+    nGx = grid_size_x
+    nGy = grid_size_y
+
+    # Masks: mask is one for the best bounding box
+    # Conf mask is one for BBs, where the confidence is enforced to match target
+    mask = torch.zeros(nB, nA, nGy, nGx)
+    conf_mask = torch.ones(nB, nA, nGy, nGx)
+
+    contNum, binNum = predInfo[0]
+    posInd, contInd, binInd, clsInd = predInfo[1]
+
+    # Target values for x,y,w,h and confidence and class
+    tx = torch.zeros(nB, nA, nGy, nGx)
+    ty = torch.zeros(nB, nA, nGy, nGx)
+    tcont = torch.zeros(nB, nA, nGy, nGx, contNum)
+    tbin = torch.zeros(nB, nA, nGy, nGx, binNum)
+    tconf = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
+    tcls = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
+
+    nGT = 0
+    nCorrect = 0
+    for b, target in enumerate(targets):
+        target = target[classInd]
+
+        if len(target.shape) < 2:
+            target = np.expand_dims(target,0)
+
+        for t in range(target.shape[0]):
+
+            nGT += 1
+
+            # Convert to position relative to box
+            gx = target[t, posInd[0]] * nGx
+            gy = target[t, posInd[1]] * nGy
+
+            # Get grid box indices
+            gi = int(gx)
+            gj = int(gy)
+
+            # target coords
+            dx = (gx-gi)
+            dy = (gy-gj)
+
+            # Get IoU values between target and anchors
+            anch_dists = get_anchor_distances(dx, dy, pred_coords[b, :, gj, gi])
+
+            # Override distances for anchors already taken - unless they are all taken
+            curr_mask = mask[b,:,gj,gi].bool()
+            if curr_mask.sum() < nA:
+                anch_dists[curr_mask] = 1e10
+
+            # Where the overlap is larger than threshold set conf_mask to zero (ignore)
+            conf_mask[b, anch_dists < ignore_thres, gj, gi] = 0
+
+            # Find the best matching anchor box
+            best_n = np.argmin(anch_dists)
+
+            # Get the best prediction
+            pred_box = pred_coords[b, best_n, gj, gi].unsqueeze(0)
+
+            # Masks
+            mask[b, best_n, gj, gi] = 1
+            conf_mask[b, best_n, gj, gi] = 1
+
+            # Coordinates
+            tx[b, best_n, gj, gi] = dx
+            ty[b, best_n, gj, gi] = dy
+
+            # Confidence
+            tconf[b, best_n, gj, gi] = 1
+
+            # Others
+            if contInd is not None:
+                tcont[b, best_n, gj, gi] = torch.tensor(target[t, contInd])
+
+            if binInd is not None:
+                tbin[b, best_n, gj, gi] = torch.tensor(target[t, binInd])
+
+            if clsInd is not None:
+                tcls[b, best_n, gj, gi] = torch.tensor(target[t, clsInd])
+
+            # Calculate iou between ground truth and best matching prediction
+            score = pred_conf[b, best_n, gj, gi]
+            if anch_dists[best_n] < ignore_thres and score > 0.5:
+                nCorrect += 1
+
+    return nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls
