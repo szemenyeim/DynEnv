@@ -8,7 +8,7 @@ from .models import A2CNet, ICMNet
 
 class ICMAgent(nn.Module):
     def __init__(self, num_envs, num_players, action_descriptor, attn_target, attn_type, obs_space, feat_size,
-                 state_space, feature_grid_size,
+                 state_space, feature_grid_size, target_defs,
                  forward_coeff, icm_beta, num_rollout, num_time, lr=1e-4):
         """
         Container class of an A2C and an ICM network, the baseline for experimenting with other curiosity-based
@@ -38,7 +38,7 @@ class ICMAgent(nn.Module):
 
         # networks
         self.icm = ICMNet(self.num_envs, self.num_players, self.action_descriptor, attn_target, attn_type, self.features_per_object_type,
-                          self.feat_size, state_space, feature_grid_size, forward_coeff, icm_beta, num_envs)
+                          self.feat_size, state_space, feature_grid_size, target_defs, forward_coeff, icm_beta, num_envs)
         self.a2c = A2CNet(self.num_envs, self.num_players, self.action_descriptor, self.features_per_object_type, self.feat_size, num_rollout,self.num_obj_types, num_time)
 
         if self.is_cuda:

@@ -32,10 +32,11 @@ if __name__ == '__main__':
 
     state_space = env.get_attr('full_state_space',0)[0]
     feature_grid_size = env.get_attr('feature_grid_size',0)[0]
+    target_defs = env.get_attr('predInfo',0)[0]
 
     # agent
     agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,
-                     state_space, feature_grid_size,
+                     state_space, feature_grid_size, target_defs,
                      args.forward_coeff, args.icm_beta, args.rollout_size, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
 
     # params
