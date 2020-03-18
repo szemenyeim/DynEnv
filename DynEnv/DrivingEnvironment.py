@@ -242,7 +242,7 @@ class DrivingEnvironment(object):
         endSel = np.random.randint(0, 2, self.nPlayers)
         goals = [self.roads[rd].points[end] for rd, end in zip(roadSel, endSel)]
         teams = np.random.randint(0, self.numTeams + 1, self.nPlayers)
-        types = np.random.randint(0, 1, self.nPlayers)  # len(Car.powers)
+        types = np.random.randint(0, len(Car.powers), self.nPlayers)  #
         spots = self.getUniqueSpots()
         self.cars = [Car(spot[0], spot[1], tp, team, goal) for spot, tp, team, goal in zip(spots, types, teams, goals)]
         for car in self.cars:
