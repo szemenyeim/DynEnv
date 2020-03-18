@@ -50,8 +50,8 @@ class RoboCupEnvironment(object):
         self.mean = 2.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
-        self.standardNormX = 1.0 / (self.W+50)
-        self.standardNormY = 1.0 / (self.H+50)
+        self.standardNormX = 1.0 / (self.W+100)
+        self.standardNormY = 1.0 / (self.H+100)
 
         # Observation and action spaces
         # Observation space

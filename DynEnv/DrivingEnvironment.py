@@ -47,8 +47,8 @@ class DrivingEnvironment(object):
         self.normY = self.mean * 2 / self.H
         self.normW = 1.0 / 7.5
         self.normH = 1.0 / 15
-        self.standardNormX = 0.5 / (self.W+50)
-        self.standardNormY = 0.5 / (self.H+50)
+        self.standardNormX = 0.5 / (self.W+100)
+        self.standardNormY = 0.5 / (self.H+100)
         self.standardNormW = 1.0 / 15
         self.standardNormH = 1.0 / 25
 
