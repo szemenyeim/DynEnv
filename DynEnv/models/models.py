@@ -674,7 +674,7 @@ class ICMNet(nn.Module):
         # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)
 
-        return self._calc_loss(next_features, next_feature_pred, action_pred, action, agentFinishedMask)
+        return self._calc_loss(next_features, next_feature_pred, action_pred, action, agentFinishedMask), recon_loss
 
     def _calc_loss(self, features, feature_preds, action_preds, actions, agentFinished):
 
@@ -922,12 +922,24 @@ class ReconNet(nn.Module):
                 # Mask outputs to ignore non-existing objects
                 loss_x = self.mse_loss(x[mask], tx[mask])
                 loss_y = self.mse_loss(y[mask], ty[mask])
-                loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else 0
-                loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else 0
+                loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
+                loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
                 loss_conf = 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
                     pred_conf[conf_mask_true], tconf[conf_mask_true])
-                loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else 0
+                loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
                 loss = loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
+
+                return {
+                    'loss_x' : loss_x.item(),
+                    'loss_y' : loss_y.item(),
+                    'loss_conf' : loss_conf.item(),
+                    'loss_bin' : loss_bin.item(),
+                    'loss_cont' : loss_cont.item(),
+                    'loss_cls' : loss_cls.item(),
+                    'loss' : loss,
+                    'recall' : recall,
+                    'precision' : precision
+                }
 
             else:
                 pass
