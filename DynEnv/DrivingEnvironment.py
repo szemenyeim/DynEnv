@@ -49,8 +49,8 @@ class DrivingEnvironment(object):
         self.normH = 1.0 / 15
         self.standardNormX = 0.5 / (self.W+50)
         self.standardNormY = 0.5 / (self.H+50)
-        self.standardNormW = 0.5 / 8
-        self.standardNormH = 0.5 / 25
+        self.standardNormW = 1.0 / 15
+        self.standardNormH = 1.0 / 25
 
         # Noise
         # Vision settings
@@ -789,8 +789,8 @@ class DrivingEnvironment(object):
                            normalize(c.getPos().y, self.standardNormY),
                            math.cos(c.getAngle()),
                            math.sin(c.getAngle()),
-                           normalize(c.width, self.standardNormW),
-                           normalize(c.height, self.standardNormH),
+                           normalize(c.width, self.standardNormW, mean=0.5),
+                           normalize(c.height, self.standardNormH, mean=0.5),
                            c.finished] for c in self.cars]).astype('float32'),
             ]
         # Otherwise add self observation separately
@@ -800,8 +800,8 @@ class DrivingEnvironment(object):
                           normalize(car.getPos().y, self.standardNormY),
                           math.cos(car.getAngle()),
                           math.sin(car.getAngle()),
-                          normalize(car.width, self.standardNormW),
-                          normalize(car.height, self.standardNormH),
+                          normalize(car.width, self.standardNormW, mean=0.5),
+                          normalize(car.height, self.standardNormH, mean=0.5),
                           normalize(car.goal.x, self.standardNormX),
                           normalize(car.goal.y, self.standardNormY),
                           car.finished]).astype('float32'),
@@ -810,8 +810,8 @@ class DrivingEnvironment(object):
                            normalize(c.getPos().y, self.standardNormY),
                            math.cos(c.getAngle()),
                            math.sin(c.getAngle()),
-                           normalize(c.width, self.standardNormW),
-                           normalize(c.height, self.standardNormH),
+                           normalize(c.width, self.standardNormW, mean=0.5),
+                           normalize(c.height, self.standardNormH, mean=0.5),
                            c.finished] for c in self.cars if c != car]).astype('float32'),
             ]
 
@@ -819,8 +819,8 @@ class DrivingEnvironment(object):
         state += [
             np.array([[normalize(o.getPos().x, self.standardNormX),
                        normalize(o.getPos().y, self.standardNormY),
-                       normalize(o.width, self.standardNormW),
-                       normalize(o.height, self.standardNormH)]
+                       normalize(o.width, self.standardNormW, mean=0.5),
+                       normalize(o.height, self.standardNormH, mean=0.5)]
                       for o in self.obstacles]).astype('float32'),
 
             np.array([[normalize(p.getPos().x, self.standardNormX),

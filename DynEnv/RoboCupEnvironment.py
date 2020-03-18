@@ -50,8 +50,8 @@ class RoboCupEnvironment(object):
         self.mean = 2.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
-        self.standardNormX = 0.5 / (self.W+50)
-        self.standardNormY = 0.5 / (self.H+50)
+        self.standardNormX = 1.0 / (self.W+50)
+        self.standardNormY = 1.0 / (self.H+50)
 
         # Observation and action spaces
         # Observation space
@@ -1113,8 +1113,8 @@ class RoboCupEnvironment(object):
                      robot.id in self.closestID], ]).astype('float32'),
 
                 np.array([[
-                    normalize(robot.getPos()[0], self.standardNormX, 0, team),
-                    normalize(robot.getPos()[1], self.standardNormY, 0, team),
+                    normalizeAfterScale(robot.getPos()[0], self.standardNormX, 0, team),
+                    normalizeAfterScale(robot.getPos()[1], self.standardNormY, 0, team),
                     math.cos(robot.getAngle(team)), math.sin(robot.getAngle(team)),
                     math.cos(robot.headAngle), math.sin(robot.headAngle),
                     robot.team,
