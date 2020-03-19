@@ -846,6 +846,17 @@ class ReconNet(nn.Module):
         LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
         ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
 
+        # Initialize losses
+        loss_x = torch.tensor(0.0).type(FloatTensor)
+        loss_y = torch.tensor(0.0).type(FloatTensor)
+        loss_cont = torch.tensor(0.0).type(FloatTensor)
+        loss_bin = torch.tensor(0.0).type(FloatTensor)
+        loss_conf = torch.tensor(0.0).type(FloatTensor)
+        loss_cls = torch.tensor(0.0).type(FloatTensor)
+        loss = torch.tensor(0.0).type(FloatTensor)
+        recall = 0
+        precision = 0
+
         preds = self.nn(x)
 
         preds[:,self.MSEIndices] = torch.tanh(preds[:,self.MSEIndices])
@@ -900,8 +911,8 @@ class ReconNet(nn.Module):
                 )
 
                 nProposals = int((pred_conf > 0.5).sum().item())
-                recall = float(nCorrect / nGT) if nGT else 1
-                precision = float(nCorrect / nProposals)
+                recall += float(nCorrect / nGT) if nGT else 1
+                precision += float(nCorrect / nProposals)
 
                 # Handle masks
                 mask = mask.type(ByteTensor).bool()
@@ -920,29 +931,23 @@ class ReconNet(nn.Module):
                 conf_mask_false = conf_mask ^ mask
 
                 # Mask outputs to ignore non-existing objects
-                loss_x = self.mse_loss(x[mask], tx[mask])
-                loss_y = self.mse_loss(y[mask], ty[mask])
-                loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
-                loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
-                loss_conf = 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
+                loss_x += self.mse_loss(x[mask], tx[mask])
+                loss_y += self.mse_loss(y[mask], ty[mask])
+                loss_cont += self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
+                loss_bin += self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
+                loss_conf += 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
                     pred_conf[conf_mask_true], tconf[conf_mask_true])
-                loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
-                loss = loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
+                loss_cls += self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
+                loss += loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
 
-                return {
-                    'loss_x' : loss_x.item(),
-                    'loss_y' : loss_y.item(),
-                    'loss_conf' : loss_conf.item(),
-                    'loss_bin' : loss_bin.item(),
-                    'loss_cont' : loss_cont.item(),
-                    'loss_cls' : loss_cls.item(),
-                    'loss' : loss,
-                    'recall' : recall,
-                    'precision' : precision
-                }
-
-            else:
-                pass
-
-
-        pass
+        return {
+            'loss_x' : loss_x.item(),
+            'loss_y' : loss_y.item(),
+            'loss_conf' : loss_conf.item(),
+            'loss_bin' : loss_bin.item(),
+            'loss_cont' : loss_cont.item(),
+            'loss_cls' : loss_cls.item(),
+            'loss' : loss,
+            'recall' : recall/len(self.classDefs),
+            'precision' : precision/len(self.classDefs)
+        }
