@@ -798,7 +798,7 @@ class ReconNet(nn.Module):
         self.size = size
         self.inplanes = inplanes
         self.target_defs = target_defs
-        self.ignore_thres = 0.45
+        self.ignore_thres = 0.25
 
         self.PosIndices = []
         self.MSEIndices = []

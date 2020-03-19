@@ -366,7 +366,9 @@ def plot_typography(usetex=True, small=12, medium=14, big=16):
 
 
 def get_anchor_distances(x, y, preds):
-    return (x - preds[:,0])**2 + (y - preds[:,1])**2
+    px = preds[:,0] - (preds[:,0]).int()
+    py = preds[:,1] - (preds[:,1]).int()
+    return (x - px)**2 + (y - py)**2
 
 def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
                   grid_size_x, ignore_thres, predInfo, classInd):
