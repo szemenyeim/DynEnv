@@ -67,6 +67,17 @@ class Runner(object):
         f_loss = 0
         i_loss = 0
 
+        """Recon Losses"""
+        rec_loss = 0
+        x_loss = 0
+        y_loss = 0
+        conf_loss = 0
+        bin_loss = 0
+        cont_loss = 0
+        cls_loss = 0
+        recall = 0
+        prec = 0
+
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
 
@@ -104,6 +115,15 @@ class Runner(object):
             f_loss += icm_losses[0].item()
             i_loss += icm_losses[1].item()
 
+            """Running recon losses"""
+            rec_loss += recon_loss['loss'].item()
+            x_loss += recon_loss['loss_x']
+            y_loss += recon_loss['loss_y']
+            conf_loss += recon_loss['loss_conf']
+            bin_loss += recon_loss['loss_bin']
+            cont_loss += recon_loss['loss_cont']
+            cls_loss += recon_loss['loss_cls']
+
             """Print to console at the end of each episode"""
             dones = self.storage.dones[-1].bool()
             if dones.any():
@@ -132,6 +152,12 @@ class Runner(object):
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]")
 
+                prec /= num_update
+                recall /= num_update
+
+                print("Recon Loss: %.2f, X: %.2f, Y: %.2f, Conf: %.2f, Bin: %.2f, Cont: %.2f, Cls: %.2f   [Recall: %.2f, Precision: %.2f]"
+                      % (rec_loss, x_loss, y_loss, conf_loss, bin_loss, cont_loss, cls_loss, recall, prec))
+
                 r_loss = 0
                 p_loss = 0
                 v_loss = 0
@@ -139,6 +165,16 @@ class Runner(object):
                 te_loss = 0
                 f_loss = 0
                 i_loss = 0
+
+                rec_loss = 0
+                x_loss = 0
+                y_loss = 0
+                conf_loss = 0
+                bin_loss = 0
+                cont_loss = 0
+                cls_loss = 0
+                recall = 0
+                prec = 0
 
                 """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
