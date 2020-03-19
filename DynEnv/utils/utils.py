@@ -404,8 +404,8 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
             nGT += 1
 
             # Convert to position relative to box
-            gx = target[t, posInd[0]] * nGx
-            gy = target[t, posInd[1]] * nGy
+            gx = min(0.9999, max(0, target[t, posInd[0]])) * nGx
+            gy = min(0.9999, max(0, target[t, posInd[1]])) * nGy
 
             # Get grid box indices
             gi = int(gx)
