@@ -78,6 +78,8 @@ class Runner(object):
         recall = 0
         prec = 0
 
+        num_rollout = 0
+
         for num_update in range(self.params.num_updates):
             self.net.optimizer.zero_grad()
 
@@ -123,6 +125,9 @@ class Runner(object):
             bin_loss += recon_loss['loss_bin']
             cont_loss += recon_loss['loss_cont']
             cls_loss += recon_loss['loss_cls']
+            recall += recon_loss['recall']
+            prec += recon_loss['precision']
+            num_rollout += 1
 
             """Print to console at the end of each episode"""
             dones = self.storage.dones[-1].bool()
@@ -152,11 +157,11 @@ class Runner(object):
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]")
 
-                prec /= num_update
-                recall /= num_update
+                prec /= num_rollout
+                recall /= num_rollout
 
                 print("Recon Loss: %.2f, X: %.2f, Y: %.2f, Conf: %.2f, Bin: %.2f, Cont: %.2f, Cls: %.2f   [Recall: %.2f, Precision: %.2f]"
-                      % (rec_loss, x_loss, y_loss, conf_loss, bin_loss, cont_loss, cls_loss, recall, prec))
+                      % (rec_loss, x_loss, y_loss, conf_loss, bin_loss, cont_loss, cls_loss, recall*100, prec*100))
 
                 r_loss = 0
                 p_loss = 0
@@ -175,6 +180,7 @@ class Runner(object):
                 cls_loss = 0
                 recall = 0
                 prec = 0
+                num_rollout = 0
 
                 """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
