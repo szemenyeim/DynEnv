@@ -511,6 +511,21 @@ class DrivingEnvironment(object):
             if not car.finished:
                 self.carRewards[index] -= car.shape.body.velocity.length / 10000
 
+        # Stop car outside the field
+        if car.prevPos.x >= self.W + 50:
+            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.position.x = self.W + 49
+        if car.prevPos.x <= -50:
+            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.position.x = - 49
+        if car.prevPos.y >= self.H + 50:
+            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.position.y = self.H + 49
+        if car.prevPos.y <= -50:
+            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.position.y = - 49
+
+
     # Update function for pedestrians
     def move(self, pedestrian):
 
