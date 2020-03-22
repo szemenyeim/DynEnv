@@ -6,33 +6,30 @@ from collections import deque
 import cv2
 import pygame
 import pymunk.pygame_util
-from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Dict, Space, Discrete
+from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Dict
 
+from .environment_base import EnvironmentBase
 from .Ball import Ball
 from .Goalpost import Goalpost
 from .Robot import Robot
 from .cutils import *
 
 
-class RoboCupEnvironment(object):
+class RoboCupEnvironment(EnvironmentBase):
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
                  noiseMagnitude=2, allowHeadTurn=False, obs_space_cast=False):
 
+        super().__init__(width=1040, height=740, caption="Robot Soccer", n_players=nPlayers,
+                         max_players=5, n_time_steps=5, observation_type=observationType,
+                         noise_type=noiseType, render=render, obs_space_cast=obs_space_cast,
+                         noise_magnitude=noiseMagnitude)
+
         # Basic settings
-        self.nTimeSteps = 5
-        self.observationType = observationType
-        self.noiseType = noiseType
-        self.maxPlayers = 5
-        self.nPlayers = min(nPlayers, self.maxPlayers)
-        self.renderVar = render
-        self.sizeNorm = 10.0 / noiseMagnitude if noiseMagnitude != 0.0 else 1.0
+        self.sizeNorm = 10.0 / self.noiseMagnitude if self.noiseMagnitude != 0.0 else 1.0
         self.allowHeadTurn = allowHeadTurn
-        self.obs_space_cast = obs_space_cast
 
         # Field setup
-        self.W = 1040
-        self.H = 740
         self.fieldW = 900
         self.fieldH = 600
         self.sideLength = 70
@@ -50,72 +47,15 @@ class RoboCupEnvironment(object):
         self.mean = 2.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
-        self.standardNormX = 1.0 / (self.W+100)
-        self.standardNormY = 1.0 / (self.H+100)
+        self.standardNormX = 1.0 / (self.W + 100)
+        self.standardNormY = 1.0 / (self.H + 100)
 
         # Observation and action spaces
         # Observation space
-
-        line_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(4,)),
-        })
-        cross_space = goalpost_space = center_circle_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
-        })
-
-        robot_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "orientation": Box(-1, 1, shape=(2,)),
-            "team": Box(-1, 1, shape=(1,)),
-            "penalized or penalized": MultiBinary(1)
-        })
-
-        self_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "orientation": Box(-1, 1, shape=(4,)),
-            "team": Box(-1, 1, shape=(1,)),
-            "penalized or penalized": MultiBinary(1)
-        })
-
-        if self.observationType == ObservationType.FULL:
-            ball_space = Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "closest": MultiBinary(1),
-            })
-
-            self.observation_space = Tuple([
-                self_space,
-                robot_space,
-                ball_space
-            ])
-        elif self.observationType == ObservationType.IMAGE:
-
-            self.observation_space = Box(0, 1, shape=(4, 480, 640))
-        else:
-
-            ball_space = Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "closest": MultiBinary(1),
-            })
-
-            self.observation_space = Tuple([
-                ball_space,
-                robot_space,
-                goalpost_space,
-                cross_space,
-                line_space,
-                center_circle_space
-            ])
+        self._setup_observation_space()
 
         # Action space
-        if self.allowHeadTurn:
-            self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-6, high=6, shape=(1,))))
-        else:
-            self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
+        self._setup_action_space()
 
         # Spaces for state reconstruction
         # Ball
@@ -128,13 +68,13 @@ class RoboCupEnvironment(object):
             })]
 
         self.ballPredInfo = [
-            [1,0],
-            [[0,1], [2,], None, None]
+            [1, 0],
+            [[0, 1], [2, ], None, None]
         ]
 
         # Self
         self.self_state = [
-            1, # Estimate 1 self from one grid cell
+            1,  # Estimate 1 self from one grid cell
             Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
                 "orientation": Box(-1.0, +1.0, shape=(4,)),
@@ -143,12 +83,12 @@ class RoboCupEnvironment(object):
             })]
 
         self.selfPredInfo = [
-            [4,1],
-            [[0,1], [2,3,4,5], [6,], None]
+            [4, 1],
+            [[0, 1], [2, 3, 4, 5], [6, ], None]
         ]
 
         self.robot_state = [
-            4, # Estimate 4 robots from one grid cell
+            4,  # Estimate 4 robots from one grid cell
             Dict({
                 "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
                 "orientation": Box(-1.0, +1.0, shape=(2,)),
@@ -158,8 +98,8 @@ class RoboCupEnvironment(object):
             })]
 
         self.robotPredInfo = [
-            [3,1],
-            [[0,1], [2,3,4], [5,], None]
+            [3, 1],
+            [[0, 1], [2, 3, 4], [5, ], None]
         ]
 
         self.full_state_space = [
@@ -168,7 +108,7 @@ class RoboCupEnvironment(object):
             self.robot_state
         ]
 
-        self.feature_grid_size = (7,10)
+        self.feature_grid_size = (7, 10)
 
         self.predInfo = (
             self.ballPredInfo,
@@ -177,15 +117,7 @@ class RoboCupEnvironment(object):
         )
 
         # Vision settings
-        if noiseMagnitude < 0 or noiseMagnitude > 5:
-            print("Error: The noise magnitude must be between 0 and 5!")
-            exit(0)
-        if observationType == ObservationType.FULL and noiseMagnitude > 0:
-            print(
-                "Warning: Full observation type does not support noisy observations, but your noise magnitude is set to a non-zero value! (The noise setting has no effect in this case)")
-        self.randBase = 0.01 * noiseMagnitude
-        self.noiseMagnitude = noiseMagnitude
-        self.maxVisDist = [(self.W * 0.4) ** 2, (self.W * 0.8) ** 2]
+        self._setup_vision()
 
         # Free kick status
         self.ballOwned = 1
@@ -220,14 +152,12 @@ class RoboCupEnvironment(object):
         self.penalTimes = [20000, 20000]
         self.maxTime = 12000
         self.elapsed = 0
-        self.timeStep = 100.0
         self.timeDiff = 1000.0 / self.timeStep
         self.stepNum = self.maxTime / self.timeDiff / 5
         self.stepIterCnt = 50
 
         # Visualization Parameters
         self.agentVisID = None
-        self.renderMode = 'human'
         self.screenShots = deque(maxlen=self.stepIterCnt)
         self.obsVis = deque(maxlen=self.stepIterCnt // 10)
 
@@ -269,8 +199,37 @@ class RoboCupEnvironment(object):
             (pymunk.Vec2d(self.W - (self.sideLength + self.penaltyDist), self.H // 2), self.penaltyRadius),
         ]
 
-        centX = self.W / 2
+        # Add instances to the scene
+        self._create_robots()
+        self._create_ball()
+        self._create_goalposts()
 
+        self._handle_collisions()
+
+        self._setup_render_options()
+
+    def _handle_collisions(self):
+        # Handle robot-goalpost collision
+        self._add_collision_handler(CollisionType.Robot, CollisionType.Goalpost, begin=None,
+                                    post_solve=self.goalpostCollision, separate=self.separate)
+        # Handle robot-robot collision
+        self._add_collision_handler(CollisionType.Robot, CollisionType.Robot, self.robotPushingDet, self.robotCollision,
+                                    self.separate)
+        # Handle robot-ball collision
+        self._add_collision_handler(CollisionType.Robot, CollisionType.Ball, begin=self.ballCollision)
+
+    def _add_collision_handler(self, coll1: CollisionType, coll2: CollisionType, begin=None, post_solve=None, separate=None):
+        h = self.space.add_collision_handler(coll1, coll2)
+
+        if begin is not None:
+            h.begin = begin
+        if post_solve is not None:
+            h.post_solve = post_solve
+        if separate is not None:
+            h.separate = separate
+
+    def _create_robot_spots(self):
+        centX = self.W / 2
         self.robotSpots = [
             # Kickoff team
             [(centX - (self.ballRadius * 2 + Robot.totalRadius) - random.random() * 50,
@@ -294,25 +253,7 @@ class RoboCupEnvironment(object):
              (self.W - (self.sideLength), self.H / 2 + (random.random() - 0.5) * 50)],
         ]
 
-        # Permute spots
-        spotIds1 = np.random.permutation(self.maxPlayers)
-        spotIds2 = np.random.permutation(self.maxPlayers)
-
-        # Add robots
-        self.robots = [Robot(self.robotSpots[0][id], 1, i) for i, id in enumerate(spotIds1) if i < self.nPlayers] \
-                      + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i) for i, id in enumerate(spotIds2) if
-                         i < self.nPlayers]
-        for robot in self.robots:
-            self.space.add(robot.leftFoot.body, robot.leftFoot, robot.rightFoot.body, robot.rightFoot, robot.joint,
-                           robot.rotJoint)
-
-        # Add ball
-        x = self.W // 2  # random.random()*self.fieldW + self.sideLength
-        y = self.H // 2  # random.random()*self.fieldH + self.sideLength
-        self.ball = Ball(x, y, self.ballRadius)
-        self.space.add(self.ball.shape.body, self.ball.shape)
-
-        # Add goalposts
+    def _create_goalposts(self):
         self.goalposts = [
             Goalpost(self.sideLength, self.H / 2 + self.goalWidth, self.goalPostRadius),
             Goalpost(self.sideLength, self.H / 2 - self.goalWidth, self.goalPostRadius),
@@ -322,40 +263,90 @@ class RoboCupEnvironment(object):
         for goal in self.goalposts:
             self.space.add(goal.shape.body, goal.shape)
 
-        # Handle robot-goalpost collision
-        h = self.space.add_collision_handler(
-            CollisionType.Robot,
-            CollisionType.Goalpost)
-        h.post_solve = self.goalpostCollision
-        h.separate = self.separate
+    def _create_robots(self):
 
-        # Handle robot-robot collision
-        h = self.space.add_collision_handler(
-            CollisionType.Robot,
-            CollisionType.Robot)
-        h.begin = self.robotPushingDet
-        h.post_solve = self.robotCollision
-        h.separate = self.separate
+        # Spot setup
+        self._create_robot_spots()
+        spotIds1 = np.random.permutation(self.maxPlayers)
+        spotIds2 = np.random.permutation(self.maxPlayers)
 
-        # Handle robot-ball collision
-        h = self.space.add_collision_handler(
-            CollisionType.Robot,
-            CollisionType.Ball)
-        h.begin = self.ballCollision
+        self.robots = [Robot(self.robotSpots[0][id], 1, i) for i, id in enumerate(spotIds1) if i < self.nPlayers] \
+                      + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i) for i, id in enumerate(spotIds2) if
+                         i < self.nPlayers]
 
-        # Render options
-        if self.renderVar:
-            pygame.init()
-            self.screen = pygame.display.set_mode((self.W, self.H))
-            pygame.display.set_caption("Robot Soccer")
-            self.clock = pygame.time.Clock()
-            self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
+        for robot in self.robots:
+            self.space.add(robot.leftFoot.body, robot.leftFoot, robot.rightFoot.body, robot.rightFoot, robot.joint,
+                           robot.rotJoint)
 
-        # only for vectorized environments
-        if self.obs_space_cast:
-            # IMPORTANT: the following step is needed to fool
-            # the SubprocVecEnv of stable-baselines
-            self.observation_space.__class__ = Space
+    def _create_ball(self):
+        x = self.W // 2  # random.random()*self.fieldW + self.sideLength
+        y = self.H // 2  # random.random()*self.fieldH + self.sideLength
+        self.ball = Ball(x, y, self.ballRadius)
+        self.space.add(self.ball.shape.body, self.ball.shape)
+
+    def _setup_action_space(self):
+        if self.allowHeadTurn:
+            self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-6, high=6, shape=(1,))))
+        else:
+            self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
+
+    def _create_observation_space(self):
+
+        # construct components
+        pos_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
+        team = Box(-1, 1, shape=(1,))
+
+        line_space = Dict({
+            "position": Box(-self.mean * 2, +self.mean * 2, shape=(4,)),
+        })
+        cross_space = goalpost_space = center_circle_space = Dict({
+            "position": pos_xy,
+            "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
+        })
+        robot_space = Dict({
+            "position": pos_xy,
+            "orientation": Box(-1, 1, shape=(2,)),
+            "team": team,
+            "penalized or penalized": MultiBinary(1)
+        })
+        self_space = Dict({
+            "position": pos_xy,
+            "orientation": Box(-1, 1, shape=(4,)),
+            "team": team,
+            "penalized or penalized": MultiBinary(1)
+        })
+
+        if self.observationType == ObservationType.FULL:
+            ball_space = Dict({
+                "position": pos_xy,
+                "team": team,
+                "closest": MultiBinary(1),
+            })
+
+            self.observation_space = Tuple([
+                self_space,
+                robot_space,
+                ball_space
+            ])
+        elif self.observationType == ObservationType.IMAGE:
+            self.observation_space = Box(0, 1, shape=(4, 480, 640))
+        else:
+
+            ball_space = Dict({
+                "position": pos_xy,
+                "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
+                "team": team,
+                "closest": MultiBinary(1),
+            })
+
+            self.observation_space = Tuple([
+                ball_space,
+                robot_space,
+                goalpost_space,
+                cross_space,
+                line_space,
+                center_circle_space
+            ])
 
     # Reset env
     def reset(self):
@@ -525,16 +516,6 @@ class RoboCupEnvironment(object):
         self.space.debug_draw(self.draw_options)
 
     # Render
-    def render_internal(self):
-
-        self.drawStaticObjects()
-        pygame.display.flip()
-        self.clock.tick(self.timeStep)
-
-        if self.renderMode == 'memory':
-            img = pygame.surfarray.array3d(self.screen).transpose([1, 0, 2])
-            self.screenShots.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-            # pygame.display.iconify()
 
     def render(self):
         if self.renderMode == 'human':

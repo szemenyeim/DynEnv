@@ -22,6 +22,7 @@ class DrivingEnvironment(object):
                  noiseMagnitude=2, continuousActions=False, obs_space_cast=False):
 
         # Basic settings
+        self.display_caption = "Driving Environment"
         self.observationType = observationType
         self.noiseType = noiseType
         self.maxPlayers = 10
@@ -59,8 +60,9 @@ class DrivingEnvironment(object):
             exit(0)
         if observationType == ObservationType.FULL and noiseMagnitude > 0:
             print(
-                "Warning: Full observation type does not support noisy observations, but your noise magnitude is set"
-                " to a non-zero value! (The noise setting has no effect in this case)")
+                "Warning: Full observation type does not support noisy observations, "
+                "but your noise magnitude is set to a non-zero value! "
+                "(The noise setting has no effect in this case)")
         self.randBase = 0.01 * noiseMagnitude
         self.noiseMagnitude = noiseMagnitude
         self.maxVisDist = [(self.W * 0.4) ** 2, (self.W * 0.6) ** 2]
@@ -292,7 +294,7 @@ class DrivingEnvironment(object):
         if self.renderVar:
             pygame.init()
             self.screen = pygame.display.set_mode((self.W, self.H))
-            pygame.display.set_caption("Driving Environment")
+            pygame.display.set_caption(self.display_caption)
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
 
