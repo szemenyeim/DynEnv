@@ -1,18 +1,16 @@
 # coding=utf-8
 import time
-import warnings
-from collections import deque
 
 import cv2
 import pygame
 import pymunk.pygame_util
 from gym.spaces import Tuple, MultiDiscrete, Box, MultiBinary, Dict
 
-from .environment_base import EnvironmentBase
 from .Ball import Ball
 from .Goalpost import Goalpost
 from .Robot import Robot
 from .cutils import *
+from .environment_base import EnvironmentBase
 
 
 class RoboCupEnvironment(EnvironmentBase):
@@ -23,100 +21,18 @@ class RoboCupEnvironment(EnvironmentBase):
         super().__init__(width=1040, height=740, caption="Robot Soccer", n_players=nPlayers,
                          max_players=5, n_time_steps=5, observation_type=observationType,
                          noise_type=noiseType, render=render, obs_space_cast=obs_space_cast,
-                         noise_magnitude=noiseMagnitude)
+                         noise_magnitude=noiseMagnitude, max_time=12000, step_iter_cnt=50)
 
         # Basic settings
         self.sizeNorm = 10.0 / self.noiseMagnitude if self.noiseMagnitude != 0.0 else 1.0
         self.allowHeadTurn = allowHeadTurn
 
-        # Field setup
-        self.fieldW = 900
-        self.fieldH = 600
-        self.sideLength = 70
-        self.lineWidth = 5
-        self.penaltyRadius = 5
-        self.penaltyLength = 60
-        self.penaltyWidth = 110
-        self.penaltyDist = 130
-        self.centerCircleRadius = 75
-        self.goalWidth = 80
-        self.goalPostRadius = 5
-        self.ballRadius = 5
+        self._setup_normalization()
 
-        # Normalization variables
-        self.mean = 2.0 if ObservationType.PARTIAL else 1.0
-        self.normX = self.mean * 2 / self.W
-        self.normY = self.mean * 2 / self.H
-        self.standardNormX = 1.0 / (self.W + 100)
-        self.standardNormY = 1.0 / (self.H + 100)
-
-        # Observation and action spaces
-        # Observation space
         self._setup_observation_space()
-
-        # Action space
         self._setup_action_space()
+        self._setup_reconstruction_info()
 
-        # Spaces for state reconstruction
-        # Ball
-        self.ball_state = [
-            1,
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.ballPredInfo = [
-            [1, 0],
-            [[0, 1], [2, ], None, None]
-        ]
-
-        # Self
-        self.self_state = [
-            1,  # Estimate 1 self from one grid cell
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "orientation": Box(-1.0, +1.0, shape=(4,)),
-                "active": MultiBinary(1),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.selfPredInfo = [
-            [4, 1],
-            [[0, 1], [2, 3, 4, 5], [6, ], None]
-        ]
-
-        self.robot_state = [
-            4,  # Estimate 4 robots from one grid cell
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "orientation": Box(-1.0, +1.0, shape=(2,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "active": MultiBinary(1),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.robotPredInfo = [
-            [3, 1],
-            [[0, 1], [2, 3, 4], [5, ], None]
-        ]
-
-        self.full_state_space = [
-            self.ball_state,
-            self.self_state,
-            self.robot_state
-        ]
-
-        self.feature_grid_size = (7, 10)
-
-        self.predInfo = (
-            self.ballPredInfo,
-            self.selfPredInfo,
-            self.robotPredInfo
-        )
-
-        # Vision settings
         self._setup_vision()
 
         # Free kick status
@@ -124,14 +40,116 @@ class RoboCupEnvironment(EnvironmentBase):
         self.ballFreeCntr = 9999
         self.gracePeriod = 0
 
-        self.episodeRewards = 0
-        self.episodePosRewards = 0
+        self._init_rewards()
+
         self.goals = np.array([0, 0])
         self.closestID = [0, 0]
 
         # Bookkeeping for robots inside penalty area for illegal defender
         self.defenders = [[], []]
 
+        # Reward settings
+        self.kickDiscount = 0.5
+        self.teamRewards = np.array([0.0, 0.0])
+        self.robotRewards = np.array([0.0, 0.0] * self.nPlayers)
+        self.penalTimes = [20000, 20000]
+        self.timeDiff = 1000.0 / self.timeStep
+        self.stepNum = self.maxTime / self.timeDiff / 5
+
+        self._setup_scene()
+        self._handle_collisions()
+
+    def _setup_normalization(self):
+        self.mean = 2.0 if ObservationType.PARTIAL else 1.0
+        self.normX = self.mean * 2 / self.W
+        self.normY = self.mean * 2 / self.H
+        self.standardNormX = 1.0 / (self.W + 100)
+        self.standardNormY = 1.0 / (self.H + 100)
+
+    def _setup_scene(self):
+        self.fieldW = 900
+        self.fieldH = 600
+
+        self.sideLength = 70
+        self.lineWidth = 5
+
+        self.penaltyRadius = 5
+        self.penaltyLength = 60
+        self.penaltyWidth = 110
+        self.penaltyDist = 130
+
+        self.centerCircleRadius = 75
+
+        self.goalWidth = 80
+        self.goalPostRadius = 5
+
+        self.ballRadius = 5
+
+        self._create_football_field()
+        self._create_robots()
+        self._create_ball()
+        self._create_goalposts()
+        self._create_penalty_spots()
+
+    def _setup_reconstruction_info(self):
+        position_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
+        confidence = MultiBinary(1)
+
+        # Ball
+        self.ball_state = [
+            1,
+            Dict({
+                "position": position_xy,
+                "team": Box(-1, 1, shape=(1,)),
+                "confidence": confidence,
+            })]
+        self.ballPredInfo = [
+            [1, 0],
+            [[0, 1], [2, ], None, None]
+        ]
+        # Self
+        self.self_state = [
+            1,  # Estimate 1 self from one grid cell
+            Dict({
+                "position": position_xy,
+                "orientation": Box(-1.0, +1.0, shape=(4,)),
+                "active": MultiBinary(1),
+                "confidence": confidence,
+            })]
+        self.selfPredInfo = [
+            [4, 1],
+            [[0, 1], [2, 3, 4, 5], [6, ], None]
+        ]
+        self.robot_state = [
+            4,  # Estimate 4 robots from one grid cell
+            Dict({
+                "position": position_xy,
+                "orientation": Box(-1.0, +1.0, shape=(2,)),
+                "team": Box(-1, 1, shape=(1,)),
+                "active": MultiBinary(1),
+                "confidence": confidence,
+            })]
+        self.robotPredInfo = [
+            [3, 1],
+            [[0, 1], [2, 3, 4], [5, ], None]
+        ]
+        self.full_state_space = [
+            self.ball_state,
+            self.self_state,
+            self.robot_state
+        ]
+        self.feature_grid_size = (7, 10)
+        self.predInfo = (
+            self.ballPredInfo,
+            self.selfPredInfo,
+            self.robotPredInfo
+        )
+
+    def _init_rewards(self):
+        self.episodeRewards = 0
+        self.episodePosRewards = 0
+
+    def _create_penalty_spots(self):
         # Penalty spots (for penalized robots)
         self.penaltySpots = [
             [
@@ -145,26 +163,7 @@ class RoboCupEnvironment(EnvironmentBase):
             ],  # team -1
         ]
 
-        # Reward settings
-        self.kickDiscount = 0.5
-        self.teamRewards = np.array([0.0, 0.0])
-        self.robotRewards = np.array([0.0, 0.0] * self.nPlayers)
-        self.penalTimes = [20000, 20000]
-        self.maxTime = 12000
-        self.elapsed = 0
-        self.timeDiff = 1000.0 / self.timeStep
-        self.stepNum = self.maxTime / self.timeDiff / 5
-        self.stepIterCnt = 50
-
-        # Visualization Parameters
-        self.agentVisID = None
-        self.screenShots = deque(maxlen=self.stepIterCnt)
-        self.obsVis = deque(maxlen=self.stepIterCnt // 10)
-
-        # Simulation settings
-        self.space = pymunk.Space()
-        self.space.gravity = (0.0, 0.0)
-
+    def _create_football_field(self):
         self.lines = [
             # Outer lines
             (pymunk.Vec2d(self.sideLength, self.sideLength), pymunk.Vec2d(self.sideLength, self.H - self.sideLength)),
@@ -199,15 +198,6 @@ class RoboCupEnvironment(EnvironmentBase):
             (pymunk.Vec2d(self.W - (self.sideLength + self.penaltyDist), self.H // 2), self.penaltyRadius),
         ]
 
-        # Add instances to the scene
-        self._create_robots()
-        self._create_ball()
-        self._create_goalposts()
-
-        self._handle_collisions()
-
-        self._setup_render_options()
-
     def _handle_collisions(self):
         # Handle robot-goalpost collision
         self._add_collision_handler(CollisionType.Robot, CollisionType.Goalpost, begin=None,
@@ -218,7 +208,8 @@ class RoboCupEnvironment(EnvironmentBase):
         # Handle robot-ball collision
         self._add_collision_handler(CollisionType.Robot, CollisionType.Ball, begin=self.ballCollision)
 
-    def _add_collision_handler(self, coll1: CollisionType, coll2: CollisionType, begin=None, post_solve=None, separate=None):
+    def _add_collision_handler(self, coll1: CollisionType, coll2: CollisionType, begin=None, post_solve=None,
+                               separate=None):
         h = self.space.add_collision_handler(coll1, coll2)
 
         if begin is not None:
@@ -229,6 +220,7 @@ class RoboCupEnvironment(EnvironmentBase):
             h.separate = separate
 
     def _create_robot_spots(self):
+
         centX = self.W / 2
         self.robotSpots = [
             # Kickoff team
@@ -290,7 +282,7 @@ class RoboCupEnvironment(EnvironmentBase):
         else:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
 
-    def _create_observation_space(self):
+    def create_observation_space(self):
 
         # construct components
         pos_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
@@ -369,11 +361,6 @@ class RoboCupEnvironment(EnvironmentBase):
                 observations.append([self.getRobotVision(robot) for robot in self.robots])
         return observations
 
-    # Set random seed
-    def setRandomSeed(self, seed):
-        np.random.seed(seed)
-        random.seed(seed)
-
     # Main step function
     def step(self, actions):
         t1 = time.clock()
@@ -423,7 +410,7 @@ class RoboCupEnvironment(EnvironmentBase):
                     observations.append([self.getRobotVision(robot) for robot in self.robots])
 
             if self.renderVar:
-                self.render_internal()
+                self._render_internal()
 
         self.robotRewards[:self.nPlayers] += self.teamRewards[0]
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
@@ -514,15 +501,6 @@ class RoboCupEnvironment(EnvironmentBase):
         pygame.draw.circle(self.screen, (255, 255, 255), self.centerCircle[0], self.centerCircle[1] * 2, self.lineWidth)
 
         self.space.debug_draw(self.draw_options)
-
-    # Render
-
-    def render(self):
-        if self.renderMode == 'human':
-            warnings.warn("env.render(): This function does nothing in human render mode.\n"
-                          "If you want to render into memory, set the renderMode variable to 'memory'!")
-            return
-        return self.screenShots, self.obsVis
 
     # Ball free kick
     def ballFreeKickProcess(self, team):
@@ -1447,7 +1425,3 @@ class RoboCupEnvironment(EnvironmentBase):
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
         return ballDets, robDets, goalDets, crossDets, lineDets, circleDets
-
-    # For compatibility
-    def close(self):
-        pass
