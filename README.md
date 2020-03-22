@@ -320,3 +320,15 @@ The partial observation contains the following for each car:
 - Lanes: **[signed distance, cos(angle), sin(angle), type]**
 
 Widths and heights are also normalized.
+
+## Coding conventions
+- Functions:
+   - lower case names, usually verbs
+   - `__function`: private function in base class, children cannot use it
+   - `_function`: private function, children can use it
+   - `function`: everyone can use it
+- Variables:
+   - camelCase: with **lowercase** initial
+   - usually nouns
+- Classes:
+   - CamelCase: with **uppercase** initial
