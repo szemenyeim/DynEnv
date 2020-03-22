@@ -16,6 +16,7 @@ This project contains two reinforcement learning environments based on 2D physic
     * [Important functions and members](#important-functions-and-members)
     * [So, what are the actions?](#so-what-are-the-actions)
     * [What is returned?](#what-is-returned)
+ * [Coding conventions](#coding-conventions)
 
 
 ## Requirements
@@ -332,3 +333,4 @@ Widths and heights are also normalized.
    - usually nouns
 - Classes:
    - CamelCase: with **uppercase** initial
+   - usually nouns
