@@ -9,6 +9,7 @@ import pygame
 import pymunk.pygame_util
 from gym import Space
 
+from cutils import CollisionType
 from .cutils import ObservationType, NoiseType
 
 
@@ -46,7 +47,7 @@ class EnvironmentBase(object, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def create_observation_space(self):
+    def _create_observation_space(self):
         pass
 
     @abstractmethod
@@ -64,6 +65,32 @@ class EnvironmentBase(object, metaclass=ABCMeta):
     @abstractmethod
     def _setup_action_space(self):
         pass
+
+    @abstractmethod
+    def _setup_reconstruction_info(self):
+        pass
+
+    @abstractmethod
+    def _handle_collisions(self):
+        pass
+
+    @abstractmethod
+    def getAgentVision(self, agent):
+        pass
+
+    @abstractmethod
+    def getFullState(self, agent):
+        pass
+
+    @abstractmethod
+    def get_class_specific_args(self):
+        # include all arguments of the subclass constructor,
+        # which are specific to that subclass
+        pass
+
+    @abstractmethod
+    def _create_agents(self):
+        self.agents = None
 
     def __setup_simulator(self):
         self.space = pymunk.Space()
@@ -84,8 +111,14 @@ class EnvironmentBase(object, metaclass=ABCMeta):
             self.clock = pygame.time.Clock()
             self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
 
-    def _render_internal(self):
+    def __bypass_subprocvecenv(self):
+        if self.obs_space_cast:
+            # IMPORTANT: the following step is needed to fool
+            # the SubprocVecEnv of stable-baselines
+            # only for vectorized environments
+            self.observation_space.__class__ = Space
 
+    def _render_internal(self):
         self.drawStaticObjects()
         pygame.display.flip()
         self.clock.tick(self.timeStep)
@@ -94,8 +127,7 @@ class EnvironmentBase(object, metaclass=ABCMeta):
             img = pygame.surfarray.array3d(self.screen).transpose([1, 0, 2])
             self.screenShots.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
-    def _setup_vision(self, width_scale_x=0.4, width_scale_y=0.8):
-
+    def _setup_vision(self, width_scale_x, width_scale_y):
         if self.noiseMagnitude < 0 or self.noiseMagnitude > 5:
             print("Error: The noise magnitude must be between 0 and 5!")
             exit(0)
@@ -110,17 +142,22 @@ class EnvironmentBase(object, metaclass=ABCMeta):
 
     def _setup_observation_space(self):
         self.observation_space = None
-        self.create_observation_space()
-        self._bypass_subprocvecenv()
+        self._create_observation_space()
+        self.__bypass_subprocvecenv()
 
-    def _bypass_subprocvecenv(self):
-        if self.obs_space_cast:
-            # IMPORTANT: the following step is needed to fool
-            # the SubprocVecEnv of stable-baselines
-            # only for vectorized environments
-            self.observation_space.__class__ = Space
+    def _add_collision_handler(self, coll1: CollisionType, coll2: CollisionType, begin=None, post_solve=None,
+                               separate=None):
+        h = self.space.add_collision_handler(coll1, coll2)
+
+        if begin is not None:
+            h.begin = begin
+        if post_solve is not None:
+            h.post_solve = post_solve
+        if separate is not None:
+            h.separate = separate
 
     def set_random_seed(self, seed):
+        # todo: set cuda backend
         np.random.seed(seed)
         random.seed(seed)
 
@@ -133,3 +170,24 @@ class EnvironmentBase(object, metaclass=ABCMeta):
                           "If you want to render into memory, set the renderMode variable to 'memory'!")
             return
         return self.screenShots, self.obsVis
+
+    def reset(self):
+        # Agent ID and render mode must survive init
+        agentID = self.agentVisID
+        renderMode = self.renderMode
+
+        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude,
+                      self.obs_space_cast, *self.get_class_specific_args())
+
+        self.agentVisID = agentID
+        self.renderMode = renderMode
+
+        # First observations
+        observations = []
+        for _ in range(self.nTimeSteps):
+            if self.observationType == ObservationType.FULL:
+                observations.append([self.getFullState(agent) for agent in self.agents])
+            else:
+                observations.append([self.getAgentVision(agent) for agent in self.agents])
+
+        return observations

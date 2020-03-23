@@ -16,7 +16,7 @@ from .environment_base import EnvironmentBase
 class RoboCupEnvironment(EnvironmentBase):
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
-                 noiseMagnitude=2, allowHeadTurn=False, obs_space_cast=False):
+                 noiseMagnitude=2, obs_space_cast=False, allowHeadTurn=False):
 
         super().__init__(width=1040, height=740, caption="Robot Soccer", n_players=nPlayers,
                          max_players=5, n_time_steps=5, observation_type=observationType,
@@ -33,7 +33,7 @@ class RoboCupEnvironment(EnvironmentBase):
         self._setup_action_space()
         self._setup_reconstruction_info()
 
-        self._setup_vision()
+        self._setup_vision(0.4, 0.8)
 
         # Free kick status
         self.ballOwned = 1
@@ -86,7 +86,7 @@ class RoboCupEnvironment(EnvironmentBase):
         self.ballRadius = 5
 
         self._create_football_field()
-        self._create_robots()
+        self._create_agents()
         self._create_ball()
         self._create_goalposts()
         self._create_penalty_spots()
@@ -208,17 +208,6 @@ class RoboCupEnvironment(EnvironmentBase):
         # Handle robot-ball collision
         self._add_collision_handler(CollisionType.Robot, CollisionType.Ball, begin=self.ballCollision)
 
-    def _add_collision_handler(self, coll1: CollisionType, coll2: CollisionType, begin=None, post_solve=None,
-                               separate=None):
-        h = self.space.add_collision_handler(coll1, coll2)
-
-        if begin is not None:
-            h.begin = begin
-        if post_solve is not None:
-            h.post_solve = post_solve
-        if separate is not None:
-            h.separate = separate
-
     def _create_robot_spots(self):
 
         centX = self.W / 2
@@ -255,18 +244,18 @@ class RoboCupEnvironment(EnvironmentBase):
         for goal in self.goalposts:
             self.space.add(goal.shape.body, goal.shape)
 
-    def _create_robots(self):
+    def _create_agents(self):
 
         # Spot setup
         self._create_robot_spots()
         spotIds1 = np.random.permutation(self.maxPlayers)
         spotIds2 = np.random.permutation(self.maxPlayers)
 
-        self.robots = [Robot(self.robotSpots[0][id], 1, i) for i, id in enumerate(spotIds1) if i < self.nPlayers] \
+        self.agents = [Robot(self.robotSpots[0][id], 1, i) for i, id in enumerate(spotIds1) if i < self.nPlayers] \
                       + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i) for i, id in enumerate(spotIds2) if
                          i < self.nPlayers]
 
-        for robot in self.robots:
+        for robot in self.agents:
             self.space.add(robot.leftFoot.body, robot.leftFoot, robot.rightFoot.body, robot.rightFoot, robot.joint,
                            robot.rotJoint)
 
@@ -282,7 +271,7 @@ class RoboCupEnvironment(EnvironmentBase):
         else:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
 
-    def create_observation_space(self):
+    def _create_observation_space(self):
 
         # construct components
         pos_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
@@ -340,26 +329,8 @@ class RoboCupEnvironment(EnvironmentBase):
                 center_circle_space
             ])
 
-    # Reset env
-    def reset(self):
-        # Agent ID and render mode must survive init
-        agentID = self.agentVisID
-        renderMode = self.renderMode
-
-        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude,
-                      self.allowHeadTurn)
-
-        self.agentVisID = agentID
-        self.renderMode = renderMode
-
-        # First observations
-        observations = []
-        for i in range(5):
-            if self.observationType == ObservationType.FULL:
-                observations.append([self.getFullState(robot) for robot in self.robots])
-            else:
-                observations.append([self.getRobotVision(robot) for robot in self.robots])
-        return observations
+    def get_class_specific_args(self):
+        return [self.allowHeadTurn]
 
     # Main step function
     def step(self, actions):
@@ -377,11 +348,11 @@ class RoboCupEnvironment(EnvironmentBase):
 
             # Sanity check
             actionNum = 4 if self.allowHeadTurn else 3
-            if actions.shape != (len(self.robots), actionNum):
+            if actions.shape != (len(self.agents), actionNum):
                 raise Exception("Error: There must be %d actions for every robot" % actionNum)
 
             # Robot loop
-            for action, robot in zip(actions, self.robots):
+            for action, robot in zip(actions, self.agents):
                 # Apply action as first step
                 if i == 0:
                     self.processAction(action, robot)
@@ -405,9 +376,9 @@ class RoboCupEnvironment(EnvironmentBase):
             # Get observations every 100 ms
             if i % 10 == 9:
                 if self.observationType == ObservationType.FULL:
-                    observations.append([self.getFullState(robot) for robot in self.robots])
+                    observations.append([self.getFullState(robot) for robot in self.agents])
                 else:
-                    observations.append([self.getRobotVision(robot) for robot in self.robots])
+                    observations.append([self.getAgentVision(robot) for robot in self.agents])
 
             if self.renderVar:
                 self._render_internal()
@@ -422,7 +393,7 @@ class RoboCupEnvironment(EnvironmentBase):
         self.episodePosRewards += self.robotPosRewards
 
         info = {'Full State': self.getFullState()}
-        info['Recon States'] = [self.getFullState(robot) for robot in self.robots]
+        info['Recon States'] = [self.getFullState(robot) for robot in self.agents]
 
         t2 = time.clock()
         # print((t2-t1)*1000)
@@ -548,7 +519,7 @@ class RoboCupEnvironment(EnvironmentBase):
             y = self.H / 2
 
             # If out on the sides
-            team = self.robots[self.ball.lastKicked[0]].team if len(self.ball.lastKicked) else 1
+            team = self.agents[self.ball.lastKicked[0]].team if len(self.ball.lastKicked) else 1
             if pos.y < outMin or pos.y > outMaxY:
                 x = pos.x + 50 if team < 0 else pos.x - 50
                 if pos.y < outMin:
@@ -612,7 +583,7 @@ class RoboCupEnvironment(EnvironmentBase):
             self.robotPosRewards[id] += max(0.0, rew)
 
         # Create personal rewards for nearby robots not touching the ball, but only negative rewards
-        for robot in self.robots:
+        for robot in self.agents:
             cond1 = robot.id in self.closestID
             cond2 = (robot.getPos() - pos).length < 150
             if cond1 or cond2:
@@ -631,9 +602,9 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Get closest robot from both teams
         pos = self.ball.getPos()
-        self.closestID[0] = np.argmin([(pos - rob.getPos()).get_length_sqrd() for rob in self.robots if rob.team > 0])
+        self.closestID[0] = np.argmin([(pos - rob.getPos()).get_length_sqrd() for rob in self.agents if rob.team > 0])
         self.closestID[1] = self.nPlayers + np.argmin(
-            [(pos - rob.getPos()).get_length_sqrd() for rob in self.robots if rob.team < 0])
+            [(pos - rob.getPos()).get_length_sqrd() for rob in self.agents if rob.team < 0])
 
         return finished
 
@@ -712,7 +683,7 @@ class RoboCupEnvironment(EnvironmentBase):
             available = True
 
             # Check if any robots are too close
-            for rob in self.robots:
+            for rob in self.agents:
                 if rob == robot:
                     continue
                 dist = (spot - rob.getPos()).length
@@ -907,8 +878,8 @@ class RoboCupEnvironment(EnvironmentBase):
                 ballPos = self.ball.getPos()
                 diff = (pos - ballPos).length - (robot.prevPos - ballPos).length
 
-                self.robotRewards[self.robots.index(robot)] -= diff * 0.05
-                self.robotPosRewards[self.robots.index(robot)] += max(0.0, -diff * 0.05)
+                self.robotRewards[self.agents.index(robot)] -= diff * 0.05
+                self.robotPosRewards[self.agents.index(robot)] += max(0.0, -diff * 0.05)
 
             robot.prevPos = pos
 
@@ -916,9 +887,9 @@ class RoboCupEnvironment(EnvironmentBase):
     def robotPushingDet(self, arbiter, space, data):
 
         # Get objects involved
-        robot1 = next(robot for robot in self.robots if
+        robot1 = next(robot for robot in self.agents if
                       (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
-        robot2 = next(robot for robot in self.robots if
+        robot2 = next(robot for robot in self.agents if
                       (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
         # Get velocities and positions
@@ -944,9 +915,9 @@ class RoboCupEnvironment(EnvironmentBase):
     def robotCollision(self, arbiter, space, data):
 
         # Get objects involved
-        robot1 = next(robot for robot in self.robots if
+        robot1 = next(robot for robot in self.agents if
                       (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
-        robot2 = next(robot for robot in self.robots if
+        robot2 = next(robot for robot in self.agents if
                       (robot.leftFoot == arbiter.shapes[1] or robot.rightFoot == arbiter.shapes[1]))
 
         # The two legs might collide
@@ -987,7 +958,7 @@ class RoboCupEnvironment(EnvironmentBase):
     def separate(self, arbiter, space, data):
 
         # Get robot
-        robots = [robot for robot in self.robots if
+        robots = [robot for robot in self.agents if
                   (robot.leftFoot in arbiter.shapes or robot.rightFoot in arbiter.shapes)]
 
         # Reset collision variables
@@ -1000,7 +971,7 @@ class RoboCupEnvironment(EnvironmentBase):
     def goalpostCollision(self, arbiter, space, data):
 
         # Get robot
-        robot = next(robot for robot in self.robots if
+        robot = next(robot for robot in self.agents if
                      (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
 
         # Don't make a fallen robot fall again from touching the post
@@ -1026,7 +997,7 @@ class RoboCupEnvironment(EnvironmentBase):
     def ballCollision(self, arbiter, space, data):
 
         # Get robot
-        robot = next(robot for robot in self.robots if
+        robot = next(robot for robot in self.agents if
                      (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
 
         if self.ballOwned != 0:
@@ -1046,59 +1017,59 @@ class RoboCupEnvironment(EnvironmentBase):
         return True
 
     # Get true object state for a robot
-    def getFullState(self, robot=None):
+    def getFullState(self, agent=None):
 
-        if robot is None:
+        if agent is None:
             state = [np.array([[normalize(rob.getPos()[0], self.standardNormX, 0),
                                 normalize(rob.getPos()[1], self.standardNormY, 0),
                                 math.cos(rob.getAngle()), math.sin(rob.getAngle()),
                                 rob.team,
                                 int(rob.fallen or rob.penalized)]
-                               for rob in self.robots]).astype('float32'),
+                               for rob in self.agents]).astype('float32'),
 
                      np.array([normalize(self.ball.getPos()[0], self.standardNormX, 0),
                                normalize(self.ball.getPos()[1], self.standardNormY, 0),
                                self.ballOwned]).astype('float32')]
         else:
             # flip axes for team -1
-            team = robot.team
-            pos = robot.getPos()
+            team = agent.team
+            pos = agent.getPos()
 
             state = [
                 np.array([
                     [normalizeAfterScale(self.ball.getPos()[0], self.standardNormX, 0, team),
                      normalizeAfterScale(self.ball.getPos()[1], self.standardNormY, 0, team),
-                     self.ballOwned * robot.team,
-                     robot.id in self.closestID], ]).astype('float32'),
+                     self.ballOwned * agent.team,
+                     agent.id in self.closestID], ]).astype('float32'),
 
                 np.array([[
-                    normalizeAfterScale(robot.getPos()[0], self.standardNormX, 0, team),
-                    normalizeAfterScale(robot.getPos()[1], self.standardNormY, 0, team),
-                    math.cos(robot.getAngle(team)), math.sin(robot.getAngle(team)),
-                    math.cos(robot.headAngle), math.sin(robot.headAngle),
-                    robot.team,
-                    int(robot.fallen or robot.penalized)], ]).astype('float32'),
+                    normalizeAfterScale(agent.getPos()[0], self.standardNormX, 0, team),
+                    normalizeAfterScale(agent.getPos()[1], self.standardNormY, 0, team),
+                    math.cos(agent.getAngle(team)), math.sin(agent.getAngle(team)),
+                    math.cos(agent.headAngle), math.sin(agent.headAngle),
+                    agent.team,
+                    int(agent.fallen or agent.penalized)], ]).astype('float32'),
 
                 np.array([
                     [normalizeAfterScale(rob.getPos()[0], self.standardNormX, 0, team),
                      normalizeAfterScale(rob.getPos()[1], self.standardNormY, 0, team),
                      math.cos(rob.getAngle(team)), math.sin(rob.getAngle(team)),
-                     rob.team * robot.team,
+                     rob.team * agent.team,
                      int(rob.fallen or rob.penalized)]
-                    for rob in self.robots if rob != robot]).astype('float32')]
+                    for rob in self.agents if rob != agent]).astype('float32')]
         return state
 
     # Getting vision
-    def getRobotVision(self, robot):
+    def getAgentVision(self, agent):
 
         # Get position and orientation
-        pos = robot.getPos()
-        angle = robot.leftFoot.body.angle
-        headAngle = angle + robot.headAngle
+        pos = agent.getPos()
+        angle = agent.leftFoot.body.angle
+        headAngle = angle + agent.headAngle
 
         # FoV
-        angle1 = headAngle + robot.fieldOfView
-        angle2 = headAngle - robot.fieldOfView
+        angle1 = headAngle + agent.fieldOfView
+        angle2 = headAngle - agent.fieldOfView
 
         # Edge of field of view
         vec1 = pymunk.Vec2d(1, 0)
@@ -1110,10 +1081,10 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Check if objects are seen
         ballDets = [isSeenInArea(self.ball.shape.body.position - pos, vec1, vec2, self.maxVisDist[0], headAngle,
-                                 self.ballRadius * 2) + [self.ballOwned * robot.team]]
+                                 self.ballRadius * 2) + [self.ballOwned * agent.team]]
         robDets = [isSeenInArea(rob.getPos() - pos, vec1, vec2, self.maxVisDist[1], headAngle, Robot.totalRadius) + [
-            rob.getAngle() - headAngle, robot.team * rob.team, robot.fallen or robot.penalized] for rob in self.robots
-                   if robot != rob]
+            rob.getAngle() - headAngle, agent.team * rob.team, agent.fallen or agent.penalized] for rob in self.agents
+                   if agent != rob]
         goalDets = [isSeenInArea(goal.shape.body.position - pos, vec1, vec2, self.maxVisDist[1], headAngle,
                                  self.goalPostRadius * 2) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos, vec1, vec2, self.maxVisDist[0], headAngle, self.penaltyRadius * 2) for
@@ -1160,7 +1131,7 @@ class RoboCupEnvironment(EnvironmentBase):
             if random.random() < self.randBase:
                 c = random.randint(0, 5)
                 d = random.random() * math.sqrt(self.maxVisDist[1])
-                a = random.random() * 2 * robot.fieldOfView - robot.fieldOfView
+                a = random.random() * 2 * agent.fieldOfView - agent.fieldOfView
                 pos = pymunk.Vec2d(d, 0)
                 pos.rotate(a)
                 if c == 0:
@@ -1339,7 +1310,7 @@ class RoboCupEnvironment(EnvironmentBase):
                 cv2.circle(topCamImg[0], (int(tProj[0, 0]), int(tProj[1, 0])), tRad, 1, -1)
                 cv2.circle(bottomCamImg[0], (int(bProj[0, 0]), int(bProj[1, 0])), bRad, 1, -1)
 
-        if self.renderVar and self.agentVisID is not None and robot.id == self.agentVisID:
+        if self.renderVar and self.agentVisID is not None and agent.id == self.agentVisID:
 
             # Visualization image size
             H = self.W // 2 - 50
@@ -1385,7 +1356,7 @@ class RoboCupEnvironment(EnvironmentBase):
                 cv2.circle(img, (int(xOffs + ball[1].x), int(-ball[1].y + H)), int(ball[2]), color, -1)
 
             if self.renderMode == 'human':
-                cv2.imshow(("Robot %d" % robot.id), img)
+                cv2.imshow(("Robot %d" % agent.id), img)
                 c = cv2.waitKey(1)
                 if c == 13:
                     cv2.imwrite("roboObs.png", img)
@@ -1405,7 +1376,7 @@ class RoboCupEnvironment(EnvironmentBase):
         # Convert to numpy
         ballDets = np.array([[normalize(ball[1].x, self.normX), normalize(ball[1].y, self.normY),
                               normalizeAfterScale(ball[2], self.sizeNorm, self.ballRadius * 2), ball[3],
-                              robot.id in self.closestID] for ball in ballDets]).astype('float32')
+                              agent.id in self.closestID] for ball in ballDets]).astype('float32')
         robDets = np.array([[normalize(rob[1].x, self.normX), normalize(rob[1].y, self.normY),
                              normalizeAfterScale(rob[2], self.sizeNorm, Robot.totalRadius),
                              rob[3], rob[4], rob[5]] for rob in robDets]).astype('float32')

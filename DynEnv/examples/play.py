@@ -80,7 +80,7 @@ def doDrive(args):
     env = DrivingEnvironment(nPlayers=args.num_players, render=args.render, observationType=args.observationType,
                              noiseType=args.noiseType, noiseMagnitude=args.noiseMagnitude,
                              continuousActions=args.use_continuous_actions)
-    env.setRandomSeed(42)
+    env.set_random_seed(42)
     env.reset()
     env.renderMode = 'human'
     env.agentVisID = 0
