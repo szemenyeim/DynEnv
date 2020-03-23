@@ -2,6 +2,8 @@ import random
 import warnings
 from abc import ABCMeta, abstractmethod
 from collections import deque
+from dataclasses import dataclass
+from typing import Tuple
 
 import cv2
 import numpy as np
@@ -11,6 +13,13 @@ from gym import Space
 
 from cutils import CollisionType
 from .cutils import ObservationType, NoiseType
+
+
+@dataclass
+class RecoDescriptor:
+    featureGridSize: Tuple
+    fullStateSpace: Tuple
+    targetDefs: Tuple
 
 
 class EnvironmentBase(object, metaclass=ABCMeta):

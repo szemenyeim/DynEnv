@@ -12,7 +12,7 @@ from .Obstacle import Obstacle
 from .Pedestrian import Pedestrian
 from .Road import Road
 from .cutils import *
-from .environment_base import EnvironmentBase
+from .environment_base import EnvironmentBase, RecoDescriptor
 
 
 class DrivingEnvironment(EnvironmentBase):
@@ -36,7 +36,6 @@ class DrivingEnvironment(EnvironmentBase):
 
         self._setup_normalization()
         self._setup_vision(0.4, 0.6)
-
 
         self.timeDiff = 10.0
         self.distThreshold = 100
@@ -93,7 +92,8 @@ class DrivingEnvironment(EnvironmentBase):
         teams = np.random.randint(0, self.numTeams + 1, self.nPlayers)
         types = np.random.randint(0, len(Car.powers), self.nPlayers)  #
         spots = self.getUniqueSpots()
-        self.agents = [Car(spot[0], spot[1], tp, team, goal) for spot, tp, team, goal in zip(spots, types, teams, goals)]
+        self.agents = [Car(spot[0], spot[1], tp, team, goal) for spot, tp, team, goal in
+                       zip(spots, types, teams, goals)]
         for car in self.agents:
             self.space.add(car.shape.body, car.shape)
 
@@ -127,7 +127,7 @@ class DrivingEnvironment(EnvironmentBase):
         confidence = MultiBinary(1)
 
         # Self
-        self.self_state = [
+        self_state = [
             1,  # Estimate 1 self from one grid cell
             Dict({
                 "position": pos_xy,
@@ -135,12 +135,12 @@ class DrivingEnvironment(EnvironmentBase):
                 "size": size,
                 "confidence": confidence,
             })]
-        self.selfPredInfo = [
+        selfPredInfo = [
             [4, 0],
             [[0, 1], [2, 3, 4, 5], None, None]
         ]
         # Car
-        self.car_state = [
+        car_state = [
             4,  # Estimate 4 cars from one grid cell
             Dict({
                 "position": pos_xy,
@@ -148,46 +148,38 @@ class DrivingEnvironment(EnvironmentBase):
                 "size": size,
                 "confidence": confidence,
             })]
-        self.carPredInfo = [
+        carPredInfo = [
             [4, 0],
             [[0, 1], [2, 3, 4, 5], None, None]
         ]
         # Obstacle
-        self.obstacle_state = [
+        obstacle_state = [
             4,  # Estimate 4 obstacles from one grid cell
             Dict({
                 "position": pos_xy,
                 "size": size,
                 "confidence": confidence,
             })]
-        self.obsPredInfo = [
+        obsPredInfo = [
             [2, 0],
             [[0, 1], [2, 3], None, None]
         ]
         # Pedestrian
-        self.ped_state = [
+        ped_state = [
             6,  # Estimate 6 pedestrians from one grid cell
             Dict({
                 "position": pos_xy,
                 "confidence": confidence,
             })]
-        self.pedPredInfo = [
+        pedPredInfo = [
             [0, 0],
             [[0, 1], None, None, None]
         ]
-        self.full_state_space = [
-            self.self_state,
-            self.car_state,
-            self.obstacle_state,
-            self.ped_state
-        ]
-        self.feature_grid_size = (10, 17)
-        self.predInfo = (
-            self.selfPredInfo,
-            self.carPredInfo,
-            self.obsPredInfo,
-            self.pedPredInfo
-        )
+
+        self.reco_descriptor = RecoDescriptor(featureGridSize=(10, 17),
+                                              fullStateSpace=(self_state, car_state, obstacle_state, ped_state),
+                                              targetDefs=(selfPredInfo, carPredInfo, obsPredInfo, pedPredInfo)
+                                              )
 
     def _setup_action_space(self):
         if self.continuousActions:
@@ -264,7 +256,6 @@ class DrivingEnvironment(EnvironmentBase):
 
     def get_class_specific_args(self):
         return [self.continuousActions]
-
 
     def step(self, actions):
         t1 = time.clock()
@@ -372,7 +363,6 @@ class DrivingEnvironment(EnvironmentBase):
 
         # draw everything else
         self.space.debug_draw(self.draw_options)
-
 
     # Process actions
     def processAction(self, action, car):
@@ -996,7 +986,6 @@ class DrivingEnvironment(EnvironmentBase):
 
         # return
         return selfDet, carDets, obsDets, pedDets, laneDets
-
 
     # Print env params
     def __str__(self):

@@ -10,7 +10,7 @@ from .Ball import Ball
 from .Goalpost import Goalpost
 from .Robot import Robot
 from .cutils import *
-from .environment_base import EnvironmentBase
+from .environment_base import EnvironmentBase,RecoDescriptor
 
 
 class RoboCupEnvironment(EnvironmentBase):
@@ -96,19 +96,19 @@ class RoboCupEnvironment(EnvironmentBase):
         confidence = MultiBinary(1)
 
         # Ball
-        self.ball_state = [
+        ball_state = [
             1,
             Dict({
                 "position": position_xy,
                 "team": Box(-1, 1, shape=(1,)),
                 "confidence": confidence,
             })]
-        self.ballPredInfo = [
+        ballPredInfo = [
             [1, 0],
             [[0, 1], [2, ], None, None]
         ]
         # Self
-        self.self_state = [
+        self_state = [
             1,  # Estimate 1 self from one grid cell
             Dict({
                 "position": position_xy,
@@ -116,11 +116,11 @@ class RoboCupEnvironment(EnvironmentBase):
                 "active": MultiBinary(1),
                 "confidence": confidence,
             })]
-        self.selfPredInfo = [
+        selfPredInfo = [
             [4, 1],
             [[0, 1], [2, 3, 4, 5], [6, ], None]
         ]
-        self.robot_state = [
+        robot_state = [
             4,  # Estimate 4 robots from one grid cell
             Dict({
                 "position": position_xy,
@@ -129,21 +129,15 @@ class RoboCupEnvironment(EnvironmentBase):
                 "active": MultiBinary(1),
                 "confidence": confidence,
             })]
-        self.robotPredInfo = [
+        robotPredInfo = [
             [3, 1],
             [[0, 1], [2, 3, 4], [5, ], None]
         ]
-        self.full_state_space = [
-            self.ball_state,
-            self.self_state,
-            self.robot_state
-        ]
-        self.feature_grid_size = (7, 10)
-        self.predInfo = (
-            self.ballPredInfo,
-            self.selfPredInfo,
-            self.robotPredInfo
-        )
+
+        self.reco_descriptor = RecoDescriptor(featureGridSize=(7, 10),
+                                              fullStateSpace=(ball_state, self_state, robot_state),
+                                              targetDefs=(ballPredInfo, selfPredInfo, robotPredInfo)
+                                              )
 
     def _init_rewards(self):
         self.episodeRewards = 0

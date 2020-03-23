@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from gym.spaces import MultiDiscrete, Box, MultiBinary, Discrete
 from torch.distributions import Categorical
 
+from ..environment_base import RecoDescriptor
+
 from ..utils.utils import AttentionType, AttentionTarget, build_targets
 
 flatten = lambda l: [item for sublist in l for item in sublist]
@@ -616,8 +618,7 @@ class AdversarialHead(nn.Module):
 
 class ICMNet(nn.Module):
     def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type,
-                 feat_size, state_space, feature_grid_size, target_defs,
-                 forward_coeff, icm_beta, num_envs):
+                 feat_size, reco_desc: RecoDescriptor, forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -647,7 +648,7 @@ class ICMNet(nn.Module):
         self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
-        self.recon_net = ReconNet(self.feat_size, state_space, feature_grid_size, target_defs)
+        self.recon_net = ReconNet(self.feat_size, reco_desc)
 
         self.loss_attn_flag = attn_target is AttentionTarget.ICM_LOSS and attn_type is AttentionType.SINGLE_ATTENTION
         if self.loss_attn_flag:
@@ -791,13 +792,13 @@ class A2CNet(nn.Module):
 
 class ReconNet(nn.Module):
 
-    def __init__(self, inplanes, classDefs, size, target_defs):
+    def __init__(self, inplanes, reco_desc: RecoDescriptor):
         super().__init__()
 
+
+        self.reco_desc = reco_desc
         self.classDefs = []
-        self.size = size
         self.inplanes = inplanes
-        self.target_defs = target_defs
         self.ignore_thres = 0.25
 
         self.PosIndices = []
@@ -806,7 +807,7 @@ class ReconNet(nn.Module):
         self.CEIndices = []
 
         self.numChannels = 0
-        for classDef in classDefs:
+        for classDef in self.reco_desc.fullStateSpace:
             currClassDef = []
             for i in range(classDef[0]):
                 for j, data in enumerate(classDef[1].spaces.items()):
@@ -829,7 +830,7 @@ class ReconNet(nn.Module):
                         currClassDef += [key, ]*x.shape[0]
             self.classDefs.append([classDef[0], currClassDef])
 
-        self.nn = nn.ConvTranspose2d(inplanes,self.numChannels,size)
+        self.nn = nn.ConvTranspose2d(inplanes,self.numChannels,self.reco_desc.featureGridSize)
 
         self.mse_loss = nn.MSELoss()
         self.bce_loss = nn.BCELoss()
@@ -864,9 +865,9 @@ class ReconNet(nn.Module):
         preds[:,self.PosIndices] = torch.sigmoid(preds[:,self.PosIndices])
 
         predOffs = 0
-        nGy,nGx = self.size
+        nGy,nGx = self.reco_desc.featureGridSize
 
-        for classInd,(cDef,predInfo) in enumerate(zip(self.classDefs,self.target_defs)):
+        for classInd,(cDef,predInfo) in enumerate(zip(self.classDefs,self.reco_desc.targetDefs)):
             nA = cDef[0]
             elemIDs = cDef[1]
             nElems = len(elemIDs)
