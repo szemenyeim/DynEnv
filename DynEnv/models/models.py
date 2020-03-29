@@ -794,14 +794,8 @@ class ReconNet(nn.Module):
         super().__init__()
 
         self.reco_desc = reco_desc
-        self.classDefs = []
         self.inplanes = inplanes
         self.ignore_thres = 0.25
-
-        self.PosIndices = []
-        self.MSEIndices = []
-        self.BCEIndices = []
-        self.CEIndices = []
 
         self.numChannels = 0
         self._create_class_defs()
@@ -813,6 +807,14 @@ class ReconNet(nn.Module):
         self.ce_loss = nn.CrossEntropyLoss()
 
     def _create_class_defs(self):
+
+        self.PosIndices = []
+        self.MSEIndices = []
+        self.BCEIndices = []
+        self.CEIndices = []
+
+        self.classDefs = []
+
         for classDef in self.reco_desc.fullStateSpace:
             currClassDef = []
             for i in range(classDef.numItemsPerGridCell):
