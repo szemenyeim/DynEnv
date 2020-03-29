@@ -9,7 +9,6 @@ from gym.spaces import MultiDiscrete, Box, MultiBinary, Discrete
 from torch.distributions import Categorical
 
 from ..environment_base import RecoDescriptor
-
 from ..utils.utils import AttentionType, AttentionTarget, build_targets
 
 flatten = lambda l: [item for sublist in l for item in sublist]
@@ -107,7 +106,6 @@ class InOutArranger(object):
         self.indexer = Indexer(self.nObjectTypes)
 
     def rearrange_inputs(self, x):
-
         # reorder observations
         numT = len(x[0])
         x = [list(itertools.chain.from_iterable([x[env][time] for env in range(len(x))])) for time in
@@ -795,7 +793,6 @@ class ReconNet(nn.Module):
     def __init__(self, inplanes, reco_desc: RecoDescriptor):
         super().__init__()
 
-
         self.reco_desc = reco_desc
         self.classDefs = []
         self.inplanes = inplanes
@@ -807,38 +804,41 @@ class ReconNet(nn.Module):
         self.CEIndices = []
 
         self.numChannels = 0
-        for classDef in self.reco_desc.fullStateSpace:
-            currClassDef = []
-            for i in range(classDef[0]):
-                for j, data in enumerate(classDef[1].spaces.items()):
-                    key,x = data
-                    t = type(x)
-                    if t == Discrete:
-                        self.CEIndices += range(self.numChannels,self.numChannels+x.n)
-                        self.numChannels += x.n
-                        currClassDef += ['cat',]
-                    elif t == MultiBinary:
-                        self.BCEIndices += range(self.numChannels,self.numChannels+x.n)
-                        self.numChannels += x.n
-                        currClassDef += ['bin',]*x.n if key != "confidence" else ['conf',]
-                    elif t == Box:
-                        if key == 'position':
-                            self.PosIndices += range(self.numChannels,self.numChannels+x.shape[0])
-                        else:
-                            self.MSEIndices += range(self.numChannels,self.numChannels+x.shape[0])
-                        self.numChannels += x.shape[0]
-                        currClassDef += [key, ]*x.shape[0]
-            self.classDefs.append([classDef[0], currClassDef])
+        self._create_class_defs()
 
-        self.nn = nn.ConvTranspose2d(inplanes,self.numChannels,self.reco_desc.featureGridSize)
+        self.nn = nn.ConvTranspose2d(inplanes, self.numChannels, self.reco_desc.featureGridSize)
 
         self.mse_loss = nn.MSELoss()
         self.bce_loss = nn.BCELoss()
         self.ce_loss = nn.CrossEntropyLoss()
 
+    def _create_class_defs(self):
+        for classDef in self.reco_desc.fullStateSpace:
+            currClassDef = []
+            for i in range(classDef.numItemsPerGridCell):
+                for j, data in enumerate(classDef.space.spaces.items()):
+                    key, x = data
+                    t = type(x)
+                    if t == Discrete:
+                        self.CEIndices += range(self.numChannels, self.numChannels + x.n)
+                        self.numChannels += x.n
+                        currClassDef += ['cat', ]
+                    elif t == MultiBinary:
+                        self.BCEIndices += range(self.numChannels, self.numChannels + x.n)
+                        self.numChannels += x.n
+                        currClassDef += ['bin', ] * x.n if key != "confidence" else ['conf', ]
+                    elif t == Box:
+                        if key == 'position':
+                            self.PosIndices += range(self.numChannels, self.numChannels + x.shape[0])
+                        else:
+                            self.MSEIndices += range(self.numChannels, self.numChannels + x.shape[0])
+                        self.numChannels += x.shape[0]
+                        currClassDef += [key, ] * x.shape[0]
+            self.classDefs.append([classDef.numItemsPerGridCell, currClassDef])
+
     def forward(self, x, targets):
 
-        x = x.reshape([-1,self.inplanes,1,1])
+        x = x.reshape([-1, self.inplanes, 1, 1])
 
         if targets is not None:
             targets = flatten(flatten(list(targets)))
@@ -860,34 +860,34 @@ class ReconNet(nn.Module):
 
         preds = self.nn(x)
 
-        preds[:,self.MSEIndices] = torch.tanh(preds[:,self.MSEIndices])
-        preds[:,self.BCEIndices] = torch.sigmoid(preds[:,self.BCEIndices])
-        preds[:,self.PosIndices] = torch.sigmoid(preds[:,self.PosIndices])
+        preds[:, self.MSEIndices] = torch.tanh(preds[:, self.MSEIndices])
+        preds[:, self.BCEIndices] = torch.sigmoid(preds[:, self.BCEIndices])
+        preds[:, self.PosIndices] = torch.sigmoid(preds[:, self.PosIndices])
 
         predOffs = 0
-        nGy,nGx = self.reco_desc.featureGridSize
+        nGy, nGx = self.reco_desc.featureGridSize
 
-        for classInd,(cDef,predInfo) in enumerate(zip(self.classDefs,self.reco_desc.targetDefs)):
+        for classInd, (cDef, predInfo) in enumerate(zip(self.classDefs, self.reco_desc.targetDefs)):
             nA = cDef[0]
             elemIDs = cDef[1]
             nElems = len(elemIDs)
-            lenA = nElems//nA
+            lenA = nElems // nA
             elemDesc = elemIDs[:lenA]
 
-            cPreds = preds[:,predOffs:predOffs+nElems]
-            cPreds = cPreds.view((-1,nA,lenA,nGy,nGx)).permute((0,1,3,4,2)).contiguous()
+            cPreds = preds[:, predOffs:predOffs + nElems]
+            cPreds = cPreds.view((-1, nA, lenA, nGy, nGx)).permute((0, 1, 3, 4, 2)).contiguous()
             predOffs += nElems
 
-            ind = [i for i,x in enumerate(elemDesc) if x == 'position']
-            x = cPreds[...,ind[0]]
-            y = cPreds[...,ind[1]]
-            ind = [i for i,x in enumerate(elemDesc) if x == 'conf']
-            pred_conf = cPreds[...,ind[0]]
-            ind = [i for i,x in enumerate(elemDesc) if x == 'cat']
-            pred_class = cPreds[...,ind] if ind else None
-            ind = [i for i,x in enumerate(elemDesc) if x == 'bin']
-            pred_bins = cPreds[...,ind] if ind else None
-            ind = [i for i, x in enumerate(elemDesc) if x not in ['position','bin','conf','cat']]
+            ind = [i for i, x in enumerate(elemDesc) if x == 'position']
+            x = cPreds[..., ind[0]]
+            y = cPreds[..., ind[1]]
+            ind = [i for i, x in enumerate(elemDesc) if x == 'conf']
+            pred_conf = cPreds[..., ind[0]]
+            ind = [i for i, x in enumerate(elemDesc) if x == 'cat']
+            pred_class = cPreds[..., ind] if ind else None
+            ind = [i for i, x in enumerate(elemDesc) if x == 'bin']
+            pred_bins = cPreds[..., ind] if ind else None
+            ind = [i for i, x in enumerate(elemDesc) if x not in ['position', 'bin', 'conf', 'cat']]
             pred_cont = cPreds[..., ind] if ind else None
 
             # Calculate offsets for each grid
@@ -895,10 +895,9 @@ class ReconNet(nn.Module):
             grid_y = torch.arange(nGy).repeat(nGx, 1).t().view([1, 1, nGy, nGx]).type(FloatTensor)
 
             # Add offset and scale with anchors
-            pred_coords = torch.stack([x.detach() + grid_x,y.detach() + grid_y],-1)
+            pred_coords = torch.stack([x.detach() + grid_x, y.detach() + grid_y], -1)
 
             if targets is not None:
-
                 nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls = build_targets(
                     pred_coords=pred_coords.cpu().detach(),
                     pred_conf=pred_conf.cpu().detach(),
@@ -942,13 +941,13 @@ class ReconNet(nn.Module):
                 loss += loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
 
         return {
-            'loss_x' : loss_x.item(),
-            'loss_y' : loss_y.item(),
-            'loss_conf' : loss_conf.item(),
-            'loss_bin' : loss_bin.item(),
-            'loss_cont' : loss_cont.item(),
-            'loss_cls' : loss_cls.item(),
-            'loss' : loss,
-            'recall' : recall/len(self.classDefs),
-            'precision' : precision/len(self.classDefs)
+            'loss_x': loss_x.item(),
+            'loss_y': loss_y.item(),
+            'loss_conf': loss_conf.item(),
+            'loss_bin': loss_bin.item(),
+            'loss_cont': loss_cont.item(),
+            'loss_cls': loss_cls.item(),
+            'loss': loss,
+            'recall': recall / len(self.classDefs),
+            'precision': precision / len(self.classDefs)
         }

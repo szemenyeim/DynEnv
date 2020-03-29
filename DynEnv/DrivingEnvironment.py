@@ -12,7 +12,7 @@ from .Obstacle import Obstacle
 from .Pedestrian import Pedestrian
 from .Road import Road
 from .cutils import *
-from .environment_base import EnvironmentBase, RecoDescriptor
+from .environment_base import EnvironmentBase, RecoDescriptor, PredictionDescriptor, StateSpaceDescriptor
 
 
 class DrivingEnvironment(EnvironmentBase):
@@ -127,59 +127,37 @@ class DrivingEnvironment(EnvironmentBase):
         confidence = MultiBinary(1)
 
         # Self
-        self_state = [
-            1,  # Estimate 1 self from one grid cell
-            Dict({
-                "position": pos_xy,
-                "orientation": orientation,
-                "size": size,
-                "confidence": confidence,
-            })]
-        selfPredInfo = [
-            [4, 0],
-            [[0, 1], [2, 3, 4, 5], None, None]
-        ]
-        # Car
-        car_state = [
-            4,  # Estimate 4 cars from one grid cell
-            Dict({
-                "position": pos_xy,
-                "orientation": orientation,
-                "size": size,
-                "confidence": confidence,
-            })]
-        carPredInfo = [
-            [4, 0],
-            [[0, 1], [2, 3, 4, 5], None, None]
-        ]
-        # Obstacle
-        obstacle_state = [
-            4,  # Estimate 4 obstacles from one grid cell
-            Dict({
-                "position": pos_xy,
-                "size": size,
-                "confidence": confidence,
-            })]
-        obsPredInfo = [
-            [2, 0],
-            [[0, 1], [2, 3], None, None]
-        ]
-        # Pedestrian
-        ped_state = [
-            6,  # Estimate 6 pedestrians from one grid cell
-            Dict({
-                "position": pos_xy,
-                "confidence": confidence,
-            })]
-        pedPredInfo = [
-            [0, 0],
-            [[0, 1], None, None, None]
-        ]
+        self_state = StateSpaceDescriptor(1, Dict({"position": pos_xy,
+                                                   "orientation": orientation,
+                                                   "size": size,
+                                                   "confidence": confidence,
+                                                   }))
+        self_pred = PredictionDescriptor(numContinuous=4, contIdx=[2, 3, 4, 5])
 
-        self.reco_descriptor = RecoDescriptor(featureGridSize=(10, 17),
-                                              fullStateSpace=(self_state, car_state, obstacle_state, ped_state),
-                                              targetDefs=(selfPredInfo, carPredInfo, obsPredInfo, pedPredInfo)
-                                              )
+        # Car
+        car_state = StateSpaceDescriptor(4, Dict({"position": pos_xy,
+                                                  "orientation": orientation,
+                                                  "size": size,
+                                                  "confidence": confidence,
+                                                  }))
+
+        car_pred = PredictionDescriptor(numContinuous=4, contIdx=[2, 3, 4, 5])
+
+        # Obstacle
+        obstacle_state = StateSpaceDescriptor(4, Dict({"position": pos_xy,
+                                                       "size": size,
+                                                       "confidence": confidence,
+                                                       }))
+        obs_pred = PredictionDescriptor(numContinuous=2, contIdx=[2, 3])
+
+        # Pedestrian
+        ped_state = StateSpaceDescriptor(6, Dict({"position": pos_xy,
+                                                  "confidence": confidence, }))
+        ped_pred = PredictionDescriptor(numContinuous=0)
+
+        self.recoDescriptor = RecoDescriptor(featureGridSize=(10, 17),
+                                             fullStateSpace=[self_state, car_state, obstacle_state, ped_state],
+                                             targetDefs=[self_pred, car_pred, obs_pred, ped_pred])
 
     def _setup_action_space(self):
         if self.continuousActions:

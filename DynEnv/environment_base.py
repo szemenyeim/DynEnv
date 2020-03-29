@@ -3,7 +3,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, List
 
 import cv2
 import numpy as np
@@ -16,15 +16,33 @@ from .cutils import ObservationType, NoiseType
 
 
 @dataclass
+class StateSpaceDescriptor:
+    numItemsPerGridCell: int
+    space: Space
+
+
+@dataclass
+class PredictionDescriptor:
+    numContinuous: int = None  # position not included
+    numBinary: int = 0  # confidence not included
+    contIdx: List[int] = None
+    binaryIdx: List[int] = None
+    posIdx: List[int] = (0, 1)  # currently this is used everywhere, but it can be configured
+    categoricIdx: int = None  # currently only one categorial variable is allowed
+
+
+@dataclass
 class RecoDescriptor:
-    featureGridSize: Tuple
-    fullStateSpace: Tuple
-    targetDefs: Tuple
+    featureGridSize: Tuple[int, int]
+    fullStateSpace: List[StateSpaceDescriptor]
+    targetDefs: List[PredictionDescriptor]
 
 
 class EnvironmentBase(object, metaclass=ABCMeta):
     def __init__(self, width, height, caption, n_players, max_players, n_time_steps, observation_type: ObservationType,
                  noise_type: NoiseType, render: bool, obs_space_cast: bool, noise_magnitude, max_time, step_iter_cnt):
+
+        # todo: flag whether to include reconstruction
 
         self.maxTime = max_time
         self.elapsed = 0

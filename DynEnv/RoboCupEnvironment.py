@@ -10,7 +10,7 @@ from .Ball import Ball
 from .Goalpost import Goalpost
 from .Robot import Robot
 from .cutils import *
-from .environment_base import EnvironmentBase,RecoDescriptor
+from .environment_base import EnvironmentBase, RecoDescriptor, StateSpaceDescriptor, PredictionDescriptor
 
 
 class RoboCupEnvironment(EnvironmentBase):
@@ -96,48 +96,30 @@ class RoboCupEnvironment(EnvironmentBase):
         confidence = MultiBinary(1)
 
         # Ball
-        ball_state = [
-            1,
-            Dict({
-                "position": position_xy,
-                "team": Box(-1, 1, shape=(1,)),
-                "confidence": confidence,
-            })]
-        ballPredInfo = [
-            [1, 0],
-            [[0, 1], [2, ], None, None]
-        ]
-        # Self
-        self_state = [
-            1,  # Estimate 1 self from one grid cell
-            Dict({
-                "position": position_xy,
-                "orientation": Box(-1.0, +1.0, shape=(4,)),
-                "active": MultiBinary(1),
-                "confidence": confidence,
-            })]
-        selfPredInfo = [
-            [4, 1],
-            [[0, 1], [2, 3, 4, 5], [6, ], None]
-        ]
-        robot_state = [
-            4,  # Estimate 4 robots from one grid cell
-            Dict({
-                "position": position_xy,
-                "orientation": Box(-1.0, +1.0, shape=(2,)),
-                "team": Box(-1, 1, shape=(1,)),
-                "active": MultiBinary(1),
-                "confidence": confidence,
-            })]
-        robotPredInfo = [
-            [3, 1],
-            [[0, 1], [2, 3, 4], [5, ], None]
-        ]
+        ball_state = StateSpaceDescriptor(1, Dict({"position": position_xy,
+                                                   "team": Box(-1, 1, shape=(1,)),
+                                                   "confidence": confidence, }))
+        ball_pred = PredictionDescriptor(numContinuous=1, contIdx=[2, ])
 
-        self.reco_descriptor = RecoDescriptor(featureGridSize=(7, 10),
-                                              fullStateSpace=(ball_state, self_state, robot_state),
-                                              targetDefs=(ballPredInfo, selfPredInfo, robotPredInfo)
-                                              )
+        # Self
+        self_state = StateSpaceDescriptor(1, Dict({"position": position_xy,
+                                                   "orientation": Box(-1.0, +1.0, shape=(4,)),
+                                                   "active": MultiBinary(1),
+                                                   "confidence": confidence, }))
+        self_pred = PredictionDescriptor(numContinuous=4, numBinary=1, contIdx=[2, 3, 4, 5], binaryIdx=[6, ])
+
+        # Robot
+        robot_state = StateSpaceDescriptor(4, Dict({"position": position_xy,
+                                                    "orientation": Box(-1.0, +1.0, shape=(2,)),
+                                                    "team": Box(-1, 1, shape=(1,)),
+                                                    "active": MultiBinary(1),
+                                                    "confidence": confidence, }))
+
+        robot_pred = PredictionDescriptor(numContinuous=3, numBinary=1, contIdx=[2, 3, 4], binaryIdx=[5, ])
+
+        self.recoDescriptor = RecoDescriptor(featureGridSize=(7, 10),
+                                             fullStateSpace=[ball_state, self_state, robot_state],
+                                             targetDefs=[ball_pred, self_pred, robot_pred])
 
     def _init_rewards(self):
         self.episodeRewards = 0

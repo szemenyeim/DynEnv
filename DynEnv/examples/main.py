@@ -31,7 +31,7 @@ if __name__ == '__main__':
     num_players = args.num_players * 2 if args.env == DynEnvType.ROBO_CUP else args.num_players
 
 
-    reco_desc = env.get_attr('reco_descriptor',0)[0]
+    reco_desc = env.get_attr('recoDescriptor',0)[0]
 
     # agent
     agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,

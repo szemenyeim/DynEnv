@@ -11,6 +11,8 @@ import pandas as pd
 import torch
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 
+from ..environment_base import PredictionDescriptor
+
 
 class AttentionType(Enum):
     SINGLE_ATTENTION = 0
@@ -59,7 +61,6 @@ def set_random_seeds(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-
 def label_converter(label):
     label = label[label.find(".") + 1:]
 
@@ -74,6 +75,7 @@ def label_converter(label):
 
     return label
 
+
 def instance2label(instance):
     # label generation
     # label = f"{label_converter(series_indexer(instance['attention_target']))}, {label_converter(series_indexer(instance['attention_type']))}"
@@ -81,13 +83,12 @@ def instance2label(instance):
     # remove attention annotation from the baseline
     if "Baseline" in label:
         if "Entropy" in label:
-            label = "ICM-TER" # ICM + Temporal Entropy Regularization
+            label = "ICM-TER"  # ICM + Temporal Entropy Regularization
         else:
             label = "ICM"
     elif "RCM" in label:
         label = "RCM"
     return label
-
 
 
 def label_enum_converter(label):
@@ -208,7 +209,7 @@ class HyperparamScheduler(object):
 class NetworkParameters(object):
     def __init__(self, env_name: str, num_envs: int, n_stack: int, rollout_size: int = 5, num_updates: int = 2500000,
                  max_grad_norm: float = 0.5,
-                 icm_beta: float = 0.2, value_coeff: float = 0.5, forward_coeff = 1e+3, entropy_coeff: float = 0.02,
+                 icm_beta: float = 0.2, value_coeff: float = 0.5, forward_coeff=1e+3, entropy_coeff: float = 0.02,
                  attention_target: AttentionTarget = AttentionTarget.NONE,
                  attention_type: AttentionType = AttentionType.SINGLE_ATTENTION,
                  reward_type: RewardType = RewardType.INTRINSIC_ONLY,
@@ -313,7 +314,7 @@ class AgentCheckpointer(object):
         self.update_cntr = 0
         self.best_loss = np.inf
         self.best_reward = -np.inf
-        log_keys = np.int32(self.num_updates * np.array(log_points)-1).tolist()
+        log_keys = np.int32(self.num_updates * np.array(log_points) - 1).tolist()
         self.log_points = dict(zip(log_keys, log_points))
 
         # file structure
@@ -355,7 +356,6 @@ def plot_typography(usetex=True, small=12, medium=14, big=16):
     rc('text', usetex=usetex)
     rc('font', family='serif')
 
-
     rc('font', size=small)  # controls default text sizes
     rc('axes', titlesize=small)  # fontsize of the axes title
     rc('axes', labelsize=medium)  # fontsize of the x and y labels
@@ -366,12 +366,13 @@ def plot_typography(usetex=True, small=12, medium=14, big=16):
 
 
 def get_anchor_distances(x, y, preds):
-    px = preds[:,0] - (preds[:,0]).int()
-    py = preds[:,1] - (preds[:,1]).int()
-    return (x - px)**2 + (y - py)**2
+    px = preds[:, 0] - (preds[:, 0]).int()
+    py = preds[:, 1] - (preds[:, 1]).int()
+    return (x - px) ** 2 + (y - py) ** 2
+
 
 def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
-                  grid_size_x, ignore_thres, predInfo, classInd):
+                  grid_size_x, ignore_thres, predInfo: PredictionDescriptor, classInd):
     nB = len(targets)
     nA = num_anchors
     nGx = grid_size_x
@@ -382,14 +383,11 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
     mask = torch.zeros(nB, nA, nGy, nGx)
     conf_mask = torch.ones(nB, nA, nGy, nGx)
 
-    contNum, binNum = predInfo[0]
-    posInd, contInd, binInd, clsInd = predInfo[1]
-
     # Target values for x,y,w,h and confidence and class
     tx = torch.zeros(nB, nA, nGy, nGx)
     ty = torch.zeros(nB, nA, nGy, nGx)
-    tcont = torch.zeros(nB, nA, nGy, nGx, contNum)
-    tbin = torch.zeros(nB, nA, nGy, nGx, binNum)
+    tcont = torch.zeros(nB, nA, nGy, nGx, predInfo.numContinuous)
+    tbin = torch.zeros(nB, nA, nGy, nGx, predInfo.numBinary)
     tconf = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
     tcls = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
 
@@ -399,29 +397,29 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
         target = target[classInd]
 
         if len(target.shape) < 2:
-            target = np.expand_dims(target,0)
+            target = np.expand_dims(target, 0)
 
         for t in range(target.shape[0]):
 
             nGT += 1
 
             # Convert to position relative to box
-            gx = min(0.9999, max(0, target[t, posInd[0]])) * nGx
-            gy = min(0.9999, max(0, target[t, posInd[1]])) * nGy
+            gx = min(0.9999, max(0, target[t, predInfo.posIdx[0]])) * nGx
+            gy = min(0.9999, max(0, target[t, predInfo.posIdx[1]])) * nGy
 
             # Get grid box indices
             gi = int(gx)
             gj = int(gy)
 
             # target coords
-            dx = (gx-gi)
-            dy = (gy-gj)
+            dx = (gx - gi)
+            dy = (gy - gj)
 
             # Get IoU values between target and anchors
             anch_dists = get_anchor_distances(dx, dy, pred_coords[b, :, gj, gi])
 
             # Override distances for anchors already taken - unless they are all taken
-            curr_mask = mask[b,:,gj,gi].bool()
+            curr_mask = mask[b, :, gj, gi].bool()
             if curr_mask.sum() < nA:
                 anch_dists[curr_mask] = 1e10
 
@@ -446,14 +444,14 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
             tconf[b, best_n, gj, gi] = 1
 
             # Others
-            if contInd is not None:
-                tcont[b, best_n, gj, gi] = torch.tensor(target[t, contInd])
+            if predInfo.contIdx is not None:
+                tcont[b, best_n, gj, gi] = torch.tensor(target[t, (predInfo.contIdx)])
 
-            if binInd is not None:
-                tbin[b, best_n, gj, gi] = torch.tensor(target[t, binInd])
+            if predInfo.binaryIdx is not None:
+                tbin[b, best_n, gj, gi] = torch.tensor(target[t, (predInfo.binaryIdx)])
 
-            if clsInd is not None:
-                tcls[b, best_n, gj, gi] = torch.tensor(target[t, clsInd])
+            if predInfo.categoricIdx is not None:
+                tcls[b, best_n, gj, gi] = torch.tensor(target[t, (predInfo.categoricIdx)])
 
             # Calculate iou between ground truth and best matching prediction
             score = pred_conf[b, best_n, gj, gi]
