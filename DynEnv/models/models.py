@@ -668,12 +668,13 @@ class ICMNet(nn.Module):
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
-        recon_loss = self.recon_net(current_features, current_targets)
+        loss, recon_loss = self.recon_net(current_features, current_targets)
 
         # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)
 
-        return self._calc_loss(next_features, next_feature_pred, action_pred, action, agentFinishedMask), recon_loss
+        return self._calc_loss(next_features, next_feature_pred, action_pred, action,
+                               agentFinishedMask), loss, recon_loss
 
     def _calc_loss(self, features, feature_preds, action_preds, actions, agentFinished):
 
@@ -788,6 +789,56 @@ class A2CNet(nn.Module):
                 features)  # ide is jön egy feature bypass a self(state-ből)
 
 
+from dataclasses import dataclass
+
+
+@dataclass
+class ReconLosses:
+    x: torch.FloatTensor = torch.tensor(0.0)
+    y: torch.FloatTensor = torch.tensor(0.0)
+    confidence: torch.FloatTensor = torch.tensor(0.0)
+    binary: torch.FloatTensor = torch.tensor(0.0)
+    continuous: torch.FloatTensor = torch.tensor(0.0)
+    cls: torch.FloatTensor = torch.tensor(0.0)
+    recall: float = 0.0
+    precision: float = 0.0
+
+    @property
+    def loss(self):
+        return self.x + self.y + self.confidence + self.continuous + self.binary + self.cls
+
+    def cuda(self):
+        for key in self.__dict__.keys():
+            if key not in ["recall", "precision"]:
+                self.__dict__[key].cuda()
+
+    def update_losses(self, loss_x: torch.Tensor, loss_y: torch.Tensor, loss_confidence: torch.Tensor,
+                      loss_continuous: torch.Tensor, loss_binary: torch.Tensor, loss_cls: torch.Tensor):
+
+        self.x += loss_x.item()
+        self.y += loss_y.item()
+        self.confidence += loss_confidence.item()
+        self.continuous += loss_continuous.item()
+        self.binary += loss_binary.item()
+        self.cls += loss_cls.item()
+
+    def update_stats(self, precision: float, recall: float, denominator: int):
+        inv_denominator = 1. / denominator
+        self.precision += (precision * inv_denominator)
+        self.recall += (recall * inv_denominator)
+
+    def __iadd__(self, other):
+        for key in self.__dict__.keys():
+            self.__dict__[key] += other.__dict__[key]
+
+        return self
+
+    def __repr__(self):
+        return f"Recon Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, Conf: {self.confidence:.2f}," \
+               f" Bin: {self.binary:.2f}, Cont: {self.continuous:.2f}, Cls: {self.cls:.2f} " \
+               f"  [Recall: {self.recall * 100.0:.2f}, Precision: {self.precision * 100.0:.2f}]"
+
+
 class ReconNet(nn.Module):
 
     def __init__(self, inplanes, reco_desc: RecoDescriptor):
@@ -800,7 +851,7 @@ class ReconNet(nn.Module):
         self.numChannels = 0
         self._create_class_defs()
 
-        self.nn = nn.ConvTranspose2d(inplanes, self.numChannels, self.reco_desc.featureGridSize)
+        self.conv = nn.ConvTranspose2d(inplanes, self.numChannels, self.reco_desc.featureGridSize)
 
         self.mse_loss = nn.MSELoss()
         self.bce_loss = nn.BCELoss()
@@ -850,17 +901,10 @@ class ReconNet(nn.Module):
         ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
 
         # Initialize losses
-        loss_x = torch.tensor(0.0).type(FloatTensor)
-        loss_y = torch.tensor(0.0).type(FloatTensor)
-        loss_cont = torch.tensor(0.0).type(FloatTensor)
-        loss_bin = torch.tensor(0.0).type(FloatTensor)
-        loss_conf = torch.tensor(0.0).type(FloatTensor)
-        loss_cls = torch.tensor(0.0).type(FloatTensor)
+        reco_losses = ReconLosses()
         loss = torch.tensor(0.0).type(FloatTensor)
-        recall = 0
-        precision = 0
 
-        preds = self.nn(x)
+        preds = self.conv(x)
 
         preds[:, self.MSEIndices] = torch.tanh(preds[:, self.MSEIndices])
         preds[:, self.BCEIndices] = torch.sigmoid(preds[:, self.BCEIndices])
@@ -913,8 +957,9 @@ class ReconNet(nn.Module):
                 )
 
                 nProposals = int((pred_conf > 0.5).sum().item())
-                recall += float(nCorrect / nGT) if nGT else 1
-                precision += float(nCorrect / nProposals)
+                reco_losses.update_stats(precision=float(nCorrect / nProposals),
+                                         recall=float(nCorrect / nGT) if nGT else 1,
+                                         denominator=len(self.classDefs))
 
                 # Handle masks
                 mask = mask.type(ByteTensor).bool()
@@ -933,23 +978,15 @@ class ReconNet(nn.Module):
                 conf_mask_false = conf_mask ^ mask
 
                 # Mask outputs to ignore non-existing objects
-                loss_x += self.mse_loss(x[mask], tx[mask])
-                loss_y += self.mse_loss(y[mask], ty[mask])
-                loss_cont += self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
-                loss_bin += self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
-                loss_conf += 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
+                loss_x = self.mse_loss(x[mask], tx[mask])
+                loss_y = self.mse_loss(y[mask], ty[mask])
+                loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
+                loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
+                loss_conf = 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
                     pred_conf[conf_mask_true], tconf[conf_mask_true])
-                loss_cls += self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
+                loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
+
+                reco_losses.update_losses(loss_x, loss_y, loss_conf, loss_cont, loss_bin, loss_cls)
                 loss += loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
 
-        return {
-            'loss_x': loss_x.item(),
-            'loss_y': loss_y.item(),
-            'loss_conf': loss_conf.item(),
-            'loss_bin': loss_bin.item(),
-            'loss_cont': loss_cont.item(),
-            'loss_cls': loss_cls.item(),
-            'loss': loss,
-            'recall': recall / len(self.classDefs),
-            'precision': precision / len(self.classDefs)
-        }
+        return loss, reco_losses

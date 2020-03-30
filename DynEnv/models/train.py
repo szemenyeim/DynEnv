@@ -10,7 +10,7 @@ np.set_printoptions(precision=1)
 from ..utils.logger import TemporalLogger
 from ..utils.utils import AgentCheckpointer
 from .storage import RolloutStorage
-
+from .models import ReconLosses
 from gym.spaces import Box
 
 
@@ -28,7 +28,8 @@ class Runner(object):
         self.params = params
 
         """Logger"""
-        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards","ep_pos_rewards","ep_goals"])
+        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir,
+                                     *["ep_rewards", "ep_pos_rewards", "ep_goals"])
         self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp, log_dir)
 
         """Environment"""
@@ -41,7 +42,8 @@ class Runner(object):
             self.net = self.net.cuda()
 
         # Get number of actions
-        self.numActions = sum([sum(act.shape) if type(act) == Box else sum(act.nvec.shape) for act in self.net.action_descriptor])
+        self.numActions = sum(
+            [sum(act.shape) if type(act) == Box else sum(act.nvec.shape) for act in self.net.action_descriptor])
 
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
@@ -56,7 +58,7 @@ class Runner(object):
 
         """Variables for proper logging"""
         epLen = self.env.get_attr('stepNum')[0]
-        updatesPerEpisode = epLen/self.params.rollout_size
+        updatesPerEpisode = epLen / self.params.rollout_size
 
         """Losses"""
         r_loss = 0
@@ -68,15 +70,8 @@ class Runner(object):
         i_loss = 0
 
         """Recon Losses"""
-        rec_loss = 0
-        x_loss = 0
-        y_loss = 0
-        conf_loss = 0
-        bin_loss = 0
-        cont_loss = 0
-        cls_loss = 0
-        recall = 0
-        prec = 0
+
+        recon_loss_accumulated = ReconLosses()
 
         num_rollout = 0
 
@@ -90,8 +85,9 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_losses, recon_loss = self.net.icm(self.storage.features, self.storage.actions,
-                                                  self.storage.agentFinished, self.storage.full_state_targets)
+            icm_losses, recon_loss, recon_loss_struct = self.net.icm(self.storage.features, self.storage.actions,
+                                                                     self.storage.agentFinished,
+                                                                     self.storage.full_state_targets)
             icm_loss = sum(icm_losses)
 
             """Assemble loss"""
@@ -99,7 +95,7 @@ class Runner(object):
                                                         self.params.entropy_coeff)
 
             a2c_loss = sum(a2c_losses)
-            loss = a2c_loss + icm_loss + recon_loss['loss']
+            loss = a2c_loss + icm_loss + recon_loss
 
             loss.backward(retain_graph=False)
 
@@ -118,15 +114,7 @@ class Runner(object):
             i_loss += icm_losses[1].item()
 
             """Running recon losses"""
-            rec_loss += recon_loss['loss'].item()
-            x_loss += recon_loss['loss_x']
-            y_loss += recon_loss['loss_y']
-            conf_loss += recon_loss['loss_conf']
-            bin_loss += recon_loss['loss_bin']
-            cont_loss += recon_loss['loss_cont']
-            cls_loss += recon_loss['loss_cls']
-            recall += recon_loss['recall']
-            prec += recon_loss['precision']
+            recon_loss_accumulated += recon_loss_struct
             num_rollout += 1
 
             """Print to console at the end of each episode"""
@@ -142,26 +130,25 @@ class Runner(object):
                 last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
 
                 """Get goals"""
-                goals = np.array(self.storage.goals).T*self.params.num_envs
+                goals = np.array(self.storage.goals).T * self.params.num_envs
 
                 self.logger.log(
-                             **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
-                                "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]),
-                                "ep_goals": goals})
+                    **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
+                       "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]),
+                       "ep_goals": goals})
 
                 print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
-                      % (int(num_update/updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
+                      % (int(num_update / updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
                          v_loss, be_loss, te_loss, f_loss, i_loss),
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]")
 
-                prec /= num_rollout
-                recall /= num_rollout
+                recon_loss_accumulated.precision /= num_rollout
+                recon_loss_accumulated.recall /= num_rollout
 
-                print("Recon Loss: %.2f, X: %.2f, Y: %.2f, Conf: %.2f, Bin: %.2f, Cont: %.2f, Cls: %.2f   [Recall: %.2f, Precision: %.2f]"
-                      % (rec_loss, x_loss, y_loss, conf_loss, bin_loss, cont_loss, cls_loss, recall*100, prec*100))
+                print(recon_loss_accumulated)
 
                 r_loss = 0
                 p_loss = 0
@@ -171,21 +158,13 @@ class Runner(object):
                 f_loss = 0
                 i_loss = 0
 
-                rec_loss = 0
-                x_loss = 0
-                y_loss = 0
-                conf_loss = 0
-                bin_loss = 0
-                cont_loss = 0
-                cls_loss = 0
-                recall = 0
-                prec = 0
+                recon_loss_accumulated = ReconLosses()  # reset
                 num_rollout = 0
 
                 """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
                 if len(rewards_that_count) >= rewards_that_count.maxlen:
-                     self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
+                    self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
@@ -193,7 +172,7 @@ class Runner(object):
 
         self.env.close()
 
-        self.logger.save(*["ep_rewards","ep_pos_rewards","ep_goals"])
+        self.logger.save(*["ep_rewards", "ep_pos_rewards", "ep_goals"])
         self.params.save(self.logger.data_dir, self.timestamp)
 
     def episode_rollout(self):
@@ -217,7 +196,8 @@ class Runner(object):
             # save episode reward
             self.storage.log_episode_rewards(state)
 
-            self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features, fullStates)
+            self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features,
+                                fullStates)
 
         # Note:
         # get the estimate of the final reward
