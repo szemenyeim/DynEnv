@@ -829,7 +829,11 @@ class ReconNet(nn.Module):
                         currClassDef += [key, ]*x.shape[0]
             self.classDefs.append([classDef[0], currClassDef])
 
-        self.nn = nn.ConvTranspose2d(inplanes,self.numChannels,size)
+        self.nn = nn.Sequential(
+            nn.ConvTranspose2d(inplanes,inplanes*2,size),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(inplanes*2,self.numChannels, 1)
+            )
 
         self.mse_loss = nn.MSELoss()
         self.bce_loss = nn.BCELoss()
@@ -853,7 +857,6 @@ class ReconNet(nn.Module):
         loss_bin = torch.tensor(0.0).type(FloatTensor)
         loss_conf = torch.tensor(0.0).type(FloatTensor)
         loss_cls = torch.tensor(0.0).type(FloatTensor)
-        loss = torch.tensor(0.0).type(FloatTensor)
         recall = 0
         precision = 0
 
@@ -935,10 +938,11 @@ class ReconNet(nn.Module):
                 loss_y += self.mse_loss(y[mask], ty[mask])
                 loss_cont += self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
                 loss_bin += self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
-                loss_conf += 10 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
-                    pred_conf[conf_mask_true], tconf[conf_mask_true])
+                loss_conf += 4 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + \
+                             self.bce_loss(pred_conf[conf_mask_true], tconf[conf_mask_true])
                 loss_cls += self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
-                loss += loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
+
+        loss = loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
 
         return {
             'loss_x' : loss_x.item(),
