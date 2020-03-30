@@ -86,9 +86,9 @@ class RoboCupEnvironment(object):
             })
 
             self.observation_space = Tuple([
+                ball_space,
                 self_space,
-                robot_space,
-                ball_space
+                robot_space
             ])
         elif self.observationType == ObservationType.IMAGE:
 
@@ -144,7 +144,7 @@ class RoboCupEnvironment(object):
 
         self.selfPredInfo = [
             [4,1],
-            [[0,1], [2,3,4,5], [6,], None]
+            [[0,1], [2,3,4,5], [7,], None]
         ]
 
         self.robot_state = [
