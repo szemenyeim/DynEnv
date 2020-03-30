@@ -26,6 +26,7 @@ class Runner(object):
 
         # parameters
         self.params = params
+        self.factor = 10
 
         """Logger"""
         self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir, *["ep_rewards","ep_pos_rewards","ep_goals"])
@@ -99,7 +100,7 @@ class Runner(object):
                                                         self.params.entropy_coeff)
 
             a2c_loss = sum(a2c_losses)
-            loss = a2c_loss + icm_loss + recon_loss['loss']
+            loss = a2c_loss + icm_loss + self.factor * recon_loss['loss']
 
             loss.backward(retain_graph=False)
 
