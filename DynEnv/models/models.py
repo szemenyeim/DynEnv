@@ -793,14 +793,49 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class ReconLosses:
-    x: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
-    y: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
-    confidence: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
-    binary: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
-    continuous: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
-    cls: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
-    loss: torch.FloatTensor = field(default_factory=lambda: torch.tensor(0.0))
+class LossLogger:
+    loss: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+
+    def __iadd__(self, other):
+        for key in self.__dict__.keys():
+            self.__dict__[key] += other.__dict__[key]
+
+        return self
+
+    def update_losses(self, *args):
+        raise NotImplementedError
+
+    def prepare_losses(self):
+        raise NotImplementedError
+
+    def detach_loss(self):
+        self.loss = self.loss.item()
+
+
+@dataclass
+class A2CLosses(LossLogger):
+    policy: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    value: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    entropy: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    temp_entropy: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+
+    def prepare_losses(self):
+        self.loss = self.policy.sum()+ self.value.sum() + self.entropy.sum() + self.temp_entropy.sum()
+
+        # detach items
+        for key in self.__dict__.keys():
+            if key not in ["recall", "precision", "loss"]:
+                self.__dict__[key] = self.__dict__[key].item()
+
+
+@dataclass
+class ReconLosses(LossLogger):
+    x: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    y: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    confidence: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    binary: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    continuous: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    cls: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     recall: float = 0.0
     precision: float = 0.0
 
@@ -827,19 +862,10 @@ class ReconLosses:
             if key not in ["recall", "precision", "loss"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
-    def detach_loss(self):
-        self.loss = self.loss.item()
-
     def update_stats(self, precision: float, recall: float, denominator: int):
         inv_denominator = 1. / denominator
         self.precision += (precision * inv_denominator)
         self.recall += (recall * inv_denominator)
-
-    def __iadd__(self, other):
-        for key in self.__dict__.keys():
-            self.__dict__[key] += other.__dict__[key]
-
-        return self
 
     def __repr__(self):
         return f"Recon Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, Conf: {self.confidence:.2f}," \
@@ -910,6 +936,8 @@ class ReconNet(nn.Module):
 
         # Initialize losses
         reco_losses = ReconLosses()
+        if x.is_cuda:
+            reco_losses.cuda()
 
         preds = self.nn(x)
 

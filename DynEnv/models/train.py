@@ -10,7 +10,7 @@ np.set_printoptions(precision=1)
 from ..utils.logger import TemporalLogger
 from ..utils.utils import AgentCheckpointer
 from .storage import RolloutStorage
-from .models import ReconLosses
+from .models import ReconLosses, A2CLosses
 from gym.spaces import Box
 
 
@@ -61,11 +61,11 @@ class Runner(object):
         updatesPerEpisode = epLen / self.params.rollout_size
 
         """Losses"""
+
         r_loss = 0
-        p_loss = 0
-        v_loss = 0
-        be_loss = 0
-        te_loss = 0
+
+        a2c_loss_accumulated = A2CLosses()
+
         f_loss = 0
         i_loss = 0
 
@@ -86,16 +86,15 @@ class Runner(object):
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
             icm_losses, recon_loss_struct = self.net.icm(self.storage.features, self.storage.actions,
-                                                                     self.storage.agentFinished,
-                                                                     self.storage.full_state_targets)
+                                                         self.storage.agentFinished,
+                                                         self.storage.full_state_targets)
             icm_loss = sum(icm_losses)
 
             """Assemble loss"""
             a2c_losses, rewards = self.storage.a2c_loss(final_value, action_probs, self.params.value_coeff,
                                                         self.params.entropy_coeff)
 
-            a2c_loss = sum(a2c_losses)
-            loss = a2c_loss + icm_loss + recon_loss_struct.loss
+            loss = a2c_losses.loss + icm_loss + recon_loss_struct.loss
 
             loss.backward(retain_graph=False)
 
@@ -106,10 +105,10 @@ class Runner(object):
 
             """Running losses"""
             r_loss += loss.item()
-            p_loss += a2c_losses[0].item()
-            v_loss += a2c_losses[1].item()
-            be_loss += a2c_losses[2].item()
-            te_loss += a2c_losses[3].item()
+
+            a2c_losses.detach_loss()
+            a2c_loss_accumulated += a2c_losses
+
             f_loss += icm_losses[0].item()
             i_loss += icm_losses[1].item()
 
@@ -139,8 +138,10 @@ class Runner(object):
                        "ep_goals": goals})
 
                 print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
-                      % (int(num_update / updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss, p_loss,
-                         v_loss, be_loss, te_loss, f_loss, i_loss),
+                      % (int(num_update / updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss,
+                         a2c_loss_accumulated.policy, a2c_loss_accumulated.value, a2c_loss_accumulated.entropy,
+                         a2c_loss_accumulated.temp_entropy,
+                         f_loss, i_loss),
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
@@ -152,10 +153,9 @@ class Runner(object):
                 print(recon_loss_accumulated)
 
                 r_loss = 0
-                p_loss = 0
-                v_loss = 0
-                be_loss = 0
-                te_loss = 0
+
+                a2c_loss_accumulated = A2CLosses()  # reset
+
                 f_loss = 0
                 i_loss = 0
 
