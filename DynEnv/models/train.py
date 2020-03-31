@@ -10,7 +10,7 @@ np.set_printoptions(precision=1)
 from ..utils.logger import TemporalLogger
 from ..utils.utils import AgentCheckpointer
 from .storage import RolloutStorage
-from .models import ReconLosses, A2CLosses
+from .models import ReconLosses, A2CLosses, ICMLosses
 from gym.spaces import Box
 
 
@@ -66,8 +66,7 @@ class Runner(object):
 
         a2c_loss_accumulated = A2CLosses()
 
-        f_loss = 0
-        i_loss = 0
+        icm_loss_accumulated = ICMLosses()
 
         """Recon Losses"""
 
@@ -85,16 +84,15 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_losses, recon_loss_struct = self.net.icm(self.storage.features, self.storage.actions,
-                                                         self.storage.agentFinished,
-                                                         self.storage.full_state_targets)
-            icm_loss = sum(icm_losses)
+            icm_losses, recon_loss = self.net.icm(self.storage.features, self.storage.actions,
+                                                  self.storage.agentFinished,
+                                                  self.storage.full_state_targets)
 
             """Assemble loss"""
             a2c_losses, rewards = self.storage.a2c_loss(final_value, action_probs, self.params.value_coeff,
                                                         self.params.entropy_coeff)
 
-            loss = a2c_losses.loss + icm_loss + recon_loss_struct.loss
+            loss = a2c_losses.loss + icm_losses.loss + recon_loss.loss
 
             loss.backward(retain_graph=False)
 
@@ -109,12 +107,12 @@ class Runner(object):
             a2c_losses.detach_loss()
             a2c_loss_accumulated += a2c_losses
 
-            f_loss += icm_losses[0].item()
-            i_loss += icm_losses[1].item()
+            icm_losses.detach_loss()
+            icm_loss_accumulated += icm_losses
 
             """Running recon losses"""
-            recon_loss_struct.detach_loss()
-            recon_loss_accumulated += recon_loss_struct
+            recon_loss.detach_loss()
+            recon_loss_accumulated += recon_loss
             num_rollout += 1
 
             """Print to console at the end of each episode"""
@@ -141,7 +139,7 @@ class Runner(object):
                       % (int(num_update / updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss,
                          a2c_loss_accumulated.policy, a2c_loss_accumulated.value, a2c_loss_accumulated.entropy,
                          a2c_loss_accumulated.temp_entropy,
-                         f_loss, i_loss),
+                         icm_loss_accumulated.forward, icm_loss_accumulated.inverse),
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
@@ -155,9 +153,7 @@ class Runner(object):
                 r_loss = 0
 
                 a2c_loss_accumulated = A2CLosses()  # reset
-
-                f_loss = 0
-                i_loss = 0
+                icm_loss_accumulated = ICMLosses()
 
                 recon_loss_accumulated = ReconLosses()  # reset
                 num_rollout = 0

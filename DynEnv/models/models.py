@@ -696,7 +696,10 @@ class ICMNet(nn.Module):
                   (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
-        return (self.forward_coeff * loss_fwd, self.icm_beta * loss_inv)
+        icm_losses = ICMLosses(forward=self.forward_coeff * loss_fwd, inverse=self.icm_beta * loss_inv)
+        icm_losses.prepare_losses()
+
+        return icm_losses
 
 
 class A2CNet(nn.Module):
@@ -824,7 +827,20 @@ class A2CLosses(LossLogger):
 
         # detach items
         for key in self.__dict__.keys():
-            if key not in ["recall", "precision", "loss"]:
+            if key not in ["loss"]:
+                self.__dict__[key] = self.__dict__[key].item()
+
+@dataclass
+class ICMLosses(LossLogger):
+    inverse: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    forward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+
+    def prepare_losses(self):
+        self.loss = self.inverse.sum() + self.forward.sum()
+
+        # detach items
+        for key in self.__dict__.keys():
+            if key not in ["loss"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
 
