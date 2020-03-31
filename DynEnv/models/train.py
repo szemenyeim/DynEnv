@@ -85,7 +85,7 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_losses, recon_loss, recon_loss_struct = self.net.icm(self.storage.features, self.storage.actions,
+            icm_losses, recon_loss_struct = self.net.icm(self.storage.features, self.storage.actions,
                                                                      self.storage.agentFinished,
                                                                      self.storage.full_state_targets)
             icm_loss = sum(icm_losses)
@@ -95,7 +95,7 @@ class Runner(object):
                                                         self.params.entropy_coeff)
 
             a2c_loss = sum(a2c_losses)
-            loss = a2c_loss + icm_loss + recon_loss
+            loss = a2c_loss + icm_loss + recon_loss_struct.loss
 
             loss.backward(retain_graph=False)
 
@@ -114,6 +114,7 @@ class Runner(object):
             i_loss += icm_losses[1].item()
 
             """Running recon losses"""
+            recon_loss_struct.detach_loss()
             recon_loss_accumulated += recon_loss_struct
             num_rollout += 1
 
