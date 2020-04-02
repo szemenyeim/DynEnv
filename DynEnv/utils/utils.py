@@ -392,6 +392,7 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
     tbin = torch.zeros(nB, nA, nGy, nGx, binNum)
     tconf = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
     tcls = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
+    corr = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
 
     nGT = 0
     nCorrect = 0
@@ -427,6 +428,9 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
 
             # Where the overlap is larger than threshold set conf_mask to zero (ignore)
             conf_mask[b, anch_dists < ignore_thres, gj, gi] = 0
+            # Mask these correct in precision if their confidence is large
+            ignored_confs = pred_conf[b, anch_dists < ignore_thres, gj, gi]
+            corr[b, anch_dists < ignore_thres, gj, gi] = (ignored_confs > 0.5).byte()
 
             # Find the best matching anchor box
             best_n = np.argmin(anch_dists)
@@ -459,5 +463,6 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
             score = pred_conf[b, best_n, gj, gi]
             if anch_dists[best_n] < ignore_thres and score > 0.5:
                 nCorrect += 1
+                corr[b, best_n, gj, gi] = 1
 
-    return nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls
+    return nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls, corr

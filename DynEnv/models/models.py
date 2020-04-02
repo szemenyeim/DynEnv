@@ -46,7 +46,7 @@ class ObsMask(object):
         """
         # If robot had no sightings
         if tensor_list is None or len(tensor_list) == 0:
-            return torch.empty((0, 128))
+            return torch.empty((0, padded_size))
 
         # convert list of tensors to a single tensor
         t = torch.cat(tensor_list)
@@ -798,7 +798,7 @@ class ReconNet(nn.Module):
         self.size = size
         self.inplanes = inplanes
         self.target_defs = target_defs
-        self.ignore_thres = 0.25
+        self.ignore_thres = 0.04
 
         self.PosIndices = []
         self.MSEIndices = []
@@ -832,6 +832,7 @@ class ReconNet(nn.Module):
         self.nn = nn.Sequential(
             nn.ConvTranspose2d(inplanes,inplanes*2,size),
             nn.LeakyReLU(0.1),
+            nn.BatchNorm2d(inplanes*2),
             nn.Conv2d(inplanes*2,self.numChannels, 1)
             )
 
@@ -857,14 +858,17 @@ class ReconNet(nn.Module):
         loss_bin = torch.tensor(0.0).type(FloatTensor)
         loss_conf = torch.tensor(0.0).type(FloatTensor)
         loss_cls = torch.tensor(0.0).type(FloatTensor)
-        recall = 0
-        precision = 0
+        recall = torch.zeros(len(self.classDefs))
+        precision = torch.zeros(len(self.classDefs))
 
         preds = self.nn(x)
 
         preds[:,self.MSEIndices] = torch.tanh(preds[:,self.MSEIndices])
         preds[:,self.BCEIndices] = torch.sigmoid(preds[:,self.BCEIndices])
         preds[:,self.PosIndices] = torch.sigmoid(preds[:,self.PosIndices])
+        '''with torch.no_grad():
+            preds[:, self.PosIndices] = torch.clamp(preds[:, self.PosIndices], min=-3, max=3)
+        preds[:,self.PosIndices] = (preds[:,self.PosIndices] + 3) / 6'''
 
         predOffs = 0
         nGy,nGx = self.size
@@ -901,7 +905,7 @@ class ReconNet(nn.Module):
 
             if targets is not None:
 
-                nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls = build_targets(
+                nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls, corr = build_targets(
                     pred_coords=pred_coords.cpu().detach(),
                     pred_conf=pred_conf.cpu().detach(),
                     targets=targets,
@@ -914,8 +918,9 @@ class ReconNet(nn.Module):
                 )
 
                 nProposals = int((pred_conf > 0.5).sum().item())
-                recall += float(nCorrect / nGT) if nGT else 1
-                precision += float(nCorrect / nProposals)
+                nCorrPrec = int((corr).sum().item())
+                recall[classInd] = float(nCorrect / nGT) if nGT else 1
+                precision[classInd] = float(nCorrPrec / nProposals) if nProposals else 1
 
                 # Handle masks
                 mask = mask.type(ByteTensor).bool()
@@ -938,9 +943,14 @@ class ReconNet(nn.Module):
                 loss_y += self.mse_loss(y[mask], ty[mask])
                 loss_cont += self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0)
                 loss_bin += self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0)
-                loss_conf += 4 * self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + \
-                             self.bce_loss(pred_conf[conf_mask_true], tconf[conf_mask_true])
+                loss_conf1 = self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) if conf_mask_false.any() else 0
+                loss_conf2 = self.bce_loss(pred_conf[conf_mask_true], tconf[conf_mask_true]) if conf_mask_true.any() else 0
+                loss_conf += 4*loss_conf1 + loss_conf2
                 loss_cls += self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0)
+
+        '''print("Ball: [%.2f, %.2f] Self: [%.2f, %.2f] Robot: [%.2f, %.2f] " % (recall[0].item()*100, precision[0].item()*100,
+                                                                              recall[1].item()*100, precision[1].item()*100,
+                                                                              recall[2].item()*100, precision[2].item()*100))'''
 
         loss = loss_x + loss_y + loss_cont + loss_bin + loss_conf + loss_cls
 
@@ -952,6 +962,6 @@ class ReconNet(nn.Module):
             'loss_cont' : loss_cont.item(),
             'loss_cls' : loss_cls.item(),
             'loss' : loss,
-            'recall' : recall/len(self.classDefs),
-            'precision' : precision/len(self.classDefs)
+            'recall' : recall.mean().item(),
+            'precision' : precision.mean().item()
         }
