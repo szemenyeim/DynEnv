@@ -30,14 +30,13 @@ if __name__ == '__main__':
     # True number of players: RoboCup Env asks for players per team
     num_players = args.num_players * 2 if args.env == DynEnvType.ROBO_CUP else args.num_players
 
-    state_space = env.get_attr('full_state_space',0)[0]
-    feature_grid_size = env.get_attr('feature_grid_size',0)[0]
-    target_defs = env.get_attr('predInfo',0)[0]
+
+    reco_desc = env.get_attr('recoDescriptor',0)[0]
 
     # agent
     agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,
-                     state_space, feature_grid_size, target_defs,
-                     args.forward_coeff, args.icm_beta, args.rollout_size, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
+                     reco_desc, args.forward_coeff, args.icm_beta, args.rollout_size,
+                     5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
 
     # params
     param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,

@@ -1,9 +1,11 @@
-from collections import deque
 import itertools
+from collections import deque
 
 import numpy as np
 import torch
 from torch.distributions import Categorical
+
+from ..models.models import A2CLosses
 
 
 class sliceable_deque(deque):
@@ -13,6 +15,7 @@ class sliceable_deque(deque):
             return type(self)(itertools.islice(self, start,
                                                index.stop, index.step))
         return deque.__getitem__(self, index)
+
 
 class RolloutStorage(object):
     def __init__(self, rollout_size, num_envs, num_players, num_actions, n_stack, feature_size=288,
@@ -34,12 +37,12 @@ class RolloutStorage(object):
         self.num_envs = num_envs
         self.num_players = num_players
         self.num_actions = num_actions
-        self.num_all_players = self.num_envs*self.num_players # sum of players over all envs
+        self.num_all_players = self.num_envs * self.num_players  # sum of players over all envs
         self.n_stack = n_stack
         self.feature_size = feature_size
         self.is_cuda = is_cuda
-        self.episode_rewards = sliceable_deque(maxlen=num_envs*10)
-        self.episode_pos_rewards = sliceable_deque(maxlen=num_envs*10)
+        self.episode_rewards = sliceable_deque(maxlen=num_envs * 10)
+        self.episode_pos_rewards = sliceable_deque(maxlen=num_envs * 10)
         self.goals = sliceable_deque(maxlen=num_envs)
         self.full_state_targets = sliceable_deque(maxlen=rollout_size)
         self.use_full_entropy = use_full_entropy
@@ -87,7 +90,7 @@ class RolloutStorage(object):
             (self.rollout_size + 1, self.num_all_players, self.feature_size))
 
         self.actions = self._generate_buffer(
-            (self.rollout_size, self.num_actions,self.num_all_players))
+            (self.rollout_size, self.num_actions, self.num_all_players))
         self.log_probs = self._generate_buffer(
             (self.rollout_size, self.num_actions, self.num_all_players))
         self.values = self._generate_buffer((self.rollout_size, self.num_all_players))
@@ -166,8 +169,8 @@ class RolloutStorage(object):
         # masked_scatter_ copies from #1 where #0 is 1 -> but we need scattering, where
         # the episode is not finished, thus the (1-x)
         # .T is needed of consecutiveness (i.e. the proper order of dones) is broken
-        #dones4players = torch.stack(2*self.num_players*[self.dones[-1]]).T.reshape(-1)
-        dones4players = torch.zeros(self.num_players*self.num_envs).to(final_value.device)
+        # dones4players = torch.stack(2*self.num_players*[self.dones[-1]]).T.reshape(-1)
+        dones4players = torch.zeros(self.num_players * self.num_envs).to(final_value.device)
         R = self._generate_buffer(self.num_all_players).masked_scatter((1 - dones4players).bool(), final_value.view(-1))
 
         for i in reversed(range(self.rollout_size)):
@@ -177,7 +180,7 @@ class RolloutStorage(object):
             # in that case an intermediate value will be 0
             # todo: add GAE
             R = self._generate_buffer(self.num_all_players).masked_scatter((1 - dones4players).bool(),
-                                                                    self.rewards[i] + discount * R)
+                                                                           self.rewards[i] + discount * R)
 
             r_discounted[i].copy_(R)
 
@@ -203,7 +206,8 @@ class RolloutStorage(object):
         value_loss = advantage.pow(2).mean()
 
         # Compute entropies
-        action_probs = [torch.stack([action_probs[time][a] for time in range(self.rollout_size)]) for a in range(len(action_probs[0]))]
+        action_probs = [torch.stack([action_probs[time][a] for time in range(self.rollout_size)]) for a in
+                        range(len(action_probs[0]))]
 
         # Average action probabilities along the batch and time dimensions
         temp_actions = [action_prob.mean(dim=0) for action_prob in action_probs]
@@ -222,7 +226,12 @@ class RolloutStorage(object):
         fullEntropy = allEntropies.mean()
         retEntropy = fullEntropy if self.use_full_entropy else batchEntropy
 
-        return (policy_loss, value_coeff * value_loss, -entropy_coeff * retEntropy, entropy_coeff*tempEntropy), self.rewards.detach().cpu()
+        a2c_losses = A2CLosses(policy=policy_loss, value=value_coeff * value_loss, entropy=-entropy_coeff * retEntropy,
+                               temp_entropy=entropy_coeff * tempEntropy)
+
+        a2c_losses.prepare_losses()
+
+        return a2c_losses, self.rewards.detach().cpu()
 
     def log_episode_rewards(self, infos):
         """

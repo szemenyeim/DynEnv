@@ -1,106 +1,204 @@
 # coding=utf-8
 import time
-import warnings
-from collections import deque
 
 import cv2
 import pygame
 import pymunk
 import pymunk.pygame_util
-from gym.spaces import Tuple, MultiDiscrete, Box, Dict, MultiBinary, Space
+from gym.spaces import Tuple, MultiDiscrete, Box, Dict, MultiBinary
 
 from .Car import Car
 from .Obstacle import Obstacle
 from .Pedestrian import Pedestrian
 from .Road import Road
 from .cutils import *
+from .environment_base import EnvironmentBase, RecoDescriptor, PredictionDescriptor, StateSpaceDescriptor
 
 
-class DrivingEnvironment(object):
+class DrivingEnvironment(EnvironmentBase):
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
-                 noiseMagnitude=2, continuousActions=False, obs_space_cast=False):
+                 noiseMagnitude=2, obs_space_cast=False, continuousActions=False):
+
+        super().__init__(width=1700, height=1000, caption="Driving Environment", n_players=nPlayers,
+                         max_players=10, n_time_steps=1, observation_type=observationType,
+                         noise_type=noiseType, render=render, obs_space_cast=obs_space_cast,
+                         noise_magnitude=noiseMagnitude, max_time=6000, step_iter_cnt=10)
 
         # Basic settings
-        self.observationType = observationType
-        self.noiseType = noiseType
-        self.maxPlayers = 10
-        self.nPlayers = min(nPlayers, self.maxPlayers)
-        self.renderVar = render
         self.numTeams = 2
-        self.nTimeSteps = 1
         self.nObjectType = 5
         self.continuousActions = continuousActions
-        self.obs_space_cast = obs_space_cast
 
         if self.observationType == ObservationType.IMAGE:
             print("Image type observation is not supported for this environment")
             exit(0)
 
-        # Setup scene
-        self.W = 1700
-        self.H = 1000
+        self._setup_normalization()
+        self._setup_vision(0.4, 0.6)
 
-        # Normalization parameters
-        self.mean = 5.0 if ObservationType.PARTIAL else 1.0
-        self.normX = self.mean * 2 / self.W
-        self.normY = self.mean * 2 / self.H
-        self.normW = 1.0 / 7.5
-        self.normH = 1.0 / 15
-        self.standardNormX = 0.5 / (self.W+100)
-        self.standardNormY = 0.5 / (self.H+100)
-        self.standardNormW = 1.0 / 15
-        self.standardNormH = 1.0 / 25
-
-        # Noise
-        # Vision settings
-        if noiseMagnitude < 0 or noiseMagnitude > 5:
-            print("Error: The noise magnitude must be between 0 and 5!")
-            exit(0)
-        if observationType == ObservationType.FULL and noiseMagnitude > 0:
-            print(
-                "Warning: Full observation type does not support noisy observations, but your noise magnitude is set"
-                " to a non-zero value! (The noise setting has no effect in this case)")
-        self.randBase = 0.01 * noiseMagnitude
-        self.noiseMagnitude = noiseMagnitude
-        self.maxVisDist = [(self.W * 0.4) ** 2, (self.W * 0.6) ** 2]
-
-        # Space
-        self.space = pymunk.Space()
-        self.space.gravity = (0.0, 0.0)
-        self.timeStep = 100.0
         self.timeDiff = 10.0
         self.distThreshold = 100
 
-        # Observation space
+        self._setup_observation_space()
+        self._setup_action_space()
+        self._setup_reconstruction_info()
+
+        # Time rewards
+        self.allFinished = False
+        self.stepNum = self.maxTime / self.timeDiff
+
+        # Episode rewards
+        self._init_rewards()
+
+        self._setup_scene()
+
+        self._handle_collisions()
+
+    def _setup_scene(self):
+        self._create_roads()
+        self._create_buildings()
+        self._create_agents()
+        self._create_pedestrians()
+        self._create_obstacles()
+
+    def _handle_collisions(self):
+        # Ignore ped-ped and ped-obstacle collision
+        self._add_collision_handler(CollisionType.Pedestrian, CollisionType.Pedestrian, self.ignore_collision)
+        self._add_collision_handler(CollisionType.Pedestrian, CollisionType.Obstacle, self.ignore_collision)
+        # Setup car-car collision
+        self._add_collision_handler(CollisionType.Car, CollisionType.Car, self.carCrash)
+        # Setup car-ped collision
+        self._add_collision_handler(CollisionType.Car, CollisionType.Pedestrian, self.pedHit)
+        # Setup car-obst collision
+        self._add_collision_handler(CollisionType.Car, CollisionType.Obstacle, self.carHit)
+
+    def _create_obstacles(self):
+        self.obstacleNum = random.randint(10, 20)
+        self.obstacles = self.createRandomObstacles()
+        for obs in self.obstacles:
+            self.space.add(obs.shape.body, obs.shape)
+
+    def _create_pedestrians(self):
+        self.pedestrianNum = random.randint(10, 20)
+        self.pedestrians = self.createRandomPedestrians()
+        for ped in self.pedestrians:
+            self.space.add(ped.shape.body, ped.shape)
+
+    def _create_agents(self):
+        roadSel = np.random.randint(0, len(self.roads), self.nPlayers)
+        endSel = np.random.randint(0, 2, self.nPlayers)
+        goals = [self.roads[rd].points[end] for rd, end in zip(roadSel, endSel)]
+        teams = np.random.randint(0, self.numTeams + 1, self.nPlayers)
+        types = np.random.randint(0, len(Car.powers), self.nPlayers)  #
+        spots = self.getUniqueSpots()
+        self.agents = [Car(spot[0], spot[1], tp, team, goal) for spot, tp, team, goal in
+                       zip(spots, types, teams, goals)]
+        for car in self.agents:
+            self.space.add(car.shape.body, car.shape)
+
+    def _create_buildings(self):
+        self.buildings = [
+            Obstacle(pymunk.Vec2d(365.0, 200.0), 400, 225),
+            Obstacle(pymunk.Vec2d(365.0, 800.0), 400, 225),
+            Obstacle(pymunk.Vec2d(1385.0, 200.0), 400, 225),
+            Obstacle(pymunk.Vec2d(1385.0, 800.0), 400, 225),
+        ]
+        for building in self.buildings:
+            self.space.add(building.shape.body, building.shape)
+
+    def _create_roads(self):
+        self.roads = [
+            Road(2, 35, [pymunk.Vec2d(875, 0), pymunk.Vec2d(875, 1000)]),
+            Road(1, 35, [pymunk.Vec2d(0, 500), pymunk.Vec2d(1750, 500)]),
+        ]
+        self.laneNum = len(self.roads) + sum([r.nLanes * 2 for r in self.roads])
+
+    def _init_rewards(self):
+        self.episodeRewards = np.array([0.0, ] * self.nPlayers)
+        self.episodePosRewards = np.array([0.0, ] * self.nPlayers)
+
+    def _setup_reconstruction_info(self):
+
+        # components
+        pos_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
+        orientation = Box(-1.0, +1.0, shape=(2,))
+        size = Box(-10, 10, shape=(2,))
+        confidence = MultiBinary(1)
+
+        # Self
+        self_state = StateSpaceDescriptor(1, Dict({"position": pos_xy,
+                                                   "orientation": orientation,
+                                                   "size": size,
+                                                   "confidence": confidence,
+                                                   }))
+        self_pred = PredictionDescriptor(numContinuous=4, contIdx=[2, 3, 4, 5])
+
+        # Car
+        car_state = StateSpaceDescriptor(4, Dict({"position": pos_xy,
+                                                  "orientation": orientation,
+                                                  "size": size,
+                                                  "confidence": confidence,
+                                                  }))
+
+        car_pred = PredictionDescriptor(numContinuous=4, contIdx=[2, 3, 4, 5])
+
+        # Obstacle
+        obstacle_state = StateSpaceDescriptor(4, Dict({"position": pos_xy,
+                                                       "size": size,
+                                                       "confidence": confidence,
+                                                       }))
+        obs_pred = PredictionDescriptor(numContinuous=2, contIdx=[2, 3])
+
+        # Pedestrian
+        ped_state = StateSpaceDescriptor(6, Dict({"position": pos_xy,
+                                                  "confidence": confidence, }))
+        ped_pred = PredictionDescriptor(numContinuous=0)
+
+        self.recoDescriptor = RecoDescriptor(featureGridSize=(10, 17),
+                                             fullStateSpace=[self_state, car_state, obstacle_state, ped_state],
+                                             targetDefs=[self_pred, car_pred, obs_pred, ped_pred])
+
+    def _setup_action_space(self):
+        if self.continuousActions:
+            self.action_space = Tuple((Box(-3, +3, shape=(2,)),))
+        else:
+            self.action_space = Tuple((MultiDiscrete([3, 3]),))
+
+    def _create_observation_space(self):
+        # components
+        pos_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
+        width_height = Box(-10, 10, shape=(2,))
+        orientation = Box(-1, 1, shape=(2,))
+        type = Box(-1, 1, shape=(1,))
 
         # spaces for all cases
         self_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "orientation": Box(-1, 1, shape=(2,)),
-            "width_height": Box(-10, 10, shape=(2,)),
-            "goal_position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+            "position": pos_xy,
+            "orientation": orientation,
+            "width_height": width_height,
+            "goal_position": pos_xy,
             "finished": MultiBinary(1)
         })
         car_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "orientation": Box(-1, 1, shape=(2,)),
-            "width_height": Box(-10, 10, shape=(2,)),
+            "position": pos_xy,
+            "orientation": orientation,
+            "width_height": width_height,
             "finished": MultiBinary(1)
         })
         obstacle_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-            "orientation": Box(-1, 1, shape=(2,)),
-            "width_height": Box(-10, 10, shape=(2,)),
+            "position": pos_xy,
+            "orientation": orientation,
+            "width_height": width_height,
         })
         pedestrian_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
+            "position": pos_xy,
         })
 
         if self.observationType == ObservationType.FULL:
             lane_space = Dict({
                 "points": Box(-self.mean * 2, self.mean * 2, shape=(4,)),
-                "type": Box(-1, 1, shape=(1,))
+                "type": type
             })
             self.observation_space = Tuple([
                 self_space,
@@ -112,8 +210,8 @@ class DrivingEnvironment(object):
         else:
             lane_space = Dict({
                 "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
-                "orientation": Box(-1, 1, shape=(2,)),
-                "type": Box(-1, 1, shape=(1,))
+                "orientation": orientation,
+                "type": type
             })
             self.observation_space = Tuple([
                 self_space,
@@ -123,209 +221,19 @@ class DrivingEnvironment(object):
                 lane_space
             ])
 
-        # Action space
-        if self.continuousActions:
-            self.action_space = Tuple((Box(-3, +3, shape=(2,)),))
-        else:
-            self.action_space = Tuple((MultiDiscrete([3, 3]),))
+    def _setup_normalization(self):
+        self.mean = 5.0 if ObservationType.PARTIAL else 1.0
+        self.normX = self.mean * 2 / self.W
+        self.normY = self.mean * 2 / self.H
+        self.normW = 1.0 / 7.5
+        self.normH = 1.0 / 15
+        self.standardNormX = 0.5 / (self.W + 100)
+        self.standardNormY = 0.5 / (self.H + 100)
+        self.standardNormW = 1.0 / 15
+        self.standardNormH = 1.0 / 25
 
-        # Spaces for state reconstruction
-
-        # Self
-        self.self_state = [
-            1,  # Estimate 1 self from one grid cell
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "orientation": Box(-1.0, +1.0, shape=(2,)),
-                "size": Box(-10, 10, shape=(2,)),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.selfPredInfo = [
-            [4,0],
-            [[0,1], [2,3,4,5], None, None]
-        ]
-
-        # Car
-        self.car_state = [
-            4,  # Estimate 4 cars from one grid cell
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "orientation": Box(-1.0, +1.0, shape=(2,)),
-                "size": Box(-10, 10, shape=(2,)),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.carPredInfo = [
-            [4,0],
-            [[0,1], [2,3,4,5], None, None]
-        ]
-
-        # Obstacle
-        self.obstacle_state = [
-            4,  # Estimate 4 obstacles from one grid cell
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "size": Box(-10, 10, shape=(2,)),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.obsPredInfo = [
-            [2,0],
-            [[0,1], [2,3], None, None]
-        ]
-
-        # Pedestrian
-        self.ped_state = [
-            6,  # Estimate 6 pedestrians from one grid cell
-            Dict({
-                "position": Box(-self.mean * 2, +self.mean * 2, shape=(2,)),
-                "confidence": MultiBinary(1),
-            })]
-
-        self.pedPredInfo = [
-            [0,0],
-            [[0,1], None, None, None]
-        ]
-
-        self.full_state_space = [
-            self.self_state,
-            self.car_state,
-            self.obstacle_state,
-            self.ped_state
-        ]
-
-        self.feature_grid_size = (10,17)
-
-        self.predInfo = (
-            self.selfPredInfo,
-            self.carPredInfo,
-            self.obsPredInfo,
-            self.pedPredInfo
-        )
-
-        # Time rewards
-        self.maxTime = 6000
-        self.elapsed = 0
-        self.allFinished = False
-        self.stepNum = self.maxTime / self.timeDiff
-        self.stepIterCnt = 10
-
-        # Visualization Parameters
-        self.agentVisID = None
-        self.renderMode = 'human'
-        self.screenShots = deque(maxlen=self.stepIterCnt)
-        self.obsVis = deque(maxlen=self.stepIterCnt // 10)
-
-        # Episode rewards
-        self.episodeRewards = np.array([0.0, ] * self.nPlayers)
-        self.episodePosRewards = np.array([0.0, ] * self.nPlayers)
-
-        # Setup roads
-        self.roads = [
-            Road(2, 35, [pymunk.Vec2d(875, 0), pymunk.Vec2d(875, 1000)]),
-            Road(1, 35, [pymunk.Vec2d(0, 500), pymunk.Vec2d(1750, 500)]),
-        ]
-        self.laneNum = len(self.roads) + sum([r.nLanes * 2 for r in self.roads])
-
-        self.buildings = [
-            Obstacle(pymunk.Vec2d(365.0, 200.0), 400, 225),
-            Obstacle(pymunk.Vec2d(365.0, 800.0), 400, 225),
-            Obstacle(pymunk.Vec2d(1385.0, 200.0), 400, 225),
-            Obstacle(pymunk.Vec2d(1385.0, 800.0), 400, 225),
-        ]
-        for building in self.buildings:
-            self.space.add(building.shape.body, building.shape)
-
-        # Add cars
-        roadSel = np.random.randint(0, len(self.roads), self.nPlayers)
-        endSel = np.random.randint(0, 2, self.nPlayers)
-        goals = [self.roads[rd].points[end] for rd, end in zip(roadSel, endSel)]
-        teams = np.random.randint(0, self.numTeams + 1, self.nPlayers)
-        types = np.random.randint(0, len(Car.powers), self.nPlayers)  #
-        spots = self.getUniqueSpots()
-        self.cars = [Car(spot[0], spot[1], tp, team, goal) for spot, tp, team, goal in zip(spots, types, teams, goals)]
-        for car in self.cars:
-            self.space.add(car.shape.body, car.shape)
-
-        # Add random pedestrians
-        self.pedestrianNum = random.randint(10, 20)
-        self.pedestrians = self.createRandomPedestrians()
-        for ped in self.pedestrians:
-            self.space.add(ped.shape.body, ped.shape)
-
-        # Add random obstacles
-        self.obstacleNum = random.randint(10, 20)
-        self.obstacles = self.createRandomObstacles()
-        for obs in self.obstacles:
-            self.space.add(obs.shape.body, obs.shape)
-
-        # Setup ped-ped and ped-obstacle collision (ignore)
-        h = self.space.add_collision_handler(
-            CollisionType.Pedestrian,
-            CollisionType.Pedestrian)
-        h.begin = self.pedCollision
-        h = self.space.add_collision_handler(
-            CollisionType.Pedestrian,
-            CollisionType.Obstacle)
-        h.begin = self.pedCollision
-
-        # Setup car-car collision
-        h = self.space.add_collision_handler(
-            CollisionType.Car,
-            CollisionType.Car)
-        h.begin = self.carCrash
-
-        # Setup car-ped collision
-        h = self.space.add_collision_handler(
-            CollisionType.Car,
-            CollisionType.Pedestrian)
-        h.begin = self.pedHit
-
-        # Setup car-obst collision
-        h = self.space.add_collision_handler(
-            CollisionType.Car,
-            CollisionType.Obstacle)
-        h.begin = self.carHit
-
-        # Render options
-        if self.renderVar:
-            pygame.init()
-            self.screen = pygame.display.set_mode((self.W, self.H))
-            pygame.display.set_caption("Driving Environment")
-            self.clock = pygame.time.Clock()
-            self.draw_options = pymunk.pygame_util.DrawOptions(self.screen)
-
-        # only for vectorized environments
-        if self.obs_space_cast:
-            # IMPORTANT: the following step is needed to fool
-            # the SubprocVecEnv of stable-baselines
-            self.observation_space.__class__ = Space
-
-    # Reset env
-    def reset(self):
-        # Agent ID and render mode must survive init
-        agentID = self.agentVisID
-        renderMode = self.renderMode
-
-        self.__init__(self.nPlayers, self.renderVar, self.observationType, self.noiseType, self.noiseMagnitude,
-                      self.continuousActions)
-
-        self.agentVisID = agentID
-        self.renderMode = renderMode
-
-        # First observations
-        observations = []
-        if self.observationType == ObservationType.FULL:
-            observations.append([self.getFullState(car) for car in self.cars])
-        else:
-            observations.append([self.getCarVision(car) for car in self.cars])
-        return observations
-
-    # Set random seed
-    def setRandomSeed(self, seed):
-        np.random.seed(seed)
-        random.seed(seed)
+    def get_class_specific_args(self):
+        return [self.continuousActions]
 
     def step(self, actions):
         t1 = time.clock()
@@ -341,11 +249,11 @@ class DrivingEnvironment(object):
         for i in range(self.stepIterCnt):
 
             # Sanity check
-            if actions.shape != (len(self.cars), 2):
+            if actions.shape != (len(self.agents), 2):
                 raise Exception("Error: There must be 2 actions for every car")
 
             # Car loop
-            for action, car in zip(actions, self.cars):
+            for action, car in zip(actions, self.agents):
                 # Apply action as first step
                 if i % 10 == 0:
                     self.processAction(action, car)
@@ -360,7 +268,7 @@ class DrivingEnvironment(object):
             self.space.step(1 / self.timeStep)
 
             self.elapsed += 1
-            allFinished = all([car.finished and not car.crashed for car in self.cars])
+            allFinished = all([car.finished and not car.crashed for car in self.agents])
             if not self.allFinished:
                 if allFinished:
                     self.allFinished = True
@@ -371,9 +279,9 @@ class DrivingEnvironment(object):
             # Get observations every 100 ms
             if i % 10 == 9:
                 if self.observationType == ObservationType.FULL:
-                    observations.append([self.getFullState(car) for car in self.cars])
+                    observations.append([self.getFullState(car) for car in self.agents])
                 else:
-                    observations.append([self.getCarVision(car) for car in self.cars])
+                    observations.append([self.getAgentVision(car) for car in self.agents])
 
             if self.renderVar:
                 self.render_internal()
@@ -386,15 +294,15 @@ class DrivingEnvironment(object):
         self.episodePosRewards += self.carPosRewards
 
         info = {'Full State': self.getFullState()}
-        info['Recon States'] = [self.getFullState(car) for car in self.cars]
+        info['Recon States'] = [self.getFullState(car) for car in self.agents]
 
         # Episode finishing
         if self.elapsed >= self.maxTime:
             finished = True
             info['episode_r'] = self.episodeRewards
             info['episode_p_r'] = self.episodePosRewards
-            info['episode_g'] = [sum([car.finished and not car.crashed for car in self.cars]),
-                                 sum([car.crashed for car in self.cars])]
+            info['episode_g'] = [sum([car.finished and not car.crashed for car in self.agents]),
+                                 sum([car.crashed for car in self.agents])]
             # print(self.episodeRewards)
 
         t2 = time.clock()
@@ -434,25 +342,6 @@ class DrivingEnvironment(object):
         # draw everything else
         self.space.debug_draw(self.draw_options)
 
-    # Render
-    def render_internal(self):
-
-        self.drawStaticObjects()
-        pygame.display.flip()
-        self.clock.tick(self.timeStep)
-
-        if self.renderMode == 'memory':
-            img = pygame.surfarray.array3d(self.screen).transpose([1, 0, 2])
-            self.screenShots.append(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-            # pygame.display.iconify()
-
-    def render(self):
-        if self.renderMode == 'human':
-            warnings.warn(
-                "env.render(): This function does nothing in human render mode. If you want to render into memory, set the renderMode variable to 'memory'!")
-            return
-        return self.screenShots, self.obsVis
-
     # Process actions
     def processAction(self, action, car):
 
@@ -477,7 +366,7 @@ class DrivingEnvironment(object):
 
         # Get params
         car.position = LanePosition.OffRoad
-        index = self.cars.index(car)
+        index = self.agents.index(car)
 
         # Get car position relative to roads
         for road in self.roads:
@@ -513,18 +402,17 @@ class DrivingEnvironment(object):
 
         # Stop car outside the field
         if car.prevPos.x >= self.W + 50:
-            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.velocity = Vec2d(0, 0)
             car.shape.body.position.x = self.W + 49
         if car.prevPos.x <= -50:
-            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.velocity = Vec2d(0, 0)
             car.shape.body.position.x = - 49
         if car.prevPos.y >= self.H + 50:
-            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.velocity = Vec2d(0, 0)
             car.shape.body.position.y = self.H + 49
         if car.prevPos.y <= -50:
-            car.shape.body.velocity = Vec2d(0,0)
+            car.shape.body.velocity = Vec2d(0, 0)
             car.shape.body.position.y = - 49
-
 
     # Update function for pedestrians
     def move(self, pedestrian):
@@ -685,19 +573,19 @@ class DrivingEnvironment(object):
         return [ob for ob in obs if self.isOffRoad(ob.getPos())]
 
     # Don't handle pedestrian obstacle collision
-    def pedCollision(self, arbiter, space, data):
+    def ignore_collision(self, arbiter, space, data):
         return False
 
     # Car collision
     def carCrash(self, arbiter, space, data):
 
         # Get cars
-        car1 = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
-        car2 = next(car for car in self.cars if (car.shape == arbiter.shapes[1]))
+        car1 = next(car for car in self.agents if (car.shape == arbiter.shapes[0]))
+        car2 = next(car for car in self.agents if (car.shape == arbiter.shapes[1]))
 
         # Punish
-        index1 = self.cars.index(car1)
-        index2 = self.cars.index(car2)
+        index1 = self.agents.index(car1)
+        index2 = self.agents.index(car2)
 
         v1l = car1.shape.body.velocity.length / 5
         v2l = car2.shape.body.velocity.length / 5
@@ -741,7 +629,7 @@ class DrivingEnvironment(object):
     def pedHit(self, arbiter, space, data):
 
         # Get objects
-        car = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
+        car = next(car for car in self.agents if (car.shape == arbiter.shapes[0]))
         ped = next(ped for ped in self.pedestrians if (ped.shape == arbiter.shapes[1]))
 
         # Get velocity
@@ -760,7 +648,7 @@ class DrivingEnvironment(object):
             # Crash car if it actually hit pedestrian
             if math.cos(angle(dp) - angle(v1)) < -0.4 and not car.finished:
                 car.crash()
-                index = self.cars.index(car)
+                index = self.agents.index(car)
                 self.carRewards[index] -= v1l / 5
         else:
             return False
@@ -771,10 +659,10 @@ class DrivingEnvironment(object):
     def carHit(self, arbiter, space, data):
 
         # Get car
-        car = next(car for car in self.cars if (car.shape == arbiter.shapes[0]))
+        car = next(car for car in self.agents if (car.shape == arbiter.shapes[0]))
 
         # Punish
-        index = self.cars.index(car)
+        index = self.agents.index(car)
         if not car.finished:
             self.carRewards[index] -= car.shape.body.velocity.length / 5
 
@@ -784,7 +672,7 @@ class DrivingEnvironment(object):
         return True
 
     # Gett correct state
-    def getFullState(self, car=None):
+    def getFullState(self, agent=None):
 
         # Get lanes
         lanes = []
@@ -796,7 +684,7 @@ class DrivingEnvironment(object):
                        (1 if abs(i) == l.nLanes else (-1 if i == 0 else 0))] for i in range(-l.nLanes, l.nLanes + 1)]
 
         # If complete state
-        if car is None:
+        if agent is None:
 
             # Just add cars
             state = [
@@ -806,20 +694,20 @@ class DrivingEnvironment(object):
                            math.sin(c.getAngle()),
                            normalize(c.width, self.standardNormW, mean=0.5),
                            normalize(c.height, self.standardNormH, mean=0.5),
-                           c.finished] for c in self.cars]).astype('float32'),
+                           c.finished] for c in self.agents]).astype('float32'),
             ]
         # Otherwise add self observation separately
         else:
             state = [
-                np.array([normalize(car.getPos().x, self.standardNormX),
-                          normalize(car.getPos().y, self.standardNormY),
-                          math.cos(car.getAngle()),
-                          math.sin(car.getAngle()),
-                          normalize(car.width, self.standardNormW, mean=0.5),
-                          normalize(car.height, self.standardNormH, mean=0.5),
-                          normalize(car.goal.x, self.standardNormX),
-                          normalize(car.goal.y, self.standardNormY),
-                          car.finished]).astype('float32'),
+                np.array([normalize(agent.getPos().x, self.standardNormX),
+                          normalize(agent.getPos().y, self.standardNormY),
+                          math.cos(agent.getAngle()),
+                          math.sin(agent.getAngle()),
+                          normalize(agent.width, self.standardNormW, mean=0.5),
+                          normalize(agent.height, self.standardNormH, mean=0.5),
+                          normalize(agent.goal.x, self.standardNormX),
+                          normalize(agent.goal.y, self.standardNormY),
+                          agent.finished]).astype('float32'),
 
                 np.array([[normalize(c.getPos().x, self.standardNormX),
                            normalize(c.getPos().y, self.standardNormY),
@@ -827,7 +715,7 @@ class DrivingEnvironment(object):
                            math.sin(c.getAngle()),
                            normalize(c.width, self.standardNormW, mean=0.5),
                            normalize(c.height, self.standardNormH, mean=0.5),
-                           c.finished] for c in self.cars if c != car]).astype('float32'),
+                           c.finished] for c in self.agents if c != agent]).astype('float32'),
             ]
 
         # Add obstacles, pedestrians and lanes
@@ -848,16 +736,16 @@ class DrivingEnvironment(object):
         return state
 
     # Get car observation
-    def getCarVision(self, car):
+    def getAgentVision(self, agent):
 
-        ang = car.getAngle()
+        ang = agent.getAngle()
 
         # Get detections within radius
-        selfDet = [SightingType.Normal, car.getPos(), math.cos(ang), math.sin(ang), car.getPoints(), car.width,
-                   car.height, car.goal, car.finished]
+        selfDet = [SightingType.Normal, agent.getPos(), math.cos(ang), math.sin(ang), agent.getPoints(), agent.width,
+                   agent.height, agent.goal, agent.finished]
         carDets = [isSeenInRadius(c.getPos(), c.getPoints(), c.getAngle(), selfDet[1], ang, self.maxVisDist[0],
                                   self.maxVisDist[1])
-                   + [c.width, c.height] + [c.finished, ] for c in self.cars if c != car]
+                   + [c.width, c.height] + [c.finished, ] for c in self.agents if c != agent]
         obsDets = [
             isSeenInRadius(o.getPos(), o.points, 0, selfDet[1], ang, self.maxVisDist[0], self.maxVisDist[1]) + [o.width,
                                                                                                                 o.height]
@@ -990,7 +878,7 @@ class DrivingEnvironment(object):
                    obs[0] != SightingType.NoSighting and obs[0] != SightingType.Misclassified]
         laneDets = [lane for i, lane in enumerate(laneDets) if lane[0] != SightingType.NoSighting]
 
-        if self.renderVar and self.agentVisID is not None and self.cars.index(car) == self.agentVisID:
+        if self.renderVar and self.agentVisID is not None and self.agents.index(agent) == self.agentVisID:
 
             # Visualization image size
             H = self.H // 2
@@ -1016,8 +904,8 @@ class DrivingEnvironment(object):
                 # Get line points from params
                 a = lane[2]
                 b = -lane[3]
-                rho = -lane[1]/Road.laneScaleFactor
-                print(lane[1],lane[4])
+                rho = -lane[1] / Road.laneScaleFactor
+                print(lane[1], lane[4])
                 x0 = b * rho
                 y0 = a * rho
                 pt1 = (int(np.round(x0 - 5000 * a) + W), int(H - np.round(y0 + 5000 * b)))
@@ -1027,7 +915,7 @@ class DrivingEnvironment(object):
 
             # draw self
             color = (0, 255, 255)
-            points = [p - car.getPos() for p in selfDet[4]]
+            points = [p - agent.getPos() for p in selfDet[4]]
             cv2.fillConvexPoly(img, np.array([(int(p.x + W), int(-p.y + H)) for p in points]), color)
 
             # draw cars
@@ -1049,7 +937,7 @@ class DrivingEnvironment(object):
                 cv2.circle(img, (int(point.x + W), int(-point.y + H)), 5, color, -1)
 
             if self.renderMode == 'human':
-                cv2.imshow(("Car %d" % self.cars.index(car)), img)
+                cv2.imshow(("Car %d" % self.agents.index(agent)), img)
                 c = cv2.waitKey(1)
                 if c == 13:
                     cv2.imwrite("drivingObs.png", img)
@@ -1076,10 +964,6 @@ class DrivingEnvironment(object):
 
         # return
         return selfDet, carDets, obsDets, pedDets, laneDets
-
-    # For compatibility
-    def close(self):
-        pass
 
     # Print env params
     def __str__(self):
