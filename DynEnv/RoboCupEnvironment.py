@@ -27,6 +27,8 @@ class RoboCupEnvironment(EnvironmentBase):
         self.sizeNorm = 10.0 / self.noiseMagnitude if self.noiseMagnitude != 0.0 else 1.0
         self.allowHeadTurn = allowHeadTurn
 
+        self.randomInit = False
+
         self._setup_normalization()
 
         self._setup_observation_space()
@@ -168,10 +170,34 @@ class RoboCupEnvironment(EnvironmentBase):
 
         self.centerCircle = [pymunk.Vec2d((self.W // 2, self.H // 2)), self.centerCircleRadius]
 
-        self.fieldCrosses = [
+        self.penaltyCrosses = [
             (pymunk.Vec2d(self.W // 2, self.H // 2), self.penaltyRadius),
             (pymunk.Vec2d(self.sideLength + self.penaltyDist, self.H // 2), self.penaltyRadius),
             (pymunk.Vec2d(self.W - (self.sideLength + self.penaltyDist), self.H // 2), self.penaltyRadius),
+        ]
+
+        self.lineCrosses = [
+            # Four corners
+            (pymunk.Vec2d(self.sideLength, self.sideLength), self.penaltyRadius),
+            (pymunk.Vec2d(self.sideLength, self.H - self.sideLength), self.penaltyRadius),
+            (pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength), self.penaltyRadius),
+            (pymunk.Vec2d(self.W - self.sideLength, self.sideLength), self.penaltyRadius),
+            # Middle line
+            (pymunk.Vec2d(self.W / 2, self.sideLength), self.penaltyRadius),
+            (pymunk.Vec2d(self.W / 2, self.H - self.sideLength), self.penaltyRadius),
+            # Middle Line and circle
+            (pymunk.Vec2d(self.W / 2, self.H / 2 + self.centerCircleRadius * 2), self.penaltyRadius),
+            (pymunk.Vec2d(self.W / 2, self.H / 2 - self.centerCircleRadius * 2), self.penaltyRadius),
+            # Penalty Box 1
+            (pymunk.Vec2d(self.sideLength, self.H / 2 - self.penaltyWidth), self.penaltyRadius),
+            (pymunk.Vec2d(self.sideLength, self.H / 2 + self.penaltyWidth), self.penaltyRadius),
+            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth), self.penaltyRadius),
+            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth), self.penaltyRadius),
+            # Penalty Box 2
+            (pymunk.Vec2d(self.W - self.sideLength, self.H / 2 - self.penaltyWidth), self.penaltyRadius),
+            (pymunk.Vec2d(self.W - self.sideLength, self.H / 2 + self.penaltyWidth), self.penaltyRadius),
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), self.penaltyRadius),
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth), self.penaltyRadius),
         ]
 
     def _handle_collisions(self):
@@ -221,7 +247,6 @@ class RoboCupEnvironment(EnvironmentBase):
             self.space.add(goal.shape.body, goal.shape)
 
     def _create_agents(self):
-
         # Spot setup
         self._create_robot_spots()
         spotIds1 = np.random.permutation(self.maxPlayers)
@@ -231,13 +256,28 @@ class RoboCupEnvironment(EnvironmentBase):
                       + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i) for i, id in enumerate(spotIds2) if
                          i < self.nPlayers]
 
+        if self.randomInit:
+            for agent in self.agents:
+                x = random.random() * self.fieldW + self.sideLength
+                y = random.random() * self.fieldH + self.sideLength
+                ang = random.random() * math.pi * 2
+                headAng = (random.random()-0.5) * 2*math.pi/3
+                agent.__init__((x,y),agent.team, agent.id)
+                agent.leftFoot.body.angle = ang
+                agent.rightFoot.body.angle = ang
+                agent.headAngle = headAng
+
         for robot in self.agents:
             self.space.add(robot.leftFoot.body, robot.leftFoot, robot.rightFoot.body, robot.rightFoot, robot.joint,
                            robot.rotJoint)
 
     def _create_ball(self):
-        x = self.W // 2  # random.random()*self.fieldW + self.sideLength
-        y = self.H // 2  # random.random()*self.fieldH + self.sideLength
+        if self.randomInit:
+            x = random.random()*self.fieldW + self.sideLength
+            y = random.random()*self.fieldH + self.sideLength
+        else:
+            x = self.W // 2
+            y = self.H // 2
         self.ball = Ball(x, y, self.ballRadius)
         self.space.add(self.ball.shape.body, self.ball.shape)
 
@@ -301,8 +341,9 @@ class RoboCupEnvironment(EnvironmentBase):
                 robot_space,
                 goalpost_space,
                 cross_space,
-                line_space,
-                center_circle_space
+                cross_space,
+                #line_space,
+                #center_circle_space
             ])
 
     def get_class_specific_args(self):
@@ -442,7 +483,7 @@ class RoboCupEnvironment(EnvironmentBase):
         for line in self.lines:
             pygame.draw.line(self.screen, (255, 255, 255), line[0], line[1], self.lineWidth)
 
-        for cross in self.fieldCrosses:
+        for cross in self.penaltyCrosses:
             pygame.draw.circle(self.screen, (255, 255, 255), cross[0], cross[1] * 2, 0)
 
         pygame.draw.circle(self.screen, (255, 255, 255), self.centerCircle[0], self.centerCircle[1] * 2, self.lineWidth)
@@ -1064,11 +1105,13 @@ class RoboCupEnvironment(EnvironmentBase):
         goalDets = [isSeenInArea(goal.shape.body.position - pos, vec1, vec2, self.maxVisDist[1], headAngle,
                                  self.goalPostRadius * 2) for goal in self.goalposts]
         crossDets = [isSeenInArea(cross[0] - pos, vec1, vec2, self.maxVisDist[0], headAngle, self.penaltyRadius * 2) for
-                     cross in self.fieldCrosses]
-        lineDets = [isLineInArea(p1 - pos, p2 - pos, vec1, vec2, self.maxVisDist[1], headAngle) for p1, p2 in
+                     cross in self.penaltyCrosses]
+        fieldCrossDets = [isSeenInArea(cross[0] - pos, vec1, vec2, self.maxVisDist[0], headAngle, self.penaltyRadius * 2) for
+                     cross in self.lineCrosses]
+        '''lineDets = [isLineInArea(p1 - pos, p2 - pos, vec1, vec2, self.maxVisDist[1], headAngle) for p1, p2 in
                     self.lines]
         circleDets = isSeenInArea(self.centerCircle[0] - pos, vec1, vec2, self.maxVisDist[1], headAngle,
-                                  self.centerCircleRadius * 2, False)
+                                  self.centerCircleRadius * 2, False)'''
 
         # Get interactions between certain object classes
         robRobInter = [max([doesInteract(rob1[1], rob2[1], Robot.totalRadius * 2) for rob1 in robDets if rob1 != rob2])
@@ -1078,6 +1121,8 @@ class RoboCupEnvironment(EnvironmentBase):
                         goalDets]
         robCrossInter = [max([doesInteract(rob[1], cross[1], Robot.totalRadius * 2) for rob in robDets]) for cross in
                          crossDets]
+        robFCrossInter = [max([doesInteract(rob[1], cross[1], Robot.totalRadius * 2) for rob in robDets]) for cross in
+                         fieldCrossDets]
         ballPostInter = max([doesInteract(ballDets[0][1], post[1], self.ballRadius * 8, False) for post in goalDets])
         ballCrossInter = [doesInteract(ballDets[0][1], cross[1], self.ballRadius * 4, False) for cross in crossDets]
 
@@ -1090,9 +1135,11 @@ class RoboCupEnvironment(EnvironmentBase):
          i, goal in enumerate(goalDets)]
         [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), self.noiseMagnitude, self.randBase,
                   self.maxVisDist[0], True) for i, cross in enumerate(crossDets)]
-        addNoise(circleDets, self.noiseType, 0, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
+        [addNoise(cross, self.noiseType, robFCrossInter[i], self.noiseMagnitude, self.randBase,
+                  self.maxVisDist[0]) for i, cross in enumerate(fieldCrossDets)]
+        '''addNoise(circleDets, self.noiseType, 0, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
         [addNoiseLine(line, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i, line in
-         enumerate(lineDets)]
+         enumerate(lineDets)]'''
 
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
@@ -1127,6 +1174,10 @@ class RoboCupEnvironment(EnvironmentBase):
                     crossDets.insert(len(crossDets),
                                      [SightingType.Normal, pos,
                                       self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5))])
+                elif c == 4:
+                    fieldCrossDets.insert(len(crossDets),
+                                     [SightingType.Normal, pos,
+                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5))])
 
         # FP Balls near robots
         if self.noiseType == NoiseType.REALISTIC:
@@ -1146,7 +1197,9 @@ class RoboCupEnvironment(EnvironmentBase):
         goalDets = [goal for i, goal in enumerate(goalDets) if goal[0] != SightingType.NoSighting]
         crossDets = [cross for i, cross in enumerate(crossDets) if
                      cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
-        lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
+        fieldCrossDets = [cross for i, cross in enumerate(fieldCrossDets) if
+                     cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
+        #lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
 
         if self.observationType == ObservationType.IMAGE:
 
@@ -1154,7 +1207,7 @@ class RoboCupEnvironment(EnvironmentBase):
             bottomCamImg = np.zeros((4, 480, 640))
             topCamImg = np.zeros((4, 480, 640))
 
-            for line in lineDets:
+            '''for line in lineDets:
                 # Points to transform: [start, start+thickness, end]
                 linevec = np.array([
                     [(-line[1].y - line[2].y) / 2, 0, (line[1].x + line[2].x) / 2, 1],
@@ -1223,7 +1276,7 @@ class RoboCupEnvironment(EnvironmentBase):
                     if bx1[0, 1]:
                         cv2.line(bottomCamImg[3], tuple(bx1[0]), tuple(bx2[0]), 1, bThickness)
                     if bx1[-1, 1] < 480 - 1:
-                        cv2.line(bottomCamImg[3], tuple(bx1[-1]), tuple(bx2[-1]), 1, bThickness)
+                        cv2.line(bottomCamImg[3], tuple(bx1[-1]), tuple(bx2[-1]), 1, bThickness)'''
 
             for rob in robDets:
                 # Points to transform: [bottom left, bottom right, top left, top right]
@@ -1272,6 +1325,20 @@ class RoboCupEnvironment(EnvironmentBase):
                 cv2.circle(topCamImg[3], (int(tProj[0, 0]), int(tProj[1, 0])), tRad, 1, -1)
                 cv2.circle(bottomCamImg[3], (int(bProj[0, 0]), int(bProj[1, 0])), bRad, 1, -1)
 
+            for cross in fieldCrossDets:
+                # Points to transform: [center, center+thickness]
+                crossvec = np.array([
+                    [-cross[1].y, 0, cross[1].x, 1],
+                    [-cross[1].y + cross[2] / 2, 0, cross[1].x, 1]
+                ]).transpose()
+
+                # Project points and estimate radius (projected size of cross radius)
+                tProj, tRad, bProj, bRad = projectPoints(crossvec)
+
+                # Draw
+                cv2.circle(topCamImg[3], (int(tProj[0, 0]), int(tProj[1, 0])), tRad, 1, -1)
+                cv2.circle(bottomCamImg[3], (int(bProj[0, 0]), int(bProj[1, 0])), bRad, 1, -1)
+
             for ball in ballDets:
                 # Points to transform: [center, center+thickness]
                 ballvec = np.array([
@@ -1305,7 +1372,7 @@ class RoboCupEnvironment(EnvironmentBase):
             # Draw all objects
             # Partially seen and distant objects are dim
             # Objects are drawn from the robot center
-            for line in lineDets:
+            '''for line in lineDets:
                 color = (255, 255, 255) if line[0] == SightingType.Normal else (127, 127, 127)
                 cv2.line(img, (int(xOffs + line[1].x), int(-line[1].y + H)),
                          (int(xOffs + line[2].x), int(-line[2].y + H)), color, self.lineWidth)
@@ -1313,9 +1380,13 @@ class RoboCupEnvironment(EnvironmentBase):
             if circleDets[0] != SightingType.NoSighting:
                 color = (255, 0, 255) if circleDets[0] == SightingType.Normal else (127, 0, 127)
                 cv2.circle(img, (int(xOffs + circleDets[1].x), int(-circleDets[1].y + H)), int(circleDets[2]), color,
-                           self.lineWidth)
+                           self.lineWidth)'''
 
             for cross in crossDets:
+                color = (255, 255, 255) if cross[0] == SightingType.Normal else (127, 127, 127)
+                cv2.circle(img, (int(xOffs + cross[1].x), int(-cross[1].y + H)), int(cross[2]), color, -1)
+
+            for cross in fieldCrossDets:
                 color = (255, 255, 255) if cross[0] == SightingType.Normal else (127, 127, 127)
                 cv2.circle(img, (int(xOffs + cross[1].x), int(-cross[1].y + H)), int(cross[2]), color, -1)
 
@@ -1362,13 +1433,16 @@ class RoboCupEnvironment(EnvironmentBase):
         crossDets = np.array([[normalize(cross[1].x, self.normX), normalize(cross[1].y, self.normY),
                                normalizeAfterScale(cross[2], self.sizeNorm, self.penaltyRadius * 2)] for cross in
                               crossDets]).astype('float32')
-        lineDets = np.array([[normalize(line[1].x, self.normX), normalize(line[1].y, self.normY),
+        fieldCrossDets = np.array([[normalize(cross[1].x, self.normX), normalize(cross[1].y, self.normY),
+                               normalizeAfterScale(cross[2], self.sizeNorm, self.penaltyRadius * 2)] for cross in
+                              fieldCrossDets]).astype('float32')
+        '''lineDets = np.array([[normalize(line[1].x, self.normX), normalize(line[1].y, self.normY),
                               normalize(line[2].x, self.normX), normalize(line[2].y, self.normY)] for line in
                              lineDets]).astype('float32')
         circleDets = np.array([[normalize(circleDets[1].x, self.normX),
                                 normalize(circleDets[1].y, self.normY),
                                 normalizeAfterScale(circleDets[2], self.sizeNorm * 0.1,
                                                     self.centerCircleRadius * 2)]]).astype('float32') \
-            if circleDets[0] != SightingType.NoSighting else np.array([])
+            if circleDets[0] != SightingType.NoSighting else np.array([])'''
 
-        return ballDets, robDets, goalDets, crossDets, lineDets, circleDets
+        return ballDets, robDets, goalDets, crossDets, fieldCrossDets #lineDets, circleDets
