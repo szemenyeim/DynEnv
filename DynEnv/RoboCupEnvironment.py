@@ -337,11 +337,15 @@ class RoboCupEnvironment(EnvironmentBase):
             })
 
             self.observation_space = Tuple([
-                ball_space,
-                robot_space,
-                goalpost_space,
-                cross_space,
-                cross_space,
+                Tuple([
+                    ball_space,
+                    robot_space,
+                ]),
+                Tuple([
+                    goalpost_space,
+                    cross_space,
+                    cross_space,
+                ])
                 #line_space,
                 #center_circle_space
             ])
@@ -1445,4 +1449,4 @@ class RoboCupEnvironment(EnvironmentBase):
                                                     self.centerCircleRadius * 2)]]).astype('float32') \
             if circleDets[0] != SightingType.NoSighting else np.array([])'''
 
-        return ballDets, robDets, goalDets, crossDets, fieldCrossDets #lineDets, circleDets
+        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets) #lineDets, circleDets
