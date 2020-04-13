@@ -2,6 +2,10 @@ from .cutils import CollisionType, friction_robot
 from pymunk import Body, Segment, moment_for_segment, Vec2d
 from pymunk.constraint import PivotJoint, RotaryLimitJoint
 import math
+import random
+
+def randomOffs(std):
+    return (random.random() - 0.5) * std
 
 class Robot(object):
 
@@ -14,7 +18,7 @@ class Robot(object):
     ang_velocity = 20
     mass = 4000
 
-    def __init__(self,pos,team,id):
+    def __init__(self,pos,team,id, randomInit = False):
 
         # Foot positions
         a = (-self.length,self.length)
@@ -22,11 +26,20 @@ class Robot(object):
         c = (-self.length,-self.length)
         d = (self.length,-self.length)
 
+        angle = 0 if team > 0 else math.pi
+        headAngle = 0
+
+        if randomInit:
+            pos += Vec2d(randomOffs(20), randomOffs(20))
+            angle += randomOffs(math.pi/4)
+            headAngle += randomOffs(math.pi/4)
+
+
         # Setup left foot
         inertia = moment_for_segment(self.mass,a,b,self.radius)
         body = Body(self.mass, inertia, Body.DYNAMIC)
         body.position = pos
-        body.angle = 0 if team > 0 else math.pi
+        body.angle = angle
         body.velocity_func = friction_robot
         self.leftFoot = Segment(body,a,b,self.radius)
         self.leftFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
@@ -38,7 +51,7 @@ class Robot(object):
         inertia = moment_for_segment(self.mass,c,d,self.radius)
         body = Body(self.mass, inertia, Body.DYNAMIC)
         body.position = pos
-        body.angle = 0 if team > 0 else math.pi
+        body.angle = angle
         body.velocity_func = friction_robot
         self.rightFoot = Segment(body,c,d,self.radius)
         self.rightFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
@@ -55,7 +68,7 @@ class Robot(object):
         # Basic properties
         self.team = team
         self.id = id
-        self.headAngle = 0
+        self.headAngle = headAngle
 
         # Previous position
         self.prevPos = self.getPos()
@@ -88,8 +101,8 @@ class Robot(object):
         angle = (self.leftFoot.body.angle + self.rightFoot.body.angle)/2.0
 
         # If from the perspective of the other team, rotate 180 degrees
-        if team is not None and team == -1:
-            angle -= math.pi
+        #if team is not None and team == -1:
+            #angle -= math.pi
         return angle
 
     # Move in certain direction (relative to the robot
