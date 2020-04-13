@@ -13,6 +13,7 @@ from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 
 from ..environment_base import PredictionDescriptor
 
+flatten = lambda l: [item for sublist in l for item in sublist]
 
 class AttentionType(Enum):
     SINGLE_ATTENTION = 0

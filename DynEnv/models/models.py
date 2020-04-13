@@ -9,9 +9,7 @@ from gym.spaces import MultiDiscrete, Box, MultiBinary, Discrete
 from torch.distributions import Categorical
 
 from ..environment_base import RecoDescriptor
-from ..utils.utils import AttentionType, AttentionTarget, build_targets
-
-flatten = lambda l: [item for sublist in l for item in sublist]
+from ..utils.utils import AttentionType, AttentionTarget, build_targets, flatten
 
 
 class ObsMask(object):
@@ -410,41 +408,29 @@ class LSTMLayer(nn.Module):
                 self.h[-1][:] = 0.0
                 self.c[-1][:] = 0.0'''
 
-        nSteps = len(self.h)
+        nSteps = 1
         with torch.no_grad():
             self._generate_buffers(device, nSteps)
 
     def _generate_buffers(self, device, nSteps):
-        self.h = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device) for _ in range(nSteps)]
-        self.c = [torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device) for _ in range(nSteps)]
-        self.x = [torch.zeros((self.nPlayers * self.nEnvs, self.feature_size)).to(device) for _ in range(nSteps)]
+        self.h = torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device)
+        self.c = torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device)
+        self.x = torch.zeros((self.nPlayers * self.nEnvs, self.feature_size)).to(device)
 
     # Put means and std on the correct device when .cuda() or .cpu() is called
     def _apply(self, fn):
         super(LSTMLayer, self)._apply(fn)
 
-        self.h = [fn(h) for h in self.h]
-        self.c = [fn(c) for c in self.c]
+        self.h = fn(self.h)
+        self.c = fn(self.c)
 
         return self
 
     # Forward
     def forward(self, x):
-        h, c = self.cell(x, (self.h[-1], self.c[-1]))
+        self.h, self.c = self.cell(x, (self.h, self.c))
 
-        self.h[0].detach_()
-        self.c[0].detach_()
-        self.x[0].detach_()
-
-        self.h.pop(0)
-        self.c.pop(0)
-        self.x.pop(0)
-
-        self.h.append(h)
-        self.c.append(c)
-        self.x.append(x)
-
-        return self.h[-1]
+        return self.h
 
 
 # Example network implementing an entire agent by simply averaging all obvervations for all timesteps
