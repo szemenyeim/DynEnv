@@ -654,7 +654,7 @@ class ICMNet(nn.Module):
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
-        recon_loss = self.recon_net(current_features, current_targets)
+        recon_loss = 0#self.recon_net(current_features, current_targets)
 
         # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)

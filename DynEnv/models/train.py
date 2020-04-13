@@ -26,7 +26,7 @@ class Runner(object):
 
         # parameters
         self.params = params
-        self.factor = 10
+        self.factor = 0
 
         """Logger"""
         self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir,
@@ -143,7 +143,7 @@ class Runner(object):
                 recon_loss_accumulated.precision /= num_rollout
                 recon_loss_accumulated.recall /= num_rollout
 
-                print(recon_loss_accumulated)
+                #print(recon_loss_accumulated)
 
                 r_loss = 0
 
