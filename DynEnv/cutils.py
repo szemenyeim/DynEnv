@@ -302,6 +302,16 @@ def colorize(img):
     return cImg
 
 
+def convertToPolar(point, normFactor, sizeNorm, team = None):
+    if team is None:
+        team = 1
+    dist = math.sqrt(point[1].x**2+point[1].y**2)
+    angle = math.atan2(point[1].y*team, point[1].x*team)
+    c = math.cos(angle)
+    s = math.sin(angle)
+    return [((dist * normFactor) - 0.5) * 2, c, s, point[2] * sizeNorm, point[3] * team, point[4] * team]
+
+
 def normalize(pt, normFactor, mean=None, team=None):
     if mean is None:
         mean = 0
