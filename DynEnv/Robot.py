@@ -18,7 +18,7 @@ class Robot(object):
     ang_velocity = 20
     mass = 4000
 
-    def __init__(self,pos,team,id, randomInit = False):
+    def __init__(self,pos,team,id):
 
         # Foot positions
         a = (-self.length,self.length)
@@ -28,12 +28,6 @@ class Robot(object):
 
         angle = 0 if team > 0 else math.pi
         headAngle = 0
-
-        if randomInit:
-            pos += Vec2d(randomOffs(20), randomOffs(20))
-            angle += randomOffs(math.pi/4)
-            headAngle += randomOffs(math.pi/4)
-
 
         # Setup left foot
         inertia = moment_for_segment(self.mass,a,b,self.radius)

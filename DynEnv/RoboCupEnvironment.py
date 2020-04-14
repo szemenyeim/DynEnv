@@ -146,28 +146,45 @@ class RoboCupEnvironment(EnvironmentBase):
     def _create_football_field(self):
         self.lines = [
             # Outer lines
-            (pymunk.Vec2d(self.sideLength, self.sideLength), pymunk.Vec2d(self.sideLength, self.H - self.sideLength)),
+            (pymunk.Vec2d(self.sideLength, self.sideLength),
+             pymunk.Vec2d(self.sideLength, self.H - self.sideLength),
+             1, 0),
             (pymunk.Vec2d(self.W - self.sideLength, self.sideLength),
-             pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength)),
-            (pymunk.Vec2d(self.sideLength, self.sideLength), pymunk.Vec2d(self.W - self.sideLength, self.sideLength)),
+             pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength),
+             -1, 0),
+            (pymunk.Vec2d(self.sideLength, self.sideLength),
+             pymunk.Vec2d(self.W - self.sideLength, self.sideLength),
+             0, 1),
             (pymunk.Vec2d(self.sideLength, self.H - self.sideLength),
-             pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength)),
+             pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength),
+             0, -1),
+
             # Middle Line
-            (pymunk.Vec2d(self.W / 2, self.sideLength), pymunk.Vec2d(self.W / 2, self.H - self.sideLength)),
+            (pymunk.Vec2d(self.W / 2, self.sideLength),
+             pymunk.Vec2d(self.W / 2, self.H - self.sideLength),
+             0, 0),
+
             # Penalty Box #1
             (pymunk.Vec2d(self.sideLength, self.H / 2 - self.penaltyWidth),
-             pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth)),
+             pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth),
+             1, 0.37),
             (pymunk.Vec2d(self.sideLength, self.H / 2 + self.penaltyWidth),
-             pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth)),
+             pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth),
+             1, -0.37),
             (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth),
-             pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth)),
+             pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth),
+             0.87, 0),
+
             # Penalty Box #2
             (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth),
-             pymunk.Vec2d(self.W - self.sideLength, self.H / 2 - self.penaltyWidth)),
+             pymunk.Vec2d(self.W - self.sideLength, self.H / 2 - self.penaltyWidth),
+             -1, 0.37),
             (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth),
-             pymunk.Vec2d(self.W - self.sideLength, self.H / 2 + self.penaltyWidth)),
+             pymunk.Vec2d(self.W - self.sideLength, self.H / 2 + self.penaltyWidth),
+             -1, -0.37),
             (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth),
-             pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth))
+             pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth),
+             -0.87, 0)
         ]
 
         self.centerCircle = [pymunk.Vec2d((self.W // 2, self.H // 2)), self.centerCircleRadius]
@@ -214,29 +231,60 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def _create_robot_spots(self):
 
-        centX = self.W / 2
-        self.robotSpots = [
-            # Kickoff team
-            [(centX - (self.ballRadius * 2 + Robot.totalRadius) - random.random() * 50,
-              self.H / 2 + (random.random() - 0.5) * 50),
-             (centX - (Robot.totalRadius + self.lineWidth / 2) - random.random() * 50,
-              self.sideLength + self.fieldH / 4 + (random.random() - 0.5) * 50),
-             (centX - (Robot.totalRadius + self.lineWidth / 2) - random.random() * 50,
-              self.sideLength + 3 * self.fieldH / 4 + (random.random() - 0.5) * 50),
-             (centX - (self.fieldW / 4) - (random.random() - 0.5) * 50,
-              self.sideLength + self.fieldH / 2 + (random.random() - 0.5) * 50),
-             (self.sideLength, self.H / 2 + (random.random() - 0.5) * 50)],
-            # Opposing team
-            [(centX + (self.centerCircleRadius * 2 + Robot.totalRadius + self.lineWidth / 2) + random.random() * 50,
-              self.H / 2 + (random.random() - 0.5) * 50),
-             (centX + (Robot.totalRadius + self.lineWidth / 2 + self.centerCircleRadius) + random.random() * 50,
-              self.sideLength + self.fieldH / 4 + (random.random() - 0.5) * 50),
-             (centX + (Robot.totalRadius + self.lineWidth / 2 + self.centerCircleRadius) + random.random() * 50,
-              self.sideLength + 3 * self.fieldH / 4 + (random.random() - 0.5) * 50),
-             (centX + (self.sideLength + self.fieldW / 4) + random.random() * 50,
-              self.sideLength + self.fieldH / 2 + (random.random() - 0.5) * 50),
-             (self.W - (self.sideLength), self.H / 2 + (random.random() - 0.5) * 50)],
-        ]
+        if self.randomInit:
+            xLimits = [self.sideLength, self.sideLength + 50, self.sideLength + 250, self.sideLength + 450,
+                       self.sideLength + 650, self.sideLength + 850, self.sideLength + 900]
+            yLimits = [self.sideLength, self.sideLength + 300, self.sideLength + 600]
+
+            robotSpots = []
+
+            for i in range(len(xLimits)-1):
+                xBeg = xLimits[i]
+                xEnd = xLimits[i+1]
+
+                ys = [yLimits[0], yLimits[-1]] if i == 0 or i == (len(xLimits) - 2) else yLimits
+
+                for j in range(len(ys)-1):
+                    yBeg = ys[j]
+                    yEnd = ys[j+1]
+
+                    x = xBeg + random.random() * (xEnd - xBeg)
+                    y = yBeg + random.random() * (yEnd - yBeg)
+
+                    robotSpots.append((x,y))
+
+            self.robotSpots = [
+                [robotSpots[0],],
+                [robotSpots[-1],]
+            ]
+            perm = np.random.permutation(8) + 1
+            for i, p in enumerate(perm):
+                self.robotSpots[ 0 if i < 4 else 1] += [robotSpots[p],]
+
+        else:
+            centX = self.W / 2
+            self.robotSpots = [
+                # Kickoff team
+                [(centX - (self.ballRadius * 2 + Robot.totalRadius) - random.random() * 50,
+                  self.H / 2 + (random.random() - 0.5) * 50),
+                 (centX - (Robot.totalRadius + self.lineWidth / 2) - random.random() * 50,
+                  self.sideLength + self.fieldH / 4 + (random.random() - 0.5) * 50),
+                 (centX - (Robot.totalRadius + self.lineWidth / 2) - random.random() * 50,
+                  self.sideLength + 3 * self.fieldH / 4 + (random.random() - 0.5) * 50),
+                 (centX - (self.fieldW / 4) - (random.random() - 0.5) * 50,
+                  self.sideLength + self.fieldH / 2 + (random.random() - 0.5) * 50),
+                 (self.sideLength + 20, self.H / 2 + (random.random() - 0.5) * 50)],
+                # Opposing team
+                [(centX + (self.centerCircleRadius * 2 + Robot.totalRadius + self.lineWidth / 2) + random.random() * 50,
+                  self.H / 2 + (random.random() - 0.5) * 50),
+                 (centX + (Robot.totalRadius + self.lineWidth / 2 + self.centerCircleRadius) + random.random() * 50,
+                  self.sideLength + self.fieldH / 4 + (random.random() - 0.5) * 50),
+                 (centX + (Robot.totalRadius + self.lineWidth / 2 + self.centerCircleRadius) + random.random() * 50,
+                  self.sideLength + 3 * self.fieldH / 4 + (random.random() - 0.5) * 50),
+                 (centX + (self.sideLength + self.fieldW / 4) + random.random() * 50,
+                  self.sideLength + self.fieldH / 2 + (random.random() - 0.5) * 50),
+                 (self.W - (self.sideLength + 20), self.H / 2 + (random.random() - 0.5) * 50)],
+            ]
 
     def _create_goalposts(self):
         self.goalposts = [
@@ -251,12 +299,13 @@ class RoboCupEnvironment(EnvironmentBase):
     def _create_agents(self):
         # Spot setup
         self._create_robot_spots()
+
         spotIds1 = np.random.permutation(self.maxPlayers)
         spotIds2 = np.random.permutation(self.maxPlayers)
 
-        self.agents = [Robot(self.robotSpots[0][id], 1, i, self.randomInit) for i, id in enumerate(spotIds1) if i < self.nPlayers] \
-                      + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i, self.randomInit) for i, id in enumerate(spotIds2) if
-                         i < self.nPlayers]
+        self.agents = [Robot(self.robotSpots[0][id], 1, i) for i, id in enumerate(spotIds1) if i < self.nPlayers] \
+                          + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i) for i, id in enumerate(spotIds2) if
+                             i < self.nPlayers]
 
         for robot in self.agents:
             self.space.add(robot.leftFoot.body, robot.leftFoot, robot.rightFoot.body, robot.rightFoot, robot.joint,
@@ -286,7 +335,8 @@ class RoboCupEnvironment(EnvironmentBase):
         team = Box(-1, 1, shape=(1,))
 
         line_space = Dict({
-            "position": Box(-self.mean * 2, +self.mean * 2, shape=(4,)),
+            "position": pos_radial,
+            "type": Box(-1, +1, shape=(2,)),
         })
         cross_space = goalpost_space = center_circle_space = Dict({
             "position": pos_radial,
@@ -297,7 +347,7 @@ class RoboCupEnvironment(EnvironmentBase):
             "position": pos_radial,
             "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
             "type": Box(-1, +1, shape=(2,)),
-            #"angle": Box(-1, +1, shape=(2,)),
+            "angle": Box(-1, +1, shape=(2,)),
         })
         robot_space = Dict({
             "position": pos_xy,
@@ -348,6 +398,7 @@ class RoboCupEnvironment(EnvironmentBase):
                     goalpost_space,
                     cross_space,
                     field_cross_space,
+                    line_space,
                     #cheat_space
                 ])
                 #line_space,
@@ -1116,7 +1167,7 @@ class RoboCupEnvironment(EnvironmentBase):
                      cross in self.penaltyCrosses]
         fieldCrossDets = [isSeenInArea(cross[0] - pos, vec1, vec2, self.maxVisDist[0], headAngle, self.penaltyRadius) + [cross[1], cross[2], cross[3]-headAngle] for
                      cross in self.lineCrosses]
-        lineDets = [isLineInArea(p1 - pos, p2 - pos, vec1, vec2, self.maxVisDist[1], headAngle) for p1, p2 in
+        lineDets = [isLineInArea(p1 - pos, p2 - pos, vec1, vec2, self.maxVisDist[1], headAngle) + [tx, ty] for p1, p2, tx, ty in
                     self.lines]
         circleDets = isSeenInArea(self.centerCircle[0] - pos, vec1, vec2, self.maxVisDist[1], headAngle,
                                   self.centerCircleRadius * 2, False)
@@ -1439,20 +1490,21 @@ class RoboCupEnvironment(EnvironmentBase):
                              goalDets]).astype('float32')
         crossDets = np.array([convertToPolar(cross, self.normX, self.sizeNorm, agent.team) for cross in
                               crossDets]).astype('float32')
-        fieldCrossDets = np.array([convertToPolar(cross, self.normX, self.sizeNorm, agent.team) for cross in
-                              fieldCrossDets]).astype('float32') #+ [math.cos(cross[5]), -math.sin(cross[5])]
+        fieldCrossDets = np.array([convertToPolar(cross, self.normX, self.sizeNorm, agent.team) + [math.cos(cross[5]), -math.sin(cross[5])] for cross in
+                              fieldCrossDets]).astype('float32')
         selfDets = np.array([[normalizeAfterScale(agent.getPos()[0], self.standardNormX, 0, agent.team),
                         normalizeAfterScale(agent.getPos()[1], self.standardNormY, 0, agent.team),
                         math.cos(agent.getAngle(agent.team) + agent.headAngle),
                         math.sin(agent.getAngle(agent.team) + agent.headAngle),],]).astype('float32')
-        lineDets = np.array([[normalize(line[1].x, self.normX), normalize(line[1].y, self.normY),
-                              normalize(line[2].x, self.normX), normalize(line[2].y, self.normY)] for line in
-                             lineDets]).astype('float32')
+        lineDets = np.array([normalizeLine(line, self.standardNormX) for line in lineDets]).astype('float32')
         circleDets = np.array([[normalize(circleDets[1].x, self.normX),
                                 normalize(circleDets[1].y, self.normY),
                                 normalizeAfterScale(circleDets[2], self.sizeNorm * 0.1,
                                                     self.centerCircleRadius * 2)]]).astype('float32') \
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
+        if not len(fieldCrossDets) and not len(lineDets) and not len(crossDets) and not len(goalDets):
+            print("fuck")
 
-        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets) #lineDets, circleDets
+
+        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets, lineDets) #, circleDets

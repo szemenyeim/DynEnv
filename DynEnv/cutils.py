@@ -327,6 +327,21 @@ def normalizeAfterScale(pt, normFactor, mean=None, team=None):
         team = 1
     return (pt - mean) * normFactor * team
 
+def normalizeLine(line, normFactor):
+    p1 = line[1]
+    p2 = line[2]
+    diff = p2-p1
+
+    dist = math.fabs(p2.x * p1.y - p2.y * p1.x) / (diff.length + 1e-7)
+
+    ang = math.atan2(diff.y, diff.x)
+
+    c = math.cos(ang)
+    s = math.sin(ang)
+
+    return [dist*normFactor, c, s] + line[3:]
+
+
 
 # Add noise to a line sighting
 def addNoiseLine(obj, noiseType, magn, rand, maxDist):
