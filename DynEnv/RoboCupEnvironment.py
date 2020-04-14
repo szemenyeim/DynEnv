@@ -1203,7 +1203,7 @@ class RoboCupEnvironment(EnvironmentBase):
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
             if ball[0] == SightingType.Misclassified:
-                crossDets.append([SightingType.Normal, ball[1], ball[2], 1, 1])
+                crossDets.append([SightingType.Normal, ball[1], ball[2], random.randint(-1,1), random.randint(-1,1)])
         for cross in crossDets:
             if cross[0] == SightingType.Misclassified:
                 ballDets.append([SightingType.Normal, cross[1], cross[2], 0])
@@ -1228,15 +1228,15 @@ class RoboCupEnvironment(EnvironmentBase):
                 elif c == 2:
                     goalDets.insert(len(goalDets),
                                     [SightingType.Normal, pos,
-                                     self.goalPostRadius * 2 * (1 - 0.4 * (random.random() - 0.5))])
+                                     self.goalPostRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1)])
                 elif c == 3:
                     crossDets.insert(len(crossDets),
                                      [SightingType.Normal, pos,
-                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), 1, 1])
+                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1)])
                 elif c == 4:
                     fieldCrossDets.insert(len(crossDets),
                                      [SightingType.Normal, pos,
-                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), 1, 1, 1])
+                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1), random.random()*math.pi*2])
 
         # FP Balls near robots
         if self.noiseType == NoiseType.REALISTIC:
