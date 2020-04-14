@@ -23,7 +23,7 @@ def train(epoch):
 
     bar = progressbar.ProgressBar(0, len(trLoader)*timesteps, redirect_stdout=False)
 
-    corr = [0,0]
+    corr = [0,0,0]
 
     for i, (ind, _) in enumerate(trLoader):
 
@@ -54,8 +54,9 @@ def train(epoch):
 
             with torch.no_grad():
                 diffs = (pos[:,0]-lT[:,0])**2 + (pos[:,1]-lT[:,1])**2
-                corr[0] += (diffs < 0.01).sum()
-                corr[1] += (diffs < 0.04).sum()
+                corr[0] += (diffs < 0.0025).sum()
+                corr[1] += (diffs < 0.01).sum()
+                corr[2] += (diffs < 0.04).sum()
 
             loss = loss_x + loss_y + loss_c + loss_s
 
@@ -73,7 +74,7 @@ def train(epoch):
 
     bar.finish()
 
-    print("[Train Epoch %d/%d][Losses: x %f, y %f, c %f, s %f, total %f][correct: %.2f, %.2f]"
+    print("[Train Epoch %d/%d][Losses: x %f, y %f, c %f, s %f, total %f][correct: %.2f, %.2f, %.2f]"
         % (
             epoch + 1,
             epochNum,
@@ -84,6 +85,7 @@ def train(epoch):
             losses[4] / float(len(trLoader)),
             corr[0] / float(len(trLoader)*batch_size*num_players*timesteps) * 100,
             corr[1] / float(len(trLoader)*batch_size*num_players*timesteps) * 100,
+            corr[2] / float(len(trLoader)*batch_size*num_players*timesteps) * 100,
           )
     )
 
@@ -94,7 +96,7 @@ def val(epoch):
 
     bar = progressbar.ProgressBar(0, len(teLoader)*timesteps, redirect_stdout=False)
 
-    corr = [0,0]
+    corr = [0,0,0]
 
     for i, (ind, _) in enumerate(teLoader):
 
@@ -122,8 +124,9 @@ def val(epoch):
 
             with torch.no_grad():
                 diffs = (pos[:, 0] - lT[:, 0]) ** 2 + (pos[:, 1] - lT[:, 1]) ** 2
-                corr[0] += (diffs < 0.01).sum()
-                corr[1] += (diffs < 0.04).sum()
+                corr[0] += (diffs < 0.0025).sum()
+                corr[1] += (diffs < 0.01).sum()
+                corr[2] += (diffs < 0.04).sum()
 
             loss = loss_x + loss_y + loss_c + loss_s
 
@@ -137,7 +140,7 @@ def val(epoch):
 
     bar.finish()
 
-    print("[Test Epoch %d/%d][Losses: x %f, y %f, c %f, s %f, total %f][correct: %.2f, %.2f]"
+    print("[Test Epoch %d/%d][Losses: x %f, y %f, c %f, s %f, total %f][correct: %.2f, %.2f, %.2f]"
           % (
               epoch + 1,
               epochNum,
@@ -148,6 +151,7 @@ def val(epoch):
               losses[4] / float(len(teLoader)),
               corr[0] / float(len(teLoader)*batch_size*num_players*timesteps) * 100,
               corr[1] / float(len(teLoader)*batch_size*num_players*timesteps) * 100,
+              corr[2] / float(len(teLoader)*batch_size*num_players*timesteps) * 100,
           )
     )
 
@@ -195,7 +199,7 @@ if __name__ == '__main__':
                                                    timesteps,
                                                    num_players, num_obj_types, num_time).cuda()
 
-    predictor = Predictor(feature_size+3, 4).cuda()
+    predictor = Predictor(feature_size+4, 4).cuda()
     '''nn.Sequential(
         nn.Linear(feature_size+4, 4),
         nn.Tanh()

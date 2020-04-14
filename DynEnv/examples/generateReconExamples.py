@@ -15,7 +15,7 @@ def generateActions(actionDefs,nPlayers,steps,interval = 3):
                     actions.append(np.random.randint(0,a_num, nPlayers))
             elif type(d) == Box:
                 for a_min, a_max in zip(d.low, d.high):
-                    actions.append((np.random.rand(nPlayers) * (a_max - a_min) + a_min)/2)
+                    actions.append((np.random.rand(nPlayers) * (a_max - a_min) + a_min)/8)
 
         actions = np.array(actions).T
         for j in range(interval):
@@ -26,7 +26,8 @@ if __name__ == '__main__':
 
     obsType = DynEnv.ObservationType.PARTIAL
 
-    env = DynEnv.RoboCupEnvironment(nPlayers=2, observationType=obsType, noiseType=DynEnv.NoiseType.REALISTIC, noiseMagnitude=0.0, allowHeadTurn=False)
+    env = DynEnv.RoboCupEnvironment(nPlayers=2, observationType=obsType, noiseType=DynEnv.NoiseType.REALISTIC, noiseMagnitude=0.0, allowHeadTurn=True, render=False)
+    env.agentVisID = 0
     env.randomInit = True
 
     inputs = []
