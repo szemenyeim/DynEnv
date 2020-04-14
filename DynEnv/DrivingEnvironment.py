@@ -284,7 +284,7 @@ class DrivingEnvironment(EnvironmentBase):
                     observations.append([self.getAgentVision(car) for car in self.agents])
 
             if self.renderVar:
-                self.render_internal()
+                self._render_internal()
 
         # Reward finishing
         self.carRewards += self.teamReward
@@ -905,7 +905,7 @@ class DrivingEnvironment(EnvironmentBase):
                 a = lane[2]
                 b = -lane[3]
                 rho = -lane[1] / Road.laneScaleFactor
-                print(lane[1], lane[4])
+                #print(lane[1], lane[4])
                 x0 = b * rho
                 y0 = a * rho
                 pt1 = (int(np.round(x0 - 5000 * a) + W), int(H - np.round(y0 + 5000 * b)))
