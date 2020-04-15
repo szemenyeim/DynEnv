@@ -302,14 +302,14 @@ def colorize(img):
     return cImg
 
 
-def convertToPolar(point, normFactor, sizeNorm, team = None):
+def convertToPolar(point, normFactor, sizeMean, sizeNorm, team = None):
     if team is None:
         team = 1
     dist = math.sqrt(point[1].x**2+point[1].y**2)
     angle = math.atan2(point[1].y*team, point[1].x*team)
     c = math.cos(angle)
     s = math.sin(angle)
-    return [((dist * normFactor) - 0.5) * 2, c, s, point[2] * sizeNorm, point[3] * team, point[4] * team]
+    return [((dist * normFactor) - 0.5) * 2, c, s, (point[2] - sizeMean) * sizeNorm, point[3] * team, point[4] * team]
 
 
 def normalize(pt, normFactor, mean=None, team=None):
@@ -409,7 +409,7 @@ def addNoiseLane(obj, noiseType, magn, rand, maxDist):
 
 
 # Add random noise to other sightings
-def addNoise(obj, noiseType, interaction, magn, rand, maxDist, misClass=False):
+def addNoise(obj, noiseType, interaction, magn, rand, maxDist, misClass=False, angleNoise = False):
     if interaction == InteractionType.Occlude:
         obj[0] = SightingType.NoSighting
         return obj
@@ -425,6 +425,9 @@ def addNoise(obj, noiseType, interaction, magn, rand, maxDist, misClass=False):
                 obj[0] = SightingType.NoSighting
             obj[1] += noiseVec
             obj[2] *= (1 - (random.random() - 0.5) * 0.2)
+            if angleNoise:
+                angNoise = (random.random() - 0.5) * magn / 10
+                obj[5] += angNoise
 
         # Realistic noise
         elif noiseType == NoiseType.REALISTIC:
@@ -454,6 +457,10 @@ def addNoise(obj, noiseType, interaction, magn, rand, maxDist, misClass=False):
             obj[0] = sightingType
             obj[1] = newPos
             obj[2] *= 1 + (random.random() * 0.1 * diff)
+
+            if angleNoise:
+                angNoise = (random.random() - 0.5) * magn * multiplier / 180
+                obj[5] += angNoise
 
 
 # Function to change sighting type of occluded objects
