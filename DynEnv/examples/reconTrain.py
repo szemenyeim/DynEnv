@@ -186,7 +186,7 @@ if __name__ == '__main__':
 
     reco_desc = env.recoDescriptor
 
-    batch_size = 8
+    batch_size = 16
     num_players = 4
     timesteps = 6
     epochNum = 30
