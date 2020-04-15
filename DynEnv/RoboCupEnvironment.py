@@ -16,6 +16,7 @@ from .environment_base import EnvironmentBase, RecoDescriptor, StateSpaceDescrip
 class RoboCupEnvironment(EnvironmentBase):
 
     randomInit = False
+    canFall = True
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
                  noiseMagnitude=2, obs_space_cast=False, allowHeadTurn=False):
@@ -27,6 +28,8 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Basic settings
         self.allowHeadTurn = allowHeadTurn
+
+        self.faultyFrame = False
 
         self._setup_normalization()
 
@@ -87,7 +90,7 @@ class RoboCupEnvironment(EnvironmentBase):
         self.ballRadius = 5
 
         # Unfortunately, this needs to be done here
-        self.sizeNorm = 2.0/self.penaltyRadius
+        self.sizeNorm = 10.0/self.penaltyRadius
 
         self._create_football_field()
         self._create_agents()
@@ -197,26 +200,26 @@ class RoboCupEnvironment(EnvironmentBase):
 
         self.lineCrosses = [
             # Four corners
-            (pymunk.Vec2d(self.sideLength, self.sideLength), 1, 1, 0*3*math.pi/4),
-            (pymunk.Vec2d(self.sideLength, self.H - self.sideLength), 1, -1, 0*-3*math.pi/4),
-            (pymunk.Vec2d(self.W - self.sideLength, self.sideLength), -1, 1, 0*math.pi/4),
-            (pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength), -1, -1, 0*-math.pi/4),
+            (pymunk.Vec2d(self.sideLength, self.sideLength), 1, 1, 0),
+            (pymunk.Vec2d(self.sideLength, self.H - self.sideLength), 1, -1, 0),
+            (pymunk.Vec2d(self.W - self.sideLength, self.sideLength), -1, 1, 0),
+            (pymunk.Vec2d(self.W - self.sideLength, self.H - self.sideLength), -1, -1, 0),
             # Middle line
-            (pymunk.Vec2d(self.W / 2, self.sideLength), 0, 1, 0*math.pi/2),
-            (pymunk.Vec2d(self.W / 2, self.H - self.sideLength), 0, -1, 0*-math.pi/2),
+            (pymunk.Vec2d(self.W / 2, self.sideLength), 0, 1, 0),
+            (pymunk.Vec2d(self.W / 2, self.H - self.sideLength), 0, -1, 0),
             # Middle Line and circle
-            (pymunk.Vec2d(self.W / 2, self.H / 2 - self.centerCircleRadius * 2), 0, 0.5, 0*math.pi/2),
-            (pymunk.Vec2d(self.W / 2, self.H / 2 + self.centerCircleRadius * 2), 0, -0.5, 0*-math.pi/2),
+            (pymunk.Vec2d(self.W / 2, self.H / 2 - self.centerCircleRadius * 2), 0, 0.5, 0),
+            (pymunk.Vec2d(self.W / 2, self.H / 2 + self.centerCircleRadius * 2), 0, -0.5, 0),
             # Penalty Box 1
-            (pymunk.Vec2d(self.sideLength, self.H / 2 - self.penaltyWidth), 1, 0.37, 0*-math.pi),
-            (pymunk.Vec2d(self.sideLength, self.H / 2 + self.penaltyWidth), 1, -0.37, 0*-math.pi),
-            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth), 0.87, 0.37, 0*math.pi/4),
-            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth), 0.87, -0.37, 0*-math.pi/4),
+            (pymunk.Vec2d(self.sideLength, self.H / 2 - self.penaltyWidth), 1, 0.37, 0),
+            (pymunk.Vec2d(self.sideLength, self.H / 2 + self.penaltyWidth), 1, -0.37, 0),
+            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 - self.penaltyWidth), 0.87, 0.37, 0),
+            (pymunk.Vec2d(self.sideLength + self.penaltyLength, self.H / 2 + self.penaltyWidth), 0.87, -0.37, 0),
             # Penalty Box 2
-            (pymunk.Vec2d(self.W - self.sideLength, self.H / 2 - self.penaltyWidth), -1, 0.37, 0*math.pi),
-            (pymunk.Vec2d(self.W - self.sideLength, self.H / 2 + self.penaltyWidth), -1, -0.37, 0*math.pi),
-            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), -0.87, 0.37, 0*3*math.pi/4),
-            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth), -0.87, -0.37, 0*-3*math.pi/4),
+            (pymunk.Vec2d(self.W - self.sideLength, self.H / 2 - self.penaltyWidth), -1, 0.37, 0),
+            (pymunk.Vec2d(self.W - self.sideLength, self.H / 2 + self.penaltyWidth), -1, -0.37, 0),
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 - self.penaltyWidth), -0.87, 0.37, 0),
+            (pymunk.Vec2d(self.W - self.sideLength - self.penaltyLength, self.H / 2 + self.penaltyWidth), -0.87, -0.37, 0),
         ]
 
     def _handle_collisions(self):
@@ -232,9 +235,9 @@ class RoboCupEnvironment(EnvironmentBase):
     def _create_robot_spots(self):
 
         if self.randomInit:
-            xLimits = [self.sideLength, self.sideLength + 50, self.sideLength + 250, self.sideLength + 450,
-                       self.sideLength + 650, self.sideLength + 850, self.sideLength + 900]
-            yLimits = [self.sideLength, self.sideLength + 300, self.sideLength + 600]
+            xLimits = [self.sideLength + 10, self.sideLength + 50, self.sideLength + 250, self.sideLength + 450,
+                       self.sideLength + 650, self.sideLength + 850, self.sideLength + 890]
+            yLimits = [self.sideLength + 20, self.sideLength + 300, self.sideLength + 580]
 
             robotSpots = []
 
@@ -418,6 +421,7 @@ class RoboCupEnvironment(EnvironmentBase):
         self.robotPosRewards = np.array([0.0, 0.0] * self.nPlayers)
         observations = []
         finished = False
+        self.faultyFrame = False
 
         # Run simulation for 500 ms (time for every action, except the kick)
         for i in range(self.stepIterCnt):
@@ -470,6 +474,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
         info = {'Full State': self.getFullState()}
         info['Recon States'] = [self.getFullState(robot) for robot in self.agents]
+        info['Faulty'] = self.faultyFrame
 
         t2 = time.clock()
         # print((t2-t1)*1000)
@@ -507,7 +512,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Moving has a small chance of falling
         if move > 0 and canMove:
-            r = random.random()
+            r = random.random() if self.canFall else 0
             if r > 0.999:
                 self.fall(robot, False)
                 return
@@ -515,7 +520,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Turning has a small chance of falling
         if turn > 0 and canMove:
-            r = random.random()
+            r = random.random() if self.canFall else 0
             if r > 0.999:
                 self.fall(robot, False)
                 return
@@ -527,7 +532,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Kick has a higher chance of falling. Also, kick cannot be performed together with any other motion
         if kick > 0 and move == 0 and turn == 0 and canMove:
-            r = random.random()
+            r = random.random() if self.canFall else 0
             if r > 0.99:
                 self.fall(robot, False)
                 return
@@ -883,7 +888,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
                 # Is might fall again
                 r = random.random()
-                if r > 0.9 and not robot.penalized:
+                if r > 0.9 and not robot.penalized and self.canFall:
                     self.fall(robot, False)
                     return
 
@@ -990,6 +995,9 @@ class RoboCupEnvironment(EnvironmentBase):
     # Called when robots are touching (before collision is computed)
     def robotCollision(self, arbiter, space, data):
 
+        if not self.canFall:
+            return
+
         # Get objects involved
         robot1 = next(robot for robot in self.agents if
                       (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
@@ -1046,6 +1054,9 @@ class RoboCupEnvironment(EnvironmentBase):
     # Called when robot collides with goalpost
     def goalpostCollision(self, arbiter, space, data):
 
+        if not self.canFall:
+            return
+
         # Get robot
         robot = next(robot for robot in self.agents if
                      (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
@@ -1077,7 +1088,7 @@ class RoboCupEnvironment(EnvironmentBase):
                      (robot.leftFoot == arbiter.shapes[0] or robot.rightFoot == arbiter.shapes[0]))
 
         if self.ballOwned != 0:
-            if robot.team != self.ballOwned and not robot.penalized:
+            if robot.team != self.ballOwned and not robot.penalized and self.canFall:
                 self.penalize(robot)
             else:
                 # print("Ball Free")
@@ -1195,7 +1206,7 @@ class RoboCupEnvironment(EnvironmentBase):
         [addNoise(cross, self.noiseType, max(robCrossInter[i], ballCrossInter[i]), self.noiseMagnitude, self.randBase,
                   self.maxVisDist[0], True) for i, cross in enumerate(crossDets)]
         [addNoise(cross, self.noiseType, robFCrossInter[i], self.noiseMagnitude, self.randBase,
-                  self.maxVisDist[0]) for i, cross in enumerate(fieldCrossDets)]
+                  self.maxVisDist[0], angleNoise = True) for i, cross in enumerate(fieldCrossDets)]
         addNoise(circleDets, self.noiseType, 0, self.noiseMagnitude, self.randBase, self.maxVisDist[1])
         [addNoiseLine(line, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i, line in
          enumerate(lineDets)]
@@ -1228,15 +1239,15 @@ class RoboCupEnvironment(EnvironmentBase):
                 elif c == 2:
                     goalDets.insert(len(goalDets),
                                     [SightingType.Normal, pos,
-                                     self.goalPostRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1)])
+                                     self.goalPostRadius * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1)])
                 elif c == 3:
                     crossDets.insert(len(crossDets),
                                      [SightingType.Normal, pos,
-                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1)])
+                                      self.penaltyRadius * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1)])
                 elif c == 4:
                     fieldCrossDets.insert(len(crossDets),
                                      [SightingType.Normal, pos,
-                                      self.penaltyRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1), random.random()*math.pi*2])
+                                      self.penaltyRadius * (1 - 0.4 * (random.random() - 0.5)), random.randint(-1,1), random.randint(-1,1), random.random()*math.pi*2])
 
         # FP Balls near robots
         if self.noiseType == NoiseType.REALISTIC:
@@ -1259,6 +1270,9 @@ class RoboCupEnvironment(EnvironmentBase):
         fieldCrossDets = [cross for i, cross in enumerate(fieldCrossDets) if
                      cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
         lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
+
+        if not len(fieldCrossDets) and not len(lineDets) and not len(crossDets) and not len(goalDets):
+            self.faultyFrame = True
 
         if self.observationType == ObservationType.IMAGE:
 
@@ -1486,11 +1500,11 @@ class RoboCupEnvironment(EnvironmentBase):
         robDets = np.array([[normalize(rob[1].x, self.normX), normalize(rob[1].y, self.normY),
                              normalizeAfterScale(rob[2], self.sizeNorm, Robot.totalRadius),
                              rob[3], rob[4], rob[5]] for rob in robDets]).astype('float32')
-        goalDets = np.array([convertToPolar(goal, self.normX, self.sizeNorm, agent.team) for goal in
+        goalDets = np.array([convertToPolar(goal, self.normX, self.goalPostRadius, self.sizeNorm, agent.team) for goal in
                              goalDets]).astype('float32')
-        crossDets = np.array([convertToPolar(cross, self.normX, self.sizeNorm, agent.team) for cross in
+        crossDets = np.array([convertToPolar(cross, self.normX, self.penaltyRadius, self.sizeNorm, agent.team) for cross in
                               crossDets]).astype('float32')
-        fieldCrossDets = np.array([convertToPolar(cross, self.normX, self.sizeNorm, agent.team) + [math.cos(cross[5]), -math.sin(cross[5])] for cross in
+        fieldCrossDets = np.array([convertToPolar(cross, self.normX, self.penaltyRadius, self.sizeNorm, agent.team) + [math.cos(cross[5]), -math.sin(cross[5])] for cross in
                               fieldCrossDets]).astype('float32')
         selfDets = np.array([[normalizeAfterScale(agent.getPos()[0], self.standardNormX, 0, agent.team),
                         normalizeAfterScale(agent.getPos()[1], self.standardNormY, 0, agent.team),
@@ -1502,9 +1516,6 @@ class RoboCupEnvironment(EnvironmentBase):
                                 normalizeAfterScale(circleDets[2], self.sizeNorm * 0.1,
                                                     self.centerCircleRadius * 2)]]).astype('float32') \
             if circleDets[0] != SightingType.NoSighting else np.array([])
-
-        if not len(fieldCrossDets) and not len(lineDets) and not len(crossDets) and not len(goalDets):
-            print("fuck")
 
 
         return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets, lineDets) #, circleDets
