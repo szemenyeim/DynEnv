@@ -27,10 +27,13 @@ if __name__ == '__main__':
 
     obsType = DynEnv.ObservationType.PARTIAL
 
+    localization = False
+
     set_random_seeds(42)
     env = DynEnv.RoboCupEnvironment(nPlayers=2, observationType=obsType, noiseType=DynEnv.NoiseType.REALISTIC, noiseMagnitude=1.0, allowHeadTurn=True, render=False)
     env.agentVisID = 0
     env.randomInit = True
+    env.deterministicTurn = not localization
     env.canFall = False
 
     inputs = []
@@ -39,13 +42,14 @@ if __name__ == '__main__':
     locOuts = []
     actInputs = []
 
-    trNum = int(2**8)
+    trNum = int(2**6)
     teNum = trNum // 4
-    steps = 2
+    steps = 2 if localization else 3
+    interval = 3
 
     for i in tqdm.tqdm(range(trNum)):
         numPlayers = 2
-        actions = generateActions(env.action_space, nPlayers=numPlayers*2, steps=steps)
+        actions = generateActions(env.action_space, nPlayers=numPlayers*2, steps=steps, interval=interval)
         env.nPlayers = numPlayers
 
         while True:
@@ -141,9 +145,10 @@ if __name__ == '__main__':
     print("%d training and %d test datapoints generated." % (trDataNum, teDataNum))
     print("Saving")
 
-    file = open("roboFullTrain.pickle","wb")
+    baseName = "roboLoc" if localization else "roboRec"
+    file = open(baseName + "Train.pickle","wb")
     pickle.dump(trainData,file)
 
-    file = open("roboFullTest.pickle","wb")
+    file = open(baseName + "Test.pickle","wb")
     pickle.dump(testData,file)
     print("Done")

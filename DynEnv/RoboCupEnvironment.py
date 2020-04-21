@@ -16,6 +16,7 @@ from .environment_base import EnvironmentBase, RecoDescriptor, StateSpaceDescrip
 class RoboCupEnvironment(EnvironmentBase):
 
     randomInit = False
+    deterministicTurn = False
     canFall = True
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
@@ -310,6 +311,10 @@ class RoboCupEnvironment(EnvironmentBase):
                           + [Robot(self.robotSpots[1][id], -1, self.nPlayers + i) for i, id in enumerate(spotIds2) if
                              i < self.nPlayers]
 
+        if self.deterministicTurn:
+            for rob in self.agents:
+                rob.headAngle = rob.team * rob.headMaxAngle
+
         for robot in self.agents:
             self.space.add(robot.leftFoot.body, robot.leftFoot, robot.rightFoot.body, robot.rightFoot, robot.joint,
                            robot.rotJoint)
@@ -489,6 +494,12 @@ class RoboCupEnvironment(EnvironmentBase):
 
     # Action handler
     def processAction(self, action, robot):
+
+        if self.deterministicTurn:
+            action[0] = 0
+            action[1] = 0
+            action[2] = 0
+            action[3] = -2 * robot.team
 
         # Get 4 action types
         if len(action) < 4:
