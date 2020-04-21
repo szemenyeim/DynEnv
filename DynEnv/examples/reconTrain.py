@@ -156,7 +156,7 @@ def val(epoch):
     )
 
 
-    return losses[4] / float(len(teLoader))
+    return sum(corr) / float(len(teLoader)*batch_size*num_players*timesteps*len(corr))
 
 class Predictor(nn.Module):
     def __init__(self, nFeatures, nOut):
@@ -211,10 +211,10 @@ if __name__ == '__main__':
     sceduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochNum, 1e-4)
     criterion = nn.MSELoss()
 
-    file = open('roboFullTrain.pickle', 'rb')
+    file = open('roboLocTrain.pickle', 'rb')
     trainData = pickle.load(file)
     trainData = np.array(trainData)
-    file = open('roboFullTest.pickle', 'rb')
+    file = open('roboLocTest.pickle', 'rb')
     testData = pickle.load(file)
     testData = np.array(testData)
 
@@ -237,5 +237,8 @@ if __name__ == '__main__':
 
         if avg > bestAvg:
             bestAvg = avg
+            print("Saving best model...")
+            torch.save(embedder.state_dict(),"models/embedder.pth")
+            torch.save(predictor.state_dict(),"models/predictor.pth")
 
     print("Best: ", bestAvg)
