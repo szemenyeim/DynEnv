@@ -5,7 +5,7 @@ import pymunkoptions
 pymunkoptions.options["debug"] = False
 from DynEnv import *
 from DynEnv.models.agent import ICMAgent
-from DynEnv.models import DynEnvFeatureExtractor
+from DynEnv.models import DynEnvFeatureExtractor, ReconNet
 from DynEnv.utils.utils import set_random_seeds, AttentionTarget, AttentionType, flatten
 import pickle
 import torch
@@ -17,7 +17,8 @@ import torch.nn as nn
 
 def train(epoch):
 
-    losses = np.zeros(9)
+    losses = np.zeros(5)
+    reconLosses = np.zeros(9)
 
     embedder.train()
 
@@ -34,8 +35,11 @@ def train(epoch):
         actions = trainData[4][ind].T
 
         embedder.reset()
+        objEmbedder.reset()
 
-        for j, (lI,lT,act) in enumerate(zip(locInputs,locTargets,actions)):
+        rec_optimizer.zero_grad()
+
+        for j, (lI,lT,act,I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
 
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
@@ -69,8 +73,25 @@ def train(epoch):
             losses[3] += loss_s.item()/len(locInputs)
             losses[4] += loss.item()/len(locInputs)
 
+            if not localization:
+                obj_features = objEmbedder(I, pos.detach())
+
             bar.update(i*timesteps + j)
 
+        if not localization:
+            recLosses = reconstructor(obj_features, targets[-1])
+            recLosses.loss.backward()
+            rec_optimizer.step()
+
+            reconLosses[0] += recLosses.x
+            reconLosses[1] += recLosses.y
+            reconLosses[2] += recLosses.confidence
+            reconLosses[3] += recLosses.binary
+            reconLosses[4] += recLosses.continuous
+            reconLosses[5] += recLosses.cls
+            reconLosses[6] += recLosses.loss.item()
+            reconLosses[7] += recLosses.recall
+            reconLosses[8] += recLosses.precision
 
     bar.finish()
 
@@ -89,8 +110,16 @@ def train(epoch):
           )
     )
 
+    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(trLoader)):.4f}, X: {reconLosses[0]/float(len(trLoader)):.4f},"
+          f" Y: {reconLosses[1]/float(len(trLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(trLoader)):.4f}," 
+          f" Bin: {reconLosses[3]/float(len(trLoader)):.4f}, Cont: {reconLosses[4]/float(len(trLoader)):.4f}, "
+          f"Cls: {reconLosses[5]/float(len(trLoader)):.4f} " f"  [Recall: {reconLosses[7]/float(len(trLoader)) * 100.0:.2f}, "
+          f"Precision: {reconLosses[8]/float(len(trLoader)) * 100.0:.2f}]")
+
 def val(epoch):
-    losses = np.zeros(9)
+
+    losses = np.zeros(5)
+    reconLosses = np.zeros(9)
 
     embedder.eval()
 
@@ -108,7 +137,7 @@ def val(epoch):
 
         embedder.reset()
 
-        for j, (lI, lT, act) in enumerate(zip(locInputs, locTargets, actions)):
+        for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
             features = torch.cat((embedder(lI), act), dim=1)
@@ -136,7 +165,23 @@ def val(epoch):
             losses[3] += loss_s.item() / len(locInputs)
             losses[4] += loss.item() / len(locInputs)
 
+            if not localization:
+                obj_features = objEmbedder(I, pos.detach())
+
             bar.update(i * timesteps + j)
+
+        if not localization:
+            recLosses = reconstructor(obj_features, targets[-1])
+
+            reconLosses[0] += recLosses.x
+            reconLosses[1] += recLosses.y
+            reconLosses[2] += recLosses.confidence
+            reconLosses[3] += recLosses.binary
+            reconLosses[4] += recLosses.continuous
+            reconLosses[5] += recLosses.cls
+            reconLosses[6] += recLosses.loss.item()
+            reconLosses[7] += recLosses.recall
+            reconLosses[8] += recLosses.precision
 
     bar.finish()
 
@@ -155,6 +200,11 @@ def val(epoch):
           )
     )
 
+    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(teLoader)):.4f}, X: {reconLosses[0]/float(len(teLoader)):.4f},"
+          f" Y: {reconLosses[1]/float(len(teLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(teLoader)):.4f}," 
+          f" Bin: {reconLosses[3]/float(len(teLoader)):.4f}, Cont: {reconLosses[4]/float(len(teLoader)):.4f}, "
+          f"Cls: {reconLosses[5]/float(len(teLoader)):.4f} " f"  [Recall: {reconLosses[7]/float(len(teLoader)) * 100.0:.2f}, "
+          f"Precision: {reconLosses[8]/float(len(teLoader)) * 100.0:.2f}]")
 
     return sum(corr) / float(len(teLoader)*batch_size*num_players*timesteps*len(corr))
 
@@ -173,6 +223,9 @@ if __name__ == '__main__':
     # seeds set (all but env)
     set_random_seeds(42)
 
+    localization = False
+    baseName = "roboLoc" if localization else "roboRec"
+
     # constants
     feature_size = 64
     attn_target = AttentionTarget.ICM_LOSS
@@ -183,12 +236,13 @@ if __name__ == '__main__':
     action_size = env.action_space
     obs_space = env.observation_space
     loc_obs_space = obs_space[1]
+    obj_obs_space = obs_space[0]
 
     reco_desc = env.recoDescriptor
 
-    batch_size = 16
+    batch_size = 16 if localization else 8
     num_players = 4
-    timesteps = 6
+    timesteps = 6 if localization else 9
     epochNum = 30
     num_time = 5
 
@@ -200,21 +254,37 @@ if __name__ == '__main__':
                                                    num_players, num_obj_types, num_time).cuda()
 
     predictor = Predictor(feature_size+4, 4).cuda()
-    '''nn.Sequential(
-        nn.Linear(feature_size+4, 4),
-        nn.Tanh()
-        ).cuda()'''
+
+    if not localization:
+        suffix = "Loc.pth"
+        embedder.load_state_dict(torch.load("models/embedder" + suffix))
+        predictor.load_state_dict(torch.load("models/predictor" + suffix))
+
+    features_per_object_type = [flatdim(s) for s in obj_obs_space.spaces]
+    num_obj_types = len(features_per_object_type)
+    objEmbedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
+                                                   timesteps,
+                                                   num_players, num_obj_types, num_time, extended_feature_cnt=4).cuda()
+    reconstructor = ReconNet(feature_size, reco_desc).cuda()
 
     params = list(embedder.parameters()) + list(predictor.parameters())
 
-    optimizer = torch.optim.Adam(params, lr=1e-3, weight_decay=0)
-    sceduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochNum, 1e-4)
+    loc_lr = 1e-3 if localization else 1e-4
+    rec_lr = 1e-3
+
+    optimizer = torch.optim.Adam(params, lr=loc_lr, weight_decay=0)
+    sceduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochNum, loc_lr/10)
     criterion = nn.MSELoss()
 
-    file = open('roboLocTrain.pickle', 'rb')
+    params = list(objEmbedder.parameters()) + list(reconstructor.parameters())
+
+    rec_optimizer = torch.optim.Adam(params, lr=rec_lr, weight_decay=0)
+    rec_sceduler = torch.optim.lr_scheduler.CosineAnnealingLR(rec_optimizer, epochNum, rec_lr/10)
+
+    file = open(baseName + 'Train.pickle', 'rb')
     trainData = pickle.load(file)
     trainData = np.array(trainData)
-    file = open('roboLocTest.pickle', 'rb')
+    file = open(baseName + 'Test.pickle', 'rb')
     testData = pickle.load(file)
     testData = np.array(testData)
 
@@ -235,10 +305,14 @@ if __name__ == '__main__':
         avg = val(epoch)
         sceduler.step()
 
+        if not localization:
+            rec_sceduler.step()
+
         if avg > bestAvg:
             bestAvg = avg
             print("Saving best model...")
-            torch.save(embedder.state_dict(),"models/embedder.pth")
-            torch.save(predictor.state_dict(),"models/predictor.pth")
+            suffix = "Loc.pth" if localization else "Rec.pth"
+            torch.save(embedder.state_dict(),"models/embedder" + suffix)
+            torch.save(predictor.state_dict(),"models/predictor" + suffix)
 
     print("Best: ", bestAvg)
