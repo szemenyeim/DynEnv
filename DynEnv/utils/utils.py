@@ -373,11 +373,13 @@ def get_anchor_distances(x, y, preds):
 
 
 def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
-                  grid_size_x, ignore_thres, predInfo: PredictionDescriptor, classInd):
+                  grid_size_x, ignore_threses, predInfo: PredictionDescriptor, classInd):
     nB = len(targets)
     nA = num_anchors
     nGx = grid_size_x
     nGy = grid_size_y
+
+    ignore_thres = ignore_threses[1]
 
     # Masks: mask is one for the best bounding box
     # Conf mask is one for BBs, where the confidence is enforced to match target
@@ -391,10 +393,10 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
     tbin = torch.zeros(nB, nA, nGy, nGx, predInfo.numBinary)
     tconf = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
     tcls = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
-    corr = torch.ByteTensor(nB, nA, nGy, nGx).fill_(0)
+    corr = [torch.ByteTensor(nB, nA, nGy, nGx).fill_(0) for i in range(len(ignore_threses))]
 
     nGT = 0
-    nCorrect = 0
+    nCorrect = [0,]*len(ignore_threses)
     for b, target in enumerate(targets):
         target = target[classInd]
 
@@ -406,8 +408,8 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
             nGT += 1
 
             # Convert to position relative to box
-            gx = min(0.9999, max(0, target[t, predInfo.posIdx[0]])) * nGx
-            gy = min(0.9999, max(0, target[t, predInfo.posIdx[1]])) * nGy
+            gx = 0#min(0.9999, max(0, target[t, predInfo.posIdx[0]])) * nGx
+            gy = 0#min(0.9999, max(0, target[t, predInfo.posIdx[1]])) * nGy
 
             # Get grid box indices
             gi = int(gx)
@@ -428,8 +430,9 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
             # Where the overlap is larger than threshold set conf_mask to zero (ignore)
             conf_mask[b, anch_dists < ignore_thres, gj, gi] = 0
             # Mask these correct in precision if their confidence is large
-            ignored_confs = pred_conf[b, anch_dists < ignore_thres, gj, gi]
-            corr[b, anch_dists < ignore_thres, gj, gi] = (ignored_confs > 0.5).byte()
+            for i, thresh in enumerate(ignore_threses):
+                ignored_confs = pred_conf[b, anch_dists < thresh, gj, gi]
+                corr[i][b, anch_dists < thresh, gj, gi] = (ignored_confs > 0.5).byte()
 
             # Find the best matching anchor box
             best_n = np.argmin(anch_dists)
@@ -460,8 +463,9 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
 
             # Calculate iou between ground truth and best matching prediction
             score = pred_conf[b, best_n, gj, gi]
-            if anch_dists[best_n] < ignore_thres and score > 0.5:
-                nCorrect += 1
-                corr[b, best_n, gj, gi] = 1
+            for i, thresh in enumerate(ignore_threses):
+                if anch_dists[best_n] < thresh and score > 0.5:
+                    nCorrect[i] += 1
+                    corr[i][b, best_n, gj, gi] = 1
 
     return nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls, corr

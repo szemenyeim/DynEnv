@@ -390,6 +390,12 @@ class LSTMLayer(nn.Module):
         # Init LSTM cell
         self.cell = nn.LSTMCell(feature_size, hidden_size)
 
+        # Transformer
+        self.transformer = nn.Sequential(
+            nn.Linear(4, self.feature_size),
+            nn.Tanh()
+        )
+
         # first call buffer generator, as reset needs the self.h buffer
         self._generate_buffers(next(self.parameters()).device, nSteps)
         self.reset()
@@ -411,6 +417,19 @@ class LSTMLayer(nn.Module):
         nSteps = 1
         with torch.no_grad():
             self._generate_buffers(device, nSteps)
+
+    def detach(self):
+        self.h = self.h.detach()
+        self.c = self.c.detach()
+
+    def set_state(self, state):
+        device = next(self.parameters()).device
+        x = state.to(device)
+        self.c = self.transformer(x)
+        self.f = self.c
+        '''with torch.no_grad():
+            self.c = state.to(device)
+            self.h = state.to(device)'''
 
     def _generate_buffers(self, device, nSteps):
         self.h = torch.zeros((self.nPlayers * self.nEnvs, self.hidden_size)).to(device)
@@ -445,10 +464,11 @@ class DynEnvFeatureExtractor(nn.Module):
 
         # feature transform
         self.TransformNet = nn.Sequential(
-            nn.Linear(feature_size + extended_feature_cnt, feature_size * 2),
+            nn.Linear(feature_size + extended_feature_cnt, feature_size),
             nn.LeakyReLU(0.1),
-            nn.Linear(feature_size * 2, feature_size),
-            nn.LeakyReLU(0.1),
+            nn.LayerNorm(feature_size),
+            #nn.Linear(feature_size, feature_size),
+            #nn.LeakyReLU(0.1),
         )
 
         self.hidden_size = feature_size
@@ -458,6 +478,9 @@ class DynEnvFeatureExtractor(nn.Module):
     # Reset fun for lstm
     def reset(self, reset_indices=None):
         self.LSTM.reset(reset_indices)
+
+    def detach(self):
+        self.LSTM.detach()
 
     def forward(self, x, position = None):
         # Get embedded features
@@ -852,6 +875,7 @@ class ReconLosses(LossLogger):
     continuous: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     cls: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     num_classes: int = None
+    num_thresh: int = None
 
     def __post_init__(self):
         if self.num_classes is None:
@@ -860,8 +884,8 @@ class ReconLosses(LossLogger):
             self.precision = torch.tensor(0.0)
             self.recall = torch.tensor(0.0)
         else:
-            self.precision = torch.zeros(self.num_classes)
-            self.recall = torch.zeros(self.num_classes)
+            self.precision = torch.zeros((self.num_classes, self.num_thresh))
+            self.recall = torch.zeros((self.num_classes, self.num_thresh))
 
     def cuda(self):
         for key in self.__dict__.keys():
@@ -884,13 +908,14 @@ class ReconLosses(LossLogger):
         # detach items
         for key in self.__dict__.keys():
             if key in ["recall", "precision"]:
-                self.__dict__[key] = self.__dict__[key].mean().item()
-            elif key not in ["loss", "num_classes"]:
+                self.__dict__[key] = self.__dict__[key].mean(dim=0).detach()
+            elif key not in ["loss", "num_classes", "num_thresh"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
-    def update_stats(self, precision: float, recall: float, idx: int):
-        self.precision[idx] = precision
-        self.recall[idx] = recall
+    def update_stats(self, nCorrect: list, nCorrectPrec: list, nPred: int, nTotal: int, idx: int):
+        for i in range(self.num_thresh):
+            self.precision[idx,i] = float(nCorrectPrec[i] / nPred) if nPred else 1
+            self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
 
     def __repr__(self):
         return f"Recon Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, Conf: {self.confidence:.2f}," \
@@ -905,7 +930,7 @@ class ReconNet(nn.Module):
 
         self.reco_desc = reco_desc
         self.inplanes = inplanes
-        self.ignore_thres = 0.25
+        self.ignore_threses = [0.0025, 0.01, 0.04]
 
         self.numChannels = 0
         self._create_class_defs()
@@ -965,15 +990,15 @@ class ReconNet(nn.Module):
         ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
 
         # Initialize losses
-        reco_losses = ReconLosses(num_classes=len(self.classDefs))
+        reco_losses = ReconLosses(num_classes=len(self.classDefs), num_thresh=len(self.ignore_threses))
         if x.is_cuda:
             reco_losses.cuda()
 
         preds = self.nn(x)
 
-        preds[:, self.MSEIndices] = torch.tanh(preds[:, self.MSEIndices])
+        #preds[:, self.MSEIndices] = torch.tanh(preds[:, self.MSEIndices])
         preds[:, self.BCEIndices] = torch.sigmoid(preds[:, self.BCEIndices])
-        preds[:, self.PosIndices] = torch.sigmoid(preds[:, self.PosIndices])
+        #preds[:, self.PosIndices] = torch.sigmoid(preds[:, self.PosIndices])
         '''with torch.no_grad():
             preds[:, self.PosIndices] = torch.clamp(preds[:, self.PosIndices], min=-3, max=3)
         preds[:,self.PosIndices] = (preds[:,self.PosIndices] + 3) / 6'''
@@ -1019,15 +1044,14 @@ class ReconNet(nn.Module):
                     num_anchors=nA,
                     grid_size_y=nGy,
                     grid_size_x=nGx,
-                    ignore_thres=self.ignore_thres,
+                    ignore_threses=self.ignore_threses,
                     predInfo=predInfo,
                     classInd=classInd
                 )
 
                 nProposals = int((pred_conf > 0.5).sum().item())
-                nCorrPrec = int((corr).sum().item())
-                reco_losses.update_stats(precision=float(nCorrPrec / nProposals) if nProposals else 1,
-                                         recall=float(nCorrect / nGT) if nGT else 1,
+                nCorrPrec = [int((c).sum().item()) for c in corr]
+                reco_losses.update_stats(nCorrect=nCorrect, nCorrectPrec=nCorrPrec, nPred=nProposals, nTotal=nGT,
                                          idx=classInd)
 
                 # Handle masks
@@ -1055,7 +1079,7 @@ class ReconNet(nn.Module):
                                            tconf[conf_mask_false]) if conf_mask_false.any() else torch.tensor(0).type(FloatTensor)
                 loss_conf2 = self.bce_loss(pred_conf[conf_mask_true],
                                            tconf[conf_mask_true]) if conf_mask_true.any() else torch.tensor(0).type(FloatTensor)
-                loss_conf = 4 * loss_conf1 + loss_conf2
+                loss_conf = 1 * loss_conf1 + loss_conf2
                 loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0).type(FloatTensor)
                 '''print("Ball: [%.2f, %.2f] Self: [%.2f, %.2f] Robot: [%.2f, %.2f] " % (recall[0].item()*100, precision[0].item()*100,
                                                                               recall[1].item()*100, precision[1].item()*100,
