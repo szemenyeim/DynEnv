@@ -18,7 +18,7 @@ import torch.nn as nn
 def train(epoch):
 
     losses = np.zeros(5)
-    reconLosses = np.zeros(9)
+    reconLosses = np.zeros(13)
 
     embedder.train()
 
@@ -33,8 +33,14 @@ def train(epoch):
         locTargets = trainData[2][ind].T
         targets = trainData[3][ind].T
         actions = trainData[4][ind].T
+        locInits = torch.tensor(trainInitLocs[ind])
+        locInits += (torch.randn(locInits.shape))/50.0
+        locInits = locInits.view(-1, locInits.shape[-1])
+        #locs = torch.zeros(locInits.shape[0], feature_size)
+        #locs[:,:locInits.shape[1]] = locInits
 
         embedder.reset()
+        embedder.LSTM.set_state(locInits)
         objEmbedder.reset()
 
         rec_optimizer.zero_grad()
@@ -45,7 +51,7 @@ def train(epoch):
 
             optimizer.zero_grad()
 
-            features = torch.cat((embedder(lI),act), dim=1)
+            features = embedder(lI,act)
 
             pos = predictor(features)
 
@@ -64,8 +70,10 @@ def train(epoch):
 
             loss = loss_x + loss_y + loss_c + loss_s
 
-            loss.backward(retain_graph=True)
-            optimizer.step()
+            if localization or epoch < 5:
+                loss.backward(retain_graph=True)
+                optimizer.step()
+            embedder.detach()
 
             losses[0] += loss_x.item()/len(locInputs)
             losses[1] += loss_y.item()/len(locInputs)
@@ -90,8 +98,12 @@ def train(epoch):
             reconLosses[4] += recLosses.continuous
             reconLosses[5] += recLosses.cls
             reconLosses[6] += recLosses.loss.item()
-            reconLosses[7] += recLosses.recall
-            reconLosses[8] += recLosses.precision
+            reconLosses[7] += recLosses.recall[0].item()
+            reconLosses[8] += recLosses.recall[1].item()
+            reconLosses[9] += recLosses.recall[2].item()
+            reconLosses[10] += recLosses.precision[0].item()
+            reconLosses[11] += recLosses.precision[1].item()
+            reconLosses[12] += recLosses.precision[2].item()
 
     bar.finish()
 
@@ -110,16 +122,22 @@ def train(epoch):
           )
     )
 
-    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(trLoader)):.4f}, X: {reconLosses[0]/float(len(trLoader)):.4f},"
-          f" Y: {reconLosses[1]/float(len(trLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(trLoader)):.4f}," 
-          f" Bin: {reconLosses[3]/float(len(trLoader)):.4f}, Cont: {reconLosses[4]/float(len(trLoader)):.4f}, "
-          f"Cls: {reconLosses[5]/float(len(trLoader)):.4f} " f"  [Recall: {reconLosses[7]/float(len(trLoader)) * 100.0:.2f}, "
-          f"Precision: {reconLosses[8]/float(len(trLoader)) * 100.0:.2f}]")
+    if not localization:
+        print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(trLoader)):.4f}, X: {reconLosses[0]/float(len(trLoader)):.4f},"
+              f" Y: {reconLosses[1]/float(len(trLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(trLoader)):.4f}," 
+              f" Bin: {reconLosses[3]/float(len(trLoader)):.4f}, Cont: {reconLosses[4]/float(len(trLoader)):.4f}, "
+              f"Cls: {reconLosses[5]/float(len(trLoader)):.4f} "
+              f"[Recall: ({reconLosses[7]/float(len(trLoader)) * 100.0:.2f}, "
+              f"{reconLosses[8]/float(len(trLoader)) * 100.0:.2f}, "
+              f"{reconLosses[9]/float(len(trLoader)) * 100.0:.2f}), "
+              f"Precision: ({reconLosses[10]/float(len(trLoader)) * 100.0:.2f}, "
+              f"{reconLosses[11]/float(len(trLoader)) * 100.0:.2f}, "
+              f"{reconLosses[12]/float(len(trLoader)) * 100.0:.2f}]")
 
 def val(epoch):
 
     losses = np.zeros(5)
-    reconLosses = np.zeros(9)
+    reconLosses = np.zeros(13)
 
     embedder.eval()
 
@@ -134,13 +152,21 @@ def val(epoch):
         locTargets = trainData[2][ind].T
         targets = trainData[3][ind].T
         actions = trainData[4][ind].T
+        locInits = torch.tensor(trainInitLocs[ind])
+        locInits += (torch.randn(locInits.shape))/50.0
+        locInits = locInits.view(-1, locInits.shape[-1])
+        #locs = torch.zeros(locInits.shape[0], feature_size)
+        #locs[:,:locInits.shape[1]] = locInits
+
 
         embedder.reset()
+        embedder.LSTM.set_state(locInits)
+        objEmbedder.reset()
 
         for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
-            features = torch.cat((embedder(lI), act), dim=1)
+            features = embedder(lI, act)
 
             pos = predictor(features)
 
@@ -180,8 +206,12 @@ def val(epoch):
             reconLosses[4] += recLosses.continuous
             reconLosses[5] += recLosses.cls
             reconLosses[6] += recLosses.loss.item()
-            reconLosses[7] += recLosses.recall
-            reconLosses[8] += recLosses.precision
+            reconLosses[7] += recLosses.recall[0].item()
+            reconLosses[8] += recLosses.recall[1].item()
+            reconLosses[9] += recLosses.recall[2].item()
+            reconLosses[10] += recLosses.precision[0].item()
+            reconLosses[11] += recLosses.precision[1].item()
+            reconLosses[12] += recLosses.precision[2].item()
 
     bar.finish()
 
@@ -200,13 +230,23 @@ def val(epoch):
           )
     )
 
-    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(teLoader)):.4f}, X: {reconLosses[0]/float(len(teLoader)):.4f},"
-          f" Y: {reconLosses[1]/float(len(teLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(teLoader)):.4f}," 
-          f" Bin: {reconLosses[3]/float(len(teLoader)):.4f}, Cont: {reconLosses[4]/float(len(teLoader)):.4f}, "
-          f"Cls: {reconLosses[5]/float(len(teLoader)):.4f} " f"  [Recall: {reconLosses[7]/float(len(teLoader)) * 100.0:.2f}, "
-          f"Precision: {reconLosses[8]/float(len(teLoader)) * 100.0:.2f}]")
+    avg = sum(corr) / float(len(teLoader)*batch_size*num_players*timesteps*len(corr))
 
-    return sum(corr) / float(len(teLoader)*batch_size*num_players*timesteps*len(corr))
+    if not localization:
+        print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(teLoader)):.4f}, X: {reconLosses[0]/float(len(teLoader)):.4f},"
+              f" Y: {reconLosses[1]/float(len(teLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(teLoader)):.4f}," 
+              f" Bin: {reconLosses[3]/float(len(teLoader)):.4f}, Cont: {reconLosses[4]/float(len(teLoader)):.4f}, "
+              f"Cls: {reconLosses[5]/float(len(teLoader)):.4f} "
+              f"[Recall: ({reconLosses[7]/float(len(teLoader)) * 100.0:.2f}, "
+              f"{reconLosses[8]/float(len(teLoader)) * 100.0:.2f}, "
+              f"{reconLosses[9]/float(len(teLoader)) * 100.0:.2f}), "
+              f"Precision: ({reconLosses[10]/float(len(teLoader)) * 100.0:.2f}, "
+              f"{reconLosses[11]/float(len(teLoader)) * 100.0:.2f}, "
+              f"{reconLosses[12]/float(len(teLoader)) * 100.0:.2f}]")
+
+        avg = sum(reconLosses[7:]) / (6*float(len(teLoader))) * 100
+
+    return avg
 
 class Predictor(nn.Module):
     def __init__(self, nFeatures, nOut):
@@ -215,7 +255,7 @@ class Predictor(nn.Module):
 
     def forward(self, x):
         x = self.Lin(x)
-        x[:,0:2] / torch.tanh(x[:,0:2])
+        #x[:,0:2] = torch.tanh(x[:,0:2])
         return x
 
 if __name__ == '__main__':
@@ -240,9 +280,9 @@ if __name__ == '__main__':
 
     reco_desc = env.recoDescriptor
 
-    batch_size = 16 if localization else 8
+    batch_size = 32 if localization else 8
     num_players = 4
-    timesteps = 6 if localization else 9
+    timesteps = 6 #if localization else 9
     epochNum = 30
     num_time = 5
 
@@ -251,9 +291,9 @@ if __name__ == '__main__':
 
     embedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
                                                    timesteps,
-                                                   num_players, num_obj_types, num_time).cuda()
+                                                   num_players, num_obj_types, num_time, extended_feature_cnt=4).cuda()
 
-    predictor = Predictor(feature_size+4, 4).cuda()
+    predictor = Predictor(feature_size, 4).cuda()
 
     if not localization:
         suffix = "Loc.pth"
@@ -269,7 +309,7 @@ if __name__ == '__main__':
 
     params = list(embedder.parameters()) + list(predictor.parameters())
 
-    loc_lr = 1e-3 if localization else 1e-4
+    loc_lr = 1e-3 if localization else 1e-5
     rec_lr = 1e-3
 
     optimizer = torch.optim.Adam(params, lr=loc_lr, weight_decay=0)
@@ -283,10 +323,12 @@ if __name__ == '__main__':
 
     file = open(baseName + 'Train.pickle', 'rb')
     trainData = pickle.load(file)
-    trainData = np.array(trainData)
+    trainInitLocs = np.array(trainData[-1])
+    trainData = np.array(trainData[:-1])
     file = open(baseName + 'Test.pickle', 'rb')
     testData = pickle.load(file)
-    testData = np.array(testData)
+    testInitLocs = np.array(testData[-1])
+    testData = np.array(testData[:-1])
 
     trTens = torch.arange(len(trainData[0]))
     teTens = torch.arange(len(testData[0]))
@@ -310,9 +352,13 @@ if __name__ == '__main__':
 
         if avg > bestAvg:
             bestAvg = avg
-            print("Saving best model...")
+            print("Saving best model: %.2f" % avg)
             suffix = "Loc.pth" if localization else "Rec.pth"
             torch.save(embedder.state_dict(),"models/embedder" + suffix)
             torch.save(predictor.state_dict(),"models/predictor" + suffix)
+            if not localization:
+                torch.save(objEmbedder.state_dict(),"models/objEmbedder" + suffix)
+                torch.save(reconstructor.state_dict(),"models/reconstructor" + suffix)
+
 
     print("Best: ", bestAvg)

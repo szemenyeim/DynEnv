@@ -16,7 +16,7 @@ def generateActions(actionDefs,nPlayers,steps,interval = 3):
                     actions.append(np.random.randint(0,a_num, nPlayers))
             elif type(d) == Box:
                 for a_min, a_max in zip(d.low, d.high):
-                    actions.append((np.random.rand(nPlayers) * (a_max - a_min) + a_min)/6)
+                    actions.append((np.random.rand(nPlayers) * (a_max - a_min) + a_min)/3)
 
         actions = np.array(actions).T
         for j in range(interval):
@@ -41,10 +41,11 @@ if __name__ == '__main__':
     outputs = []
     locOuts = []
     actInputs = []
+    locInits = []
 
-    trNum = int(2**6)
+    trNum = int(2**10) if localization else int(2**6)
     teNum = trNum // 4
-    steps = 2 if localization else 3
+    steps = 2 #if localization else 3
     interval = 3
 
     for i in tqdm.tqdm(range(trNum)):
@@ -62,6 +63,8 @@ if __name__ == '__main__':
             locI = []
             act = []
 
+            initLoc = [env.getFullState(robot)[1][:, [0,1,4,5]] for robot in env.agents]
+
             for action in actions:
                 observations, _, _, info = env.step(action)
                 state = info['Recon States']
@@ -71,7 +74,7 @@ if __name__ == '__main__':
                 inp.append([[o[0] for o in obs] for obs in observations])
                 locI.append([[o[1] for o in obs] for obs in observations])
                 locO.append([s[1][:, [0,1,4,5]] for s in state])
-                outp.append(state)
+                outp.append([s[0::2] for s in state])
 
             if not faulty:
                 break
@@ -94,15 +97,17 @@ if __name__ == '__main__':
         locOuts.append(locO)
         locInputs.append(locI)
         actInputs.append(actions)
+        locInits.append(initLoc)
 
     trDataNum = len(inputs)
-    trainData = [locInputs, inputs, locOuts, outputs, actInputs]
+    trainData = [locInputs, inputs, locOuts, outputs, actInputs, locInits]
 
     inputs = []
     locInputs = []
     outputs = []
     locOuts = []
     actInputs = []
+    locInits = []
 
     for i in tqdm.tqdm(range(teNum)):
         numPlayers = 2
@@ -117,6 +122,7 @@ if __name__ == '__main__':
             outp = []
             locO = []
             locI = []
+            initLoc = [env.getFullState(robot)[1][:, [0,1,4,5]] for robot in env.agents]
 
             for action in actions:
                 observations, _, _, info = env.step(action)
@@ -127,7 +133,7 @@ if __name__ == '__main__':
                 inp.append([[o[0] for o in obs] for obs in observations])
                 locI.append([[o[1] for o in obs] for obs in observations])
                 locO.append([s[1][:, [0,1,4,5]] for s in state])
-                outp.append(state)
+                outp.append([s[0::2] for s in state])
 
             if not faulty:
                 break
@@ -138,9 +144,10 @@ if __name__ == '__main__':
         locOuts.append(locO)
         locInputs.append(locI)
         actInputs.append(actions)
+        locInits.append(initLoc)
 
     teDataNum = len(inputs)
-    testData = [locInputs, inputs, locOuts, outputs, actInputs]
+    testData = [locInputs, inputs, locOuts, outputs, actInputs, locInits]
 
     print("%d training and %d test datapoints generated." % (trDataNum, teDataNum))
     print("Saving")
