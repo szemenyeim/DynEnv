@@ -68,8 +68,10 @@ class RoboCupEnvironment(EnvironmentBase):
         self.mean = 2.0 if ObservationType.PARTIAL else 1.0
         self.normX = self.mean * 2 / self.W
         self.normY = self.mean * 2 / self.H
-        self.standardNormX = 1.0 / (self.W + 100)
-        self.standardNormY = 1.0 / (self.H + 100)
+        self.standardNormX = 2.0 / (self.W)
+        self.standardNormY = 2.0 / (self.H)
+        self.meanX = self.W / 2
+        self.meanY = self.H / 2
 
     def _setup_scene(self):
         self.fieldW = 900
@@ -100,13 +102,14 @@ class RoboCupEnvironment(EnvironmentBase):
         self._create_penalty_spots()
 
     def _setup_reconstruction_info(self):
-        position_xy = Box(-self.mean * 2, +self.mean * 2, shape=(2,))
+        position_xy = Box(-2, +2, shape=(2,))
         confidence = MultiBinary(1)
 
         # Ball
         ball_state = StateSpaceDescriptor(1, Dict({"position": position_xy,
                                                    "team": Box(-1, 1, shape=(1,)),
                                                    "confidence": confidence, }))
+        #ball_pred = PredictionDescriptor(numContinuous=0, contIdx=[ ])
         ball_pred = PredictionDescriptor(numContinuous=1, contIdx=[2, ])
 
         # Self
@@ -117,17 +120,19 @@ class RoboCupEnvironment(EnvironmentBase):
         self_pred = PredictionDescriptor(numContinuous=4, numBinary=1, contIdx=[2, 3, 4, 5], binaryIdx=[7, ])
 
         # Robot
-        robot_state = StateSpaceDescriptor(4, Dict({"position": position_xy,
+        robot_state = StateSpaceDescriptor(3, Dict({"position": position_xy,
                                                     "orientation": Box(-1.0, +1.0, shape=(2,)),
                                                     "team": Box(-1, 1, shape=(1,)),
                                                     "active": MultiBinary(1),
                                                     "confidence": confidence, }))
 
-        robot_pred = PredictionDescriptor(numContinuous=3, numBinary=1, contIdx=[2, 3, 4], binaryIdx=[5, ])
+        #robot_pred = PredictionDescriptor(numContinuous=2, numBinary=1, contIdx=[2, 3], binaryIdx=[4, ])
+        robot_pred = PredictionDescriptor(numContinuous=3, numBinary=1,contIdx=[2, 3, 4], binaryIdx=[5, ])
 
-        self.recoDescriptor = RecoDescriptor(featureGridSize=(7, 10),
-                                             fullStateSpace=[ball_state, self_state, robot_state],
-                                             targetDefs=[ball_pred, self_pred, robot_pred])
+
+        self.recoDescriptor = RecoDescriptor(featureGridSize=(1, 1),
+                                             fullStateSpace=[ball_state, robot_state],
+                                             targetDefs=[ball_pred, robot_pred])
 
     def _init_rewards(self):
         self.episodeRewards = 0
@@ -323,6 +328,9 @@ class RoboCupEnvironment(EnvironmentBase):
         if self.randomInit:
             x = random.random()*self.fieldW + self.sideLength
             y = random.random()*self.fieldH + self.sideLength
+            self.ballOwned = int(random.random() > 0.4)
+            if self.ballOwned != 0 and random.random() > 0.5:
+                self.ballOwned *= -1
         else:
             x = self.W // 2
             y = self.H // 2
@@ -345,6 +353,8 @@ class RoboCupEnvironment(EnvironmentBase):
         line_space = Dict({
             "position": pos_radial,
             "type": Box(-1, +1, shape=(2,)),
+            #"end1": pos_xy,
+            #"end2": pos_xy,
         })
         cross_space = goalpost_space = center_circle_space = Dict({
             "position": pos_radial,
@@ -359,6 +369,7 @@ class RoboCupEnvironment(EnvironmentBase):
         })
         robot_space = Dict({
             "position": pos_xy,
+            "radius": Box(-self.mean * 2, +self.mean * 2, shape=(1,)),
             "orientation": Box(-1, 1, shape=(2,)),
             "team": team,
             "penalized or penalized": MultiBinary(1)
@@ -499,7 +510,7 @@ class RoboCupEnvironment(EnvironmentBase):
             action[0] = 0
             action[1] = 0
             action[2] = 0
-            action[3] = -2 * robot.team
+            action[3] = -3 * robot.team
 
         # Get 4 action types
         if len(action) < 4:
@@ -1135,22 +1146,22 @@ class RoboCupEnvironment(EnvironmentBase):
 
             state = [
                 np.array([
-                    [normalizeAfterScale(self.ball.getPos()[0], self.standardNormX, 0, team),
-                     normalizeAfterScale(self.ball.getPos()[1], self.standardNormY, 0, team),
+                    [normalizeAfterScale(self.ball.getPos()[0], self.standardNormX, self.meanX, team),
+                     normalizeAfterScale(self.ball.getPos()[1], self.standardNormY, self.meanY, team),
                      self.ballOwned * agent.team,
                      agent.id in self.closestID], ]).astype('float32'),
 
                 np.array([[
-                    normalizeAfterScale(agent.getPos()[0], self.standardNormX, 0, team),
-                    normalizeAfterScale(agent.getPos()[1], self.standardNormY, 0, team),
+                    normalizeAfterScale(agent.getPos()[0], self.standardNormX, self.meanX, team),
+                    normalizeAfterScale(agent.getPos()[1], self.standardNormY, self.meanY, team),
                     math.cos(agent.getAngle(team)), math.sin(agent.getAngle(team)),
                     math.cos(agent.getAngle(team) + agent.headAngle), math.sin(agent.getAngle(team) + agent.headAngle),
                     agent.team,
                     int(agent.fallen or agent.penalized)], ]).astype('float32'),
 
                 np.array([
-                    [normalizeAfterScale(rob.getPos()[0], self.standardNormX, 0, team),
-                     normalizeAfterScale(rob.getPos()[1], self.standardNormY, 0, team),
+                    [normalizeAfterScale(rob.getPos()[0], self.standardNormX, self.meanX, team),
+                     normalizeAfterScale(rob.getPos()[1], self.standardNormY, self.meanY, team),
                      math.cos(rob.getAngle(team)), math.sin(rob.getAngle(team)),
                      rob.team * agent.team,
                      int(rob.fallen or rob.penalized)]
@@ -1230,6 +1241,21 @@ class RoboCupEnvironment(EnvironmentBase):
             if cross[0] == SightingType.Misclassified:
                 ballDets.append([SightingType.Normal, cross[1], cross[2], 0])
 
+        # Remove occlusion and misclassified originals
+        ballDets = [ball for i, ball in enumerate(ballDets) if
+                    ball[0] != SightingType.NoSighting and ball[0] != SightingType.Misclassified]
+        robDets = [rob for i, rob in enumerate(robDets) if rob[0] != SightingType.NoSighting]
+        goalDets = [goal for i, goal in enumerate(goalDets) if goal[0] != SightingType.NoSighting]
+        crossDets = [cross for i, cross in enumerate(crossDets) if
+                     cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
+        fieldCrossDets = [cross for i, cross in enumerate(fieldCrossDets) if
+                          cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
+        lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
+
+        numLandMarks = len(fieldCrossDets) + len(lineDets) + len(crossDets) + len(goalDets)
+        if numLandMarks == 0:# or (numLandMarks == len(lineDets) and numLandMarks == 1):
+            self.faultyFrame = True
+
         # Random false positives
         for i in range(10):
             if random.random() < self.randBase:
@@ -1270,20 +1296,6 @@ class RoboCupEnvironment(EnvironmentBase):
                     ballDets.insert(len(ballDets),
                                     [SightingType.Normal, rob[1] + offset,
                                      self.ballRadius * 2 * (1 - 0.4 * (random.random() - 0.5)), 0])
-
-        # Remove occlusion and misclassified originals
-        ballDets = [ball for i, ball in enumerate(ballDets) if
-                    ball[0] != SightingType.NoSighting and ball[0] != SightingType.Misclassified]
-        robDets = [rob for i, rob in enumerate(robDets) if rob[0] != SightingType.NoSighting]
-        goalDets = [goal for i, goal in enumerate(goalDets) if goal[0] != SightingType.NoSighting]
-        crossDets = [cross for i, cross in enumerate(crossDets) if
-                     cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
-        fieldCrossDets = [cross for i, cross in enumerate(fieldCrossDets) if
-                     cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
-        lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
-
-        if not len(fieldCrossDets) and not len(lineDets) and not len(crossDets) and not len(goalDets):
-            self.faultyFrame = True
 
         if self.observationType == ObservationType.IMAGE:
 
@@ -1510,15 +1522,15 @@ class RoboCupEnvironment(EnvironmentBase):
                               agent.id in self.closestID] for ball in ballDets]).astype('float32')
         robDets = np.array([[normalize(rob[1].x, self.normX), normalize(rob[1].y, self.normY),
                              normalizeAfterScale(rob[2], self.sizeNorm, Robot.totalRadius),
-                             rob[3], rob[4], rob[5]] for rob in robDets]).astype('float32')
+                             math.cos(rob[3]), math.sin(rob[3]), rob[4], rob[5]] for rob in robDets]).astype('float32')
         goalDets = np.array([convertToPolar(goal, self.normX, self.goalPostRadius, self.sizeNorm, agent.team) for goal in
                              goalDets]).astype('float32')
         crossDets = np.array([convertToPolar(cross, self.normX, self.penaltyRadius, self.sizeNorm, agent.team) for cross in
                               crossDets]).astype('float32')
         fieldCrossDets = np.array([convertToPolar(cross, self.normX, self.penaltyRadius, self.sizeNorm, agent.team) + [math.cos(cross[5]), -math.sin(cross[5])] for cross in
                               fieldCrossDets]).astype('float32')
-        selfDets = np.array([[normalizeAfterScale(agent.getPos()[0], self.standardNormX, 0, agent.team),
-                        normalizeAfterScale(agent.getPos()[1], self.standardNormY, 0, agent.team),
+        selfDets = np.array([[normalizeAfterScale(agent.getPos()[0], self.standardNormX, self.meanX, agent.team),
+                        normalizeAfterScale(agent.getPos()[1], self.standardNormY, self.meanY, agent.team),
                         math.cos(agent.getAngle(agent.team) + agent.headAngle),
                         math.sin(agent.getAngle(agent.team) + agent.headAngle),],]).astype('float32')
         lineDets = np.array([normalizeLine(line, self.standardNormX) for line in lineDets]).astype('float32')
