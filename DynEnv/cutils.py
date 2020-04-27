@@ -292,6 +292,9 @@ classColors = [
     (255, 255, 255),
 ]
 
+def scale(val, norm, mean=0.5):
+    return ((val * norm) - mean)/mean
+
 
 # Visualization function
 def colorize(img):
@@ -309,7 +312,7 @@ def convertToPolar(point, normFactor, sizeMean, sizeNorm, team = None):
     angle = math.atan2(point[1].y*team, point[1].x*team)
     c = math.cos(angle)
     s = math.sin(angle)
-    return [((dist * normFactor) - 0.5) * 2, c, s, (point[2] - sizeMean) * sizeNorm, point[3] * team, point[4] * team]
+    return [scale(dist, normFactor), c, s, (point[2] - sizeMean) * sizeNorm, point[3] * team, point[4] * team]
 
 
 def normalize(pt, normFactor, mean=None, team=None):
@@ -339,7 +342,9 @@ def normalizeLine(line, normFactor):
     c = math.cos(ang)
     s = math.sin(ang)
 
-    return [dist*normFactor, c, s] + line[3:]
+    #pts = [scale(p1.x, normFactor), scale(p1.y, normFactor), scale(p2.x, normFactor), scale(p2.y, normFactor)]
+
+    return [scale(dist, normFactor), c, s] + line[3:] #+ pts
 
 
 
