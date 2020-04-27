@@ -1,5 +1,6 @@
 import itertools
 from typing import List
+from gym.spaces import flatdim
 
 import numpy as np
 import torch
@@ -1090,3 +1091,44 @@ class ReconNet(nn.Module):
         reco_losses.prepare_losses()
 
         return reco_losses
+
+
+class DynEvnEncoder(nn.Module):
+
+    def __init__(self, feature_size, batch_size, timesteps, num_players, num_time, obs_space, obj_obs_space, reco_desc):
+        super().__init__()
+
+        features_per_object_type = [flatdim(s) for s in obs_space.spaces]
+        num_obj_types = len(features_per_object_type)
+
+        self.embedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
+                                          timesteps,
+                                          num_players, num_obj_types, num_time, extended_feature_cnt=4)
+
+        self.predictor = nn.Linear(feature_size, 4)
+
+        features_per_object_type = [flatdim(s) for s in obj_obs_space.spaces]
+        num_obj_types = len(features_per_object_type)
+
+        self.objEmbedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
+                                             timesteps,
+                                             num_players, num_obj_types, num_time, extended_feature_cnt=4)
+        self.reconstructor = ReconNet(feature_size, reco_desc)
+
+    def initialize(self, locInits):
+        self.embedder.reset()
+        self.embedder.LSTM.set_state(locInits)
+        self.objEmbedder.reset()
+
+    def forward(self, x, recon):
+
+        I, lI, act = x
+
+        act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
+        features = self.embedder(lI, act)
+
+        pos = self.predictor(features)
+
+        obj_features = self.objEmbedder(I, pos.detach()) if recon else None
+
+        return features, obj_features, pos

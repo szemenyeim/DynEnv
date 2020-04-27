@@ -16,7 +16,7 @@ def generateActions(actionDefs,nPlayers,steps,interval = 3):
                     actions.append(np.random.randint(0,a_num, nPlayers))
             elif type(d) == Box:
                 for a_min, a_max in zip(d.low, d.high):
-                    actions.append((np.random.rand(nPlayers) * (a_max - a_min) + a_min)/3)
+                    actions.append((np.random.rand(nPlayers) * (a_max - a_min) + a_min)/2)
 
         actions = np.array(actions).T
         for j in range(interval):
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     actInputs = []
     locInits = []
 
-    trNum = int(2**10) if localization else int(2**6)
+    trNum = int(2**10) #if localization else int(2**6)
     teNum = trNum // 4
     steps = 2 #if localization else 3
     interval = 3
