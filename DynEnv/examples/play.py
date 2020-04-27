@@ -16,7 +16,7 @@ def doRoboCup(args):
     env.set_random_seed(42)
     env.reset()
     env.renderMode = 'human'
-    env.agentVisID = 1
+    env.agentVisID = 0
 
     action0 = [0, 0, 0]
     action1 = [0, 0, 0]
