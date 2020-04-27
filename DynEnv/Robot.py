@@ -17,6 +17,7 @@ class Robot(object):
     velocity = 50
     ang_velocity = 20
     mass = 4000
+    headMaxAngle = 2 * math.pi / 3
 
     def __init__(self,pos,team,id):
 
@@ -27,7 +28,7 @@ class Robot(object):
         d = (self.length,-self.length)
 
         angle = 0 if team > 0 else math.pi
-        headAngle = 0
+        headAngle = (random.random()-0.5) * self.headMaxAngle * 2
 
         # Setup left foot
         inertia = moment_for_segment(self.mass,a,b,self.radius)
@@ -80,7 +81,6 @@ class Robot(object):
         # Movement parameters
         self.moveTime = 0
         self.headMoving = 0
-        self.headMaxAngle = 2*math.pi/3
 
         # Kick parameters
         self.kicking = False
