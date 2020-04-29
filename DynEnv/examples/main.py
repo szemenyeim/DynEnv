@@ -17,7 +17,7 @@ if __name__ == '__main__':
     set_random_seeds(args.seed)
 
     # constants
-    feature_size = 128
+    feature_size = 64
     attn_target = AttentionTarget.ICM_LOSS
     attn_type = AttentionType.SINGLE_ATTENTION
 
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     # agent
     agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,
                      reco_desc, args.forward_coeff, args.icm_beta, args.rollout_size,
-                     5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
+                     args.recon_pretrained, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
 
     # params
     param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,
@@ -45,5 +45,5 @@ if __name__ == '__main__':
                               RewardType.INTRINSIC_AND_EXTRINSIC, args.note, args.use_full_entropy)
 
     # runner object & training
-    runner = Runner(agent, env, param, args.cuda, args.seed, args.log_dir)
+    runner = Runner(agent, env, param, args.use_reconstruction, args.recon_factor, args.cuda, args.seed, args.log_dir)
     runner.train()

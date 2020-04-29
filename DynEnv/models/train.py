@@ -4,19 +4,23 @@ from time import gmtime, strftime
 import numpy as np
 import torch
 import torch.nn as nn
+import pickle
+import os.path as osp
 
 np.set_printoptions(precision=1)
 
 from ..utils.logger import TemporalLogger
-from ..utils.utils import AgentCheckpointer
+from ..utils.utils import AgentCheckpointer, transformActions, flatten
 from .storage import RolloutStorage
-from .models import ReconLosses, A2CLosses, ICMLosses
+from .models import ReconLosses, A2CLosses, ICMLosses, LocalizationLosses
 from gym.spaces import Box
+
+import progressbar
 
 
 class Runner(object):
 
-    def __init__(self, net, env, params, is_cuda=True, seed=42, log_dir=abspath("/data/patrik")):
+    def __init__(self, net, env, params, recon, recon_factor, is_cuda=True, seed=42, log_dir=abspath("/data/patrik")):
         super().__init__()
 
         # constants
@@ -24,9 +28,12 @@ class Runner(object):
         self.seed = seed
         self.is_cuda = torch.cuda.is_available() and is_cuda
 
+        self.mse = torch.nn.MSELoss()
+
         # parameters
         self.params = params
-        self.factor = 0
+        self.recon_factor = recon_factor
+        self.recon = recon
 
         """Logger"""
         self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir,
@@ -48,7 +55,7 @@ class Runner(object):
 
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
-                                      self.numActions, self.params.n_stack, self.net.feat_size,
+                                      self.numActions, self.params.n_stack, self.net.feat_size*2,
                                       is_cuda=self.is_cuda, use_full_entropy=self.params.use_full_entropy)
 
     def train(self):
@@ -56,16 +63,29 @@ class Runner(object):
         """Environment reset"""
         obs = self.env.reset()
         self.storage.states.append(obs)
+        initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+        if self.is_cuda:
+            initLoc = initLoc.cuda()
+        self.net.a2c.embedder_base.initialize(initLoc)
 
         """Variables for proper logging"""
         epLen = self.env.get_attr('stepNum')[0]
-        updatesPerEpisode = epLen / self.params.rollout_size
+        updatesPerEpisode = int(epLen // self.params.rollout_size)
+        bar = progressbar.ProgressBar(0, updatesPerEpisode, redirect_stdout=False)
 
         """Losses"""
         r_loss = 0
         a2c_loss_accumulated = A2CLosses()
         icm_loss_accumulated = ICMLosses()
-        recon_loss_accumulated = ReconLosses(num_classes=1)
+        loc_losses_accumulated = LocalizationLosses()
+        recon_loss_accumulated = ReconLosses(num_thresh=3, num_classes=2)
+
+        if self.is_cuda:
+            loc_losses_accumulated.cuda()
+            recon_loss_accumulated.cuda()
+
+        self.corrs = []
+        self.avgPrecs = []
 
         num_rollout = 0
 
@@ -79,15 +99,22 @@ class Runner(object):
             # tensors for the curiosity-based loss
             # feature, feature_pred: fwd_loss
             # a_t_pred: inv_loss
-            icm_losses, recon_loss = self.net.icm(self.storage.features, self.storage.actions,
-                                                  self.storage.agentFinished,
-                                                  self.storage.full_state_targets)
+            icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
+
+            los_losses = self.compute_loc_loss(self.storage.positions, self.storage.pos_target) if self.recon else LocalizationLosses()
+
+            recon_loss = self.net.a2c.embedder_base.reconstructor(self.storage.features[-2, :, self.net.feat_size:], self.storage.full_state_targets[-1]) \
+                if self.recon else ReconLosses(num_thresh=3, num_classes=2)
+
+            if not self.recon:
+                los_losses.prepare_losses()
+                recon_loss.prepare_losses()
 
             """Assemble loss"""
             a2c_losses, rewards = self.storage.a2c_loss(final_value, action_probs, self.params.value_coeff,
                                                         self.params.entropy_coeff)
 
-            loss = a2c_losses.loss + icm_losses.loss + self.factor * recon_loss.loss
+            loss = a2c_losses.loss + icm_losses.loss + self.recon_factor * (recon_loss.loss + los_losses.loss)
 
             loss.backward(retain_graph=False)
 
@@ -108,12 +135,22 @@ class Runner(object):
             """Running recon losses"""
             recon_loss.detach_loss()
             recon_loss_accumulated += recon_loss
+            los_losses.detach_loss()
+            loc_losses_accumulated += los_losses
             num_rollout += 1
+            bar.update(num_rollout)
 
             """Print to console at the end of each episode"""
             dones = self.storage.dones[-1].bool()
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
+
+                initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+                if self.is_cuda:
+                    initLoc = initLoc.cuda()
+                self.net.a2c.embedder_base.initialize(initLoc)
+
+                bar.finish()
 
                 """Get average rewards and positive rewards (for this episode and the last 10)"""
                 last_r = np.array(self.storage.episode_rewards[-self.params.num_envs:]).mean()
@@ -125,12 +162,20 @@ class Runner(object):
                 """Get goals"""
                 goals = np.array(self.storage.goals).T * self.params.num_envs
 
+                #recon_loss_accumulated.div(num_rollout)
+                #loc_losses_accumulated.div(num_rollout)
+                recon_loss_accumulated.precision /= num_rollout
+                recon_loss_accumulated.recall /= num_rollout
+                loc_losses_accumulated.corr /= num_rollout
+
                 self.logger.log(
                     **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
-                       "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]),
-                       "ep_goals": goals})
+                       "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:])})
 
-                print("Ep %d: (%d/%d) L: (%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)"
+                self.avgPrecs.append((recon_loss_accumulated.recall.mean(dim=0)+recon_loss_accumulated.precision.mean(dim=0))/2)
+                self.corrs.append(loc_losses_accumulated.corr)
+
+                print("Ep %d: (%d/%d) L: (Loss: %.2f, P: %.2f, V: %.2f, E: %.2f, TE: %.2f, F: %.2f, I: %.2f)"
                       % (int(num_update / updatesPerEpisode), num_update + 1, self.params.num_updates, r_loss,
                          a2c_loss_accumulated.policy, a2c_loss_accumulated.value, a2c_loss_accumulated.entropy,
                          a2c_loss_accumulated.temp_entropy,
@@ -140,18 +185,22 @@ class Runner(object):
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]")
 
-                recon_loss_accumulated.precision /= num_rollout
-                recon_loss_accumulated.recall /= num_rollout
-
-                #print(recon_loss_accumulated)
+                print(recon_loss_accumulated)
+                print(loc_losses_accumulated)
 
                 r_loss = 0
 
                 a2c_loss_accumulated = A2CLosses()  # reset
                 icm_loss_accumulated = ICMLosses()
 
-                recon_loss_accumulated = ReconLosses(num_classes=1)  # reset
+                recon_loss_accumulated = ReconLosses(num_thresh=3, num_classes=2)  # reset
+                loc_losses_accumulated = LocalizationLosses()
+                if self.is_cuda:
+                    loc_losses_accumulated.cuda()
+                    recon_loss_accumulated.cuda()
+
                 num_rollout = 0
+                bar = progressbar.ProgressBar(0, updatesPerEpisode, redirect_stdout=False)
 
                 """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
@@ -161,6 +210,10 @@ class Runner(object):
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
             self.storage.after_update()
+
+        baseName = osp.join(self.logger.data_dir, "Recon" if self.recon else "NoRecon")
+        file = open(baseName + "Pret.pickle" if self.recon else ".pickle", "wb")
+        pickle.dump([self.corrs, self.avgPrecs], file)
 
         self.env.close()
 
@@ -172,7 +225,8 @@ class Runner(object):
         for step in range(self.params.rollout_size):
             """Interact with the environments """
             # call A2C
-            actions, log_probs, action_probs, values, features = self.net.a2c.get_action(self.storage.get_state(step))
+            actions, log_probs, action_probs, values, features, pos = self.net.a2c.get_action(
+                (self.storage.get_state(step), transformActions(self.storage.actions[step-1].t(), True)))
             # accumulate episode entropy
             episode_action_probs.append(action_probs)
 
@@ -181,23 +235,61 @@ class Runner(object):
                 (self.net.num_envs, self.net.num_players, -1)).detach().cpu().numpy()
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
 
+            truePos = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+            if self.is_cuda:
+                truePos = truePos.cuda()
+
             # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)
             fullStates = [s['Recon States'] for s in state]
+            fullStates = [[s[0::2] for s in state] for state in fullStates]
             agentFinished = torch.tensor([[agent[-1] for agent in s['Full State'][0]] for s in state]).bool()
 
             # save episode reward
             self.storage.log_episode_rewards(state)
 
             self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features,
-                                fullStates)
+                                fullStates, pos, truePos)
 
         # Note:
         # get the estimate of the final reward
         # that's why we have the CRITIC --> estimate final reward
         # detach, as the final value will only be used as a
         with torch.no_grad():
-            _, _, _, final_value, final_features = self.net.a2c.get_action(self.storage.get_state(step + 1))
+            states = self.net.a2c.embedder_base.get_states()
+            _, _, _, final_value, final_features, final_pos = self.net.a2c.get_action(
+                (self.storage.get_state(step + 1), transformActions(self.storage.actions[step].t())))
+            self.net.a2c.embedder_base.set_states(states)
 
         self.storage.features[step + 1].copy_(final_features)
+        self.storage.positions.append(final_pos)
 
         return final_value, episode_action_probs
+
+    def compute_loc_loss(self, pos, target):
+
+        pos = pos[:len(pos)-1]
+
+        losses = LocalizationLosses()
+
+        if pos[0].is_cuda:
+            losses.cuda()
+
+
+        for p, t in zip(pos,target):
+            loss_x = self.mse(p[:, 0], t[:, 0])
+            loss_y = self.mse(p[:, 1], t[:, 1])
+            loss_c = self.mse(p[:, 2], t[:, 2])
+            loss_s = self.mse(p[:, 3], t[:, 3])
+
+            corr = torch.zeros(3).cuda()
+
+            with torch.no_grad():
+                diffs = (p[:,0]-t[:,0])**2 + (p[:,1]-t[:,1])**2
+                corr[0] = float((diffs < 0.0025).sum()) / float(len(diffs))
+                corr[1] = float((diffs < 0.01).sum()) / float(len(diffs))
+                corr[2] = float((diffs < 0.04).sum()) / float(len(diffs))
+
+            losses.update_losses(loss_x, loss_y, loss_c, loss_s, corr)
+
+        losses.prepare_losses(len(pos))
+        return losses
