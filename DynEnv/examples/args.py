@@ -35,7 +35,7 @@ def get_args():
                         help='number of parallel environments')
     parser.add_argument('--n-stack', type=int, default=1, metavar='N_STACK',
                         help='number of frames stacked')
-    parser.add_argument('--rollout-size', type=int, default=10, metavar='ROLLOUT_SIZE',
+    parser.add_argument('--rollout-size', type=int, default=6, metavar='ROLLOUT_SIZE',
                         help='rollout size')
     parser.add_argument('--num-updates', type=int, default=60000, metavar='NUM_UPDATES',
                         help='number of updates')
@@ -44,7 +44,7 @@ def get_args():
 
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.argparse, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.ROBO_CUP, type=DynEnvType.argparse, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
@@ -52,7 +52,7 @@ def get_args():
                         help='Observation type')
     parser.add_argument('--noiseType', default=NoiseType.REALISTIC, type=NoiseType.argparse, choices=list(NoiseType),
                         help='Noise type')
-    parser.add_argument('--noiseMagnitude', type=float, default=0.1,
+    parser.add_argument('--noiseMagnitude', type=float, default=1.0,
                         help='Noise magnitude [0-5]')
     parser.add_argument('--use-continuous-actions', type=bool, default=False, metavar='CONTINUOUS',
                         help='Enable continuous actions (all actions in driving, head turning in robot soccer)')
@@ -69,6 +69,15 @@ def get_args():
                         help='entropy loss weight factor in the A2C loss')
     parser.add_argument('--forward-coeff', type=float, default=1e-2, metavar='FORWARD_COEFF',
                         help='forward loss weight factor in the ICM loss')
+    parser.add_argument('--recon-factor', type=float, default=1e-3, metavar='RECON_FACTOR',
+                        help='recon loss weight factor in the loss')
+
+
+    # Reconstruction settings
+    parser.add_argument('--use-reconstruction', type=bool, default=True, metavar='RECON',
+                        help='Enable reconstruction training')
+    parser.add_argument('--recon-pretrained', type=bool, default=True, metavar='PRETRAINED',
+                        help='Enable pre-trained reconstruction model')
 
     parser.add_argument('--note', type=str, default='None',
                         help='Add note to help identify run')
