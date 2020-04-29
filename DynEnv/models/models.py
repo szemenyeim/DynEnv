@@ -423,6 +423,13 @@ class LSTMLayer(nn.Module):
         self.h = self.h.detach()
         self.c = self.c.detach()
 
+    def get_states(self):
+        return [self.h.clone(), self.c.clone()]
+
+    def set_states(self, states):
+        self.h = states[0].clone()
+        self.c = states[1].clone()
+
     def set_state(self, state):
         device = next(self.parameters()).device
         x = state.to(device)
@@ -637,8 +644,8 @@ class AdversarialHead(nn.Module):
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, features_per_object_type,
-                 feat_size, reco_desc: RecoDescriptor, forward_coeff, icm_beta, num_envs):
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type,
+                 feat_size, forward_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -654,8 +661,7 @@ class ICMNet(nn.Module):
         super().__init__()
 
         # constants
-        self.features_per_object_type = features_per_object_type  # pixels i.e. state
-        self.feat_size = feat_size
+        self.feat_size = feat_size*2
         self.action_descriptor = action_descriptor
         self.num_actions = len(self.action_descriptor)
         self.num_envs = num_envs
@@ -668,13 +674,11 @@ class ICMNet(nn.Module):
         self.pred_net = AdversarialHead(self.feat_size, self.action_descriptor, attn_target,
                                         attn_type)  # goal: minimize prediction error
 
-        self.recon_net = ReconNet(self.feat_size, reco_desc)
-
         self.loss_attn_flag = attn_target is AttentionTarget.ICM_LOSS and attn_type is AttentionType.SINGLE_ATTENTION
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
 
-    def forward(self, features, action, agentFinished, current_targets):
+    def forward(self, features, action, agentFinished):
         """
 
         feature: current encoded state
@@ -690,13 +694,11 @@ class ICMNet(nn.Module):
         next_features = features[1:, :, :]
         next_feature_pred, action_pred = self.pred_net(current_features, next_features, action)
 
-        recon_loss = 0#self.recon_net(current_features, current_targets)
-
         # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)
 
         return self._calc_loss(next_features, next_feature_pred, action_pred, action,
-                               agentFinishedMask), recon_loss
+                               agentFinishedMask)
 
     def _calc_loss(self, features, feature_preds, action_preds, actions, agentFinished):
 
@@ -725,9 +727,8 @@ class ICMNet(nn.Module):
 
 
 class A2CNet(nn.Module):
-    def __init__(self, num_envs, num_players, action_descriptor, features_per_object_type, feature_size, num_rollout,
-                 num_obj_types,
-                 num_time):
+    def __init__(self, num_envs, num_players, action_descriptor, obs_space, feature_size, num_rollout, num_time,
+                 reco_desc):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
@@ -740,18 +741,17 @@ class A2CNet(nn.Module):
 
         print("in case of multiple envs, reset_recurrent_buffers shall be revisited to handle non-simultaneous resets")
         # constants
-        self.features_per_object_type = features_per_object_type
         self.feature_size = feature_size
         self.action_descriptor = action_descriptor
         self.num_players = num_players
         self.num_envs = num_envs
 
-        self.feat_enc_net = DynEnvFeatureExtractor(self.features_per_object_type, self.feature_size, self.num_envs,
-                                                   num_rollout,
-                                                   num_players, num_obj_types, num_time)
 
-        self.actor = ActorLayer(self.feature_size, self.action_descriptor)
-        self.critic = CriticLayer(self.feature_size)
+        self.embedder_base = DynEvnEncoder(feature_size, num_envs, num_rollout, num_players, num_time,
+                                           obs_space.spaces[1], obs_space.spaces[0], reco_desc)
+
+        self.actor = ActorLayer(self.feature_size*2, self.action_descriptor)
+        self.critic = CriticLayer(self.feature_size*2)
 
     def set_recurrent_buffers(self, buf_size):
         """
@@ -761,7 +761,7 @@ class A2CNet(nn.Module):
         :param buf_size: size of the recurrent buffer
         :return:
         """
-        self.feat_enc_net.reset()
+        self.embedder_base.reset()
 
     def reset_recurrent_buffers(self, reset_indices=None):
         """
@@ -771,7 +771,7 @@ class A2CNet(nn.Module):
         :return:
         """
 
-        self.feat_enc_net.reset(reset_indices)
+        self.embedder_base.reset(reset_indices=reset_indices)
 
     def forward(self, state):
         """
@@ -782,14 +782,21 @@ class A2CNet(nn.Module):
         :return:
         """
 
+        state = (state[0][..., 0], state[0][..., 1], state[1])
+
         # encode the state
-        feature = self.feat_enc_net(state)
+        features = self.embedder_base(state)
+
+        feature = torch.cat(features[0:2],dim=1)
 
         # calculate policy and value function
         policy = self.actor(feature)
         value = self.critic(feature)
 
-        return policy, value, feature
+        return policy, value, feature, features[2]
+
+    def get_recon_loss(self, feature, targets):
+        return self.embedder_base.reconstructor(feature, targets)
 
     def get_action(self, state):
         """
@@ -800,7 +807,7 @@ class A2CNet(nn.Module):
         """
 
         """Evaluate the A2C"""
-        policies, values, features = self(state)  # use A3C to get policy and value
+        policies, values, features, pos = self(state)  # use A3C to get policy and value
 
         """Calculate action"""
         # 1. convert policy outputs into probabilities
@@ -811,7 +818,7 @@ class A2CNet(nn.Module):
         log_probs = [cat.log_prob(a) for (cat, a) in zip(cats, actions)]
 
         return (actions, log_probs, action_probs, values,
-                features)  # ide is jön egy feature bypass a self(state-ből)
+                features, pos)  # ide is jön egy feature bypass a self(state-ből)
 
 
 from dataclasses import dataclass, field
@@ -823,7 +830,8 @@ class LossLogger:
 
     def __iadd__(self, other):
         for key in self.__dict__.keys():
-            self.__dict__[key] += other.__dict__[key]
+            if type(self.__dict__[key]) is not int:
+                self.__dict__[key] += other.__dict__[key]
 
         return self
 
@@ -868,6 +876,52 @@ class ICMLosses(LossLogger):
 
 
 @dataclass
+class LocalizationLosses(LossLogger):
+    x: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    y: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    c: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    s: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    corr: torch.Tensor = field(default_factory=lambda: torch.tensor([0.0, 0.0, 0.0]))
+
+    def update_losses(self, loss_x: torch.Tensor, loss_y: torch.Tensor, loss_c: torch.Tensor,
+                      loss_s: torch.Tensor, corr: torch.Tensor):
+
+        self.x += loss_x
+        self.y += loss_y
+        self.c += loss_c
+        self.s += loss_s
+        self.corr += corr
+
+    def cuda(self):
+        for key in self.__dict__.keys():
+            if type(self.__dict__[key]) is not int:
+                self.__dict__[key] = self.__dict__[key].cuda()
+
+    def div(self, other):
+        for key in self.__dict__.keys():
+            if type(self.__dict__[key]) is not int:
+                self.__dict__[key] = self.__dict__[key] / other
+
+    def prepare_losses(self, numSteps = 1):
+        self.x /= numSteps
+        self.y /= numSteps
+        self.c /= numSteps
+        self.s /= numSteps
+        self.loss = self.x.sum() + self.y.sum() + self.c.sum() + self.s.sum()
+
+        self.corr /= numSteps
+
+        # detach items
+        for key in self.__dict__.keys():
+            if key not in ["loss", "corr"]:
+                self.__dict__[key] = self.__dict__[key].item()
+
+    def __repr__(self):
+        c = self.corr.mean().item() * 100
+        return f"Loc Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, C: {self.c:.2f}, S: {self.s:.2f}, corr: {c:.2f}"
+
+
+@dataclass
 class ReconLosses(LossLogger):
     x: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     y: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
@@ -887,6 +941,12 @@ class ReconLosses(LossLogger):
         else:
             self.precision = torch.zeros((self.num_classes, self.num_thresh))
             self.recall = torch.zeros((self.num_classes, self.num_thresh))
+
+    def div(self, other):
+        for key in self.__dict__.keys():
+            if type(self.__dict__[key]) is not int:
+                self.__dict__[key] = self.__dict__[key] / other
+
 
     def cuda(self):
         for key in self.__dict__.keys():
@@ -919,9 +979,11 @@ class ReconLosses(LossLogger):
             self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
 
     def __repr__(self):
+        recall = self.recall.mean().item() * 100.0
+        prec = self.precision.mean().item() * 100.0
         return f"Recon Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, Conf: {self.confidence:.2f}," \
                f" Bin: {self.binary:.2f}, Cont: {self.continuous:.2f}, Cls: {self.cls:.2f} " \
-               f"  [Recall: {self.recall * 100.0:.2f}, Precision: {self.precision * 100.0:.2f}]"
+               f"  [Recall: {recall:.2f}, Precision: {prec:.2f}]"
 
 
 class ReconNet(nn.Module):
@@ -1120,15 +1182,27 @@ class DynEvnEncoder(nn.Module):
         self.embedder.LSTM.set_state(locInits)
         self.objEmbedder.reset()
 
-    def forward(self, x, recon):
+    def reset(self, reset_indices=None):
+        self.embedder.reset(reset_indices)
+        self.objEmbedder.reset(reset_indices)
 
-        I, lI, act = x
+    def get_states(self):
+        s1 = self.embedder.LSTM.get_states()
+        s2 = self.objEmbedder.LSTM.get_states()
+        return [s1,s2]
 
-        act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
-        features = self.embedder(lI, act)
+    def set_states(self, states):
+        self.embedder.LSTM.set_states(states[0])
+        self.objEmbedder.LSTM.set_states(states[1])
+
+    def forward(self, x, recon=True):
+
+        inputs, locInputs, act = x
+
+        features = self.embedder(locInputs, act)
 
         pos = self.predictor(features)
 
-        obj_features = self.objEmbedder(I, pos.detach()) if recon else None
+        obj_features = self.objEmbedder(inputs, pos.detach()) if recon else None
 
         return features, obj_features, pos

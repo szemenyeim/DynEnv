@@ -44,6 +44,7 @@ def train(epoch):
         rec_optimizer.zero_grad()
 
         for j, (lI,lT,act,I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
+            act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
             optimizer.zero_grad()
 
@@ -149,6 +150,7 @@ def val(epoch):
         net.initialize(locInits)
 
         for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
+            act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
             features, obj_features, pos = net((I, lI, act), not localization)
 
