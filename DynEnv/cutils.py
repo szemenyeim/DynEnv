@@ -778,8 +778,8 @@ def isLineInArea(p1, p2, dir1, dir2, maxDist, angle):
             # Othervise, compute intersection of FoV and the p1-p2 line
             else:
                 # Check which line intersects closer to p1
-                inter1 = p1.cross(dir1) / dir1.cross(p2 - p1)
-                inter2 = p1.cross(dir2) / dir2.cross(p2 - p1)
+                inter1 = p1.cross(dir1) / (dir1.cross(p2 - p1) + 1e-7)
+                inter2 = p1.cross(dir2) / (dir2.cross(p2 - p1) + 1e-7)
                 if inter1 < 1 and inter2 < 1:
                     inter = max(inter1, inter2)
                 else:
