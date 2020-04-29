@@ -341,7 +341,7 @@ class RoboCupEnvironment(EnvironmentBase):
         if self.allowHeadTurn:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-6, high=6, shape=(1,))))
         else:
-            self.action_space = Tuple((MultiDiscrete([5, 3, 3]),))
+            self.action_space = Tuple((MultiDiscrete([5, 3, 3, 7]),))
 
     def _create_observation_space(self):
 
@@ -427,6 +427,9 @@ class RoboCupEnvironment(EnvironmentBase):
     def get_class_specific_args(self):
         return [self.allowHeadTurn]
 
+    def get_agent_locs(self):
+        return [self.getFullState(agent)[1][:, [0, 1, 4, 5]] for agent in self.agents]
+
     # Main step function
     def step(self, actions):
         t1 = time.clock()
@@ -443,7 +446,7 @@ class RoboCupEnvironment(EnvironmentBase):
         for i in range(self.stepIterCnt):
 
             # Sanity check
-            actionNum = 4 if self.allowHeadTurn else 3
+            actionNum = 4 #if self.allowHeadTurn else 3
             if actions.shape != (len(self.agents), actionNum):
                 raise Exception("Error: There must be %d actions for every robot" % actionNum)
 
@@ -518,6 +521,9 @@ class RoboCupEnvironment(EnvironmentBase):
             head = 0
         else:
             move, turn, kick, head = action
+
+        if not self.allowHeadTurn:
+            head -= 3
 
         # Sanity check for actions
         if move not in [0, 1, 2, 3, 4]:
@@ -777,7 +783,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Narrow dow spots based on ball location
         y = self.ball.getPos().y
-        angle = math.pi / 2 if y < self.H / 2 else -math.pi / 2
+        angle = -math.pi / 2 if y < self.H / 2 else math.pi / 2
         availableSpots = availableSpots[:7] if y > self.H / 2 else availableSpots[7:]
 
         # Select first free spot
