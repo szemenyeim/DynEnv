@@ -17,7 +17,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
     randomInit = False
     deterministicTurn = False
-    canFall = True
+    canFall = False
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
                  noiseMagnitude=2, obs_space_cast=False, allowHeadTurn=False):
@@ -510,9 +510,6 @@ class RoboCupEnvironment(EnvironmentBase):
     def processAction(self, action, robot):
 
         if self.deterministicTurn:
-            action[0] = 0
-            action[1] = 0
-            action[2] = 0
             action[3] = -3 * robot.team
 
         # Get 4 action types
