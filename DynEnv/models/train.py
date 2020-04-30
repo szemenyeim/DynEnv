@@ -10,7 +10,7 @@ import os.path as osp
 np.set_printoptions(precision=1)
 
 from ..utils.logger import TemporalLogger
-from ..utils.utils import AgentCheckpointer, transformActions, flatten
+from ..utils.utils import AgentCheckpointer, transformActions, flatten, compute_loc_loss
 from .storage import RolloutStorage
 from .models import ReconLosses, A2CLosses, ICMLosses, LocalizationLosses
 from gym.spaces import Box
@@ -101,7 +101,7 @@ class Runner(object):
             # a_t_pred: inv_loss
             icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
 
-            los_losses = self.compute_loc_loss(self.storage.positions, self.storage.pos_target) if self.recon else LocalizationLosses()
+            los_losses = compute_loc_loss(self.storage.positions, self.storage.pos_target) if self.recon else LocalizationLosses()
 
             recon_loss = self.net.a2c.embedder_base.reconstructor(self.storage.features[-2, :, self.net.feat_size:], self.storage.full_state_targets[-1]) \
                 if self.recon else ReconLosses(num_thresh=3, num_classes=2)
@@ -144,11 +144,6 @@ class Runner(object):
             dones = self.storage.dones[-1].bool()
             if dones.any():
                 self.net.a2c.reset_recurrent_buffers(reset_indices=dones)
-
-                initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
-                if self.is_cuda:
-                    initLoc = initLoc.cuda()
-                self.net.a2c.embedder_base.initialize(initLoc)
 
                 bar.finish()
 
@@ -202,6 +197,11 @@ class Runner(object):
                 num_rollout = 0
                 bar = progressbar.ProgressBar(0, updatesPerEpisode, redirect_stdout=False)
 
+                initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+                if self.is_cuda:
+                    initLoc = initLoc.cuda()
+                self.net.a2c.embedder_base.initialize(initLoc)
+
                 """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
                 if len(rewards_that_count) >= rewards_that_count.maxlen:
@@ -238,6 +238,7 @@ class Runner(object):
             truePos = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
             if self.is_cuda:
                 truePos = truePos.cuda()
+            #self.net.a2c.embedder_base.initialize(truePos)
 
             # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)
             fullStates = [s['Recon States'] for s in state]
@@ -261,35 +262,6 @@ class Runner(object):
             self.net.a2c.embedder_base.set_states(states)
 
         self.storage.features[step + 1].copy_(final_features)
-        self.storage.positions.append(final_pos)
+        #self.storage.positions.append(final_pos)
 
         return final_value, episode_action_probs
-
-    def compute_loc_loss(self, pos, target):
-
-        pos = pos[:len(pos)-1]
-
-        losses = LocalizationLosses()
-
-        if pos[0].is_cuda:
-            losses.cuda()
-
-
-        for p, t in zip(pos,target):
-            loss_x = self.mse(p[:, 0], t[:, 0])
-            loss_y = self.mse(p[:, 1], t[:, 1])
-            loss_c = self.mse(p[:, 2], t[:, 2])
-            loss_s = self.mse(p[:, 3], t[:, 3])
-
-            corr = torch.zeros(3).cuda()
-
-            with torch.no_grad():
-                diffs = (p[:,0]-t[:,0])**2 + (p[:,1]-t[:,1])**2
-                corr[0] = float((diffs < 0.0025).sum()) / float(len(diffs))
-                corr[1] = float((diffs < 0.01).sum()) / float(len(diffs))
-                corr[2] = float((diffs < 0.04).sum()) / float(len(diffs))
-
-            losses.update_losses(loss_x, loss_y, loss_c, loss_s, corr)
-
-        losses.prepare_losses(len(pos))
-        return losses

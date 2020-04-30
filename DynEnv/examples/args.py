@@ -69,7 +69,7 @@ def get_args():
                         help='entropy loss weight factor in the A2C loss')
     parser.add_argument('--forward-coeff', type=float, default=1e-2, metavar='FORWARD_COEFF',
                         help='forward loss weight factor in the ICM loss')
-    parser.add_argument('--recon-factor', type=float, default=1e-3, metavar='RECON_FACTOR',
+    parser.add_argument('--recon-factor', type=float, default=1e-2, metavar='RECON_FACTOR',
                         help='recon loss weight factor in the loss')
 
 
