@@ -6,7 +6,8 @@ pymunkoptions.options["debug"] = False
 from DynEnv import *
 from DynEnv.models.agent import ICMAgent
 from DynEnv.models import DynEvnEncoder
-from DynEnv.utils.utils import set_random_seeds, AttentionTarget, AttentionType, flatten
+from DynEnv.models.models import ReconLosses, LocalizationLosses
+from DynEnv.utils.utils import set_random_seeds, AttentionTarget, AttentionType, flatten, compute_loc_loss
 import pickle
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -22,9 +23,9 @@ def train(epoch):
 
     net.train()
 
-    bar = progressbar.ProgressBar(0, len(trLoader)*timesteps, redirect_stdout=False)
+    bar = progressbar.ProgressBar(0, len(trLoader), redirect_stdout=False)
 
-    corr = [0,0,0]
+    corr = torch.zeros(3).cuda()
 
     for i, (ind, _) in enumerate(trLoader):
 
@@ -42,60 +43,48 @@ def train(epoch):
         net.initialize(locInits)
 
         rec_optimizer.zero_grad()
+        optimizer.zero_grad()
+
+        loss = LocalizationLosses()
+        loss.cuda()
 
         for j, (lI,lT,act,I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
-            optimizer.zero_grad()
-
-            features, obj_features, pos = net((I, lI, act), not localization)
+            features, obj_features, pos = net((I, lI, act), True)
 
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
-            loss_x = criterion(pos[:,0],lT[:,0])
-            loss_y = criterion(pos[:,1],lT[:,1])
-            loss_c = criterion(pos[:,2],lT[:,2])
-            loss_s = criterion(pos[:,3],lT[:,3])
+            loss += compute_loc_loss([pos,], [lT, ], criterion, LocalizationLosses())
 
-            with torch.no_grad():
-                diffs = (pos[:,0]-lT[:,0])**2 + (pos[:,1]-lT[:,1])**2
-                corr[0] += (diffs < 0.0025).sum()
-                corr[1] += (diffs < 0.01).sum()
-                corr[2] += (diffs < 0.04).sum()
+        losses[0] += loss.x/len(locInputs)
+        losses[1] += loss.y/len(locInputs)
+        losses[2] += loss.c/len(locInputs)
+        losses[3] += loss.s/len(locInputs)
+        losses[4] += loss.loss.item()/len(locInputs)
+        corr += loss.corr/len(locInputs)
 
-            loss = loss_x + loss_y + loss_c + loss_s
+        bar.update(i+1)
+        loss.loss.backward()
+        optimizer.step()
 
-            if localization or epoch < 5:
-                loss.backward(retain_graph=True)
-                optimizer.step()
-            net.embedder.detach()
+        recLosses = net.reconstructor(obj_features, targets[-1])
+        recLosses.loss.backward()
+        rec_optimizer.step()
 
-            losses[0] += loss_x.item()/len(locInputs)
-            losses[1] += loss_y.item()/len(locInputs)
-            losses[2] += loss_c.item()/len(locInputs)
-            losses[3] += loss_s.item()/len(locInputs)
-            losses[4] += loss.item()/len(locInputs)
-
-            bar.update(i*timesteps + j)
-
-        if not localization:
-            recLosses = net.reconstructor(obj_features, targets[-1])
-            recLosses.loss.backward()
-            rec_optimizer.step()
-
-            reconLosses[0] += recLosses.x
-            reconLosses[1] += recLosses.y
-            reconLosses[2] += recLosses.confidence
-            reconLosses[3] += recLosses.binary
-            reconLosses[4] += recLosses.continuous
-            reconLosses[5] += recLosses.cls
-            reconLosses[6] += recLosses.loss.item()
-            reconLosses[7] += recLosses.recall[0].item()
-            reconLosses[8] += recLosses.recall[1].item()
-            reconLosses[9] += recLosses.recall[2].item()
-            reconLosses[10] += recLosses.precision[0].item()
-            reconLosses[11] += recLosses.precision[1].item()
-            reconLosses[12] += recLosses.precision[2].item()
+        reconLosses[0] += recLosses.x
+        reconLosses[1] += recLosses.y
+        reconLosses[2] += recLosses.confidence
+        reconLosses[3] += recLosses.binary
+        reconLosses[4] += recLosses.continuous
+        reconLosses[5] += recLosses.cls
+        reconLosses[6] += recLosses.loss.item()
+        reconLosses[7] += recLosses.recall[0].item()
+        reconLosses[8] += recLosses.recall[1].item()
+        reconLosses[9] += recLosses.recall[2].item()
+        reconLosses[10] += recLosses.precision[0].item()
+        reconLosses[11] += recLosses.precision[1].item()
+        reconLosses[12] += recLosses.precision[2].item()
 
     bar.finish()
 
@@ -108,20 +97,18 @@ def train(epoch):
             losses[2] / float(len(trLoader)),
             losses[3] / float(len(trLoader)),
             losses[4] / float(len(trLoader)),
-            corr[0] / float(len(trLoader)*batch_size*num_players*timesteps) * 100,
-            corr[1] / float(len(trLoader)*batch_size*num_players*timesteps) * 100,
-            corr[2] / float(len(trLoader)*batch_size*num_players*timesteps) * 100,
+            corr[0].item() / float(len(trLoader)) * 100,
+            corr[1].item() / float(len(trLoader)) * 100,
+            corr[2].item() / float(len(trLoader)) * 100,
           )
     )
-
-    if not localization:
-        print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(trLoader)):.4f}, X: {reconLosses[0]/float(len(trLoader)):.4f},"
-              f" Y: {reconLosses[1]/float(len(trLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(trLoader)):.4f}," 
-              f" Bin: {reconLosses[3]/float(len(trLoader)):.4f}, Cont: {reconLosses[4]/float(len(trLoader)):.4f}, "
-              f"Cls: {reconLosses[5]/float(len(trLoader)):.4f} "
-              f"[Avg Prec: {(reconLosses[7] + reconLosses[10])/float(len(trLoader)) * 50.0:.2f}, "
-              f"{(reconLosses[8] + reconLosses[11])/float(len(trLoader)) * 50.0:.2f}, "
-              f"{(reconLosses[9] + reconLosses[12])/float(len(trLoader)) * 50.0:.2f}]")
+    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(trLoader)):.4f}, X: {reconLosses[0]/float(len(trLoader)):.4f},"
+          f" Y: {reconLosses[1]/float(len(trLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(trLoader)):.4f}," 
+          f" Bin: {reconLosses[3]/float(len(trLoader)):.4f}, Cont: {reconLosses[4]/float(len(trLoader)):.4f}, "
+          f"Cls: {reconLosses[5]/float(len(trLoader)):.4f} "
+          f"[Avg Prec: {(reconLosses[7] + reconLosses[10])/float(len(trLoader)) * 50.0:.2f}, "
+          f"{(reconLosses[8] + reconLosses[11])/float(len(trLoader)) * 50.0:.2f}, "
+          f"{(reconLosses[9] + reconLosses[12])/float(len(trLoader)) * 50.0:.2f}]")
 
 def val(epoch):
 
@@ -130,9 +117,9 @@ def val(epoch):
 
     net.eval()
 
-    bar = progressbar.ProgressBar(0, len(teLoader)*timesteps, redirect_stdout=False)
+    bar = progressbar.ProgressBar(0, len(teLoader), redirect_stdout=False)
 
-    corr = [0,0,0]
+    corr = torch.zeros(3).cuda()
 
     for i, (ind, _) in enumerate(teLoader):
 
@@ -149,50 +136,42 @@ def val(epoch):
 
         net.initialize(locInits)
 
+        loss = LocalizationLosses()
+        loss.cuda()
+
         for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
-            features, obj_features, pos = net((I, lI, act), not localization)
+            features, obj_features, pos = net((I, lI, act), True)
 
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
-            loss_x = criterion(pos[:, 0], lT[:, 0])
-            loss_y = criterion(pos[:, 1], lT[:, 1])
-            loss_c = criterion(pos[:, 2], lT[:, 2])
-            loss_s = criterion(pos[:, 3], lT[:, 3])
+            loss += compute_loc_loss([pos,], [lT, ], criterion, LocalizationLosses())
 
-            with torch.no_grad():
-                diffs = (pos[:, 0] - lT[:, 0]) ** 2 + (pos[:, 1] - lT[:, 1]) ** 2
-                corr[0] += (diffs < 0.0025).sum()
-                corr[1] += (diffs < 0.01).sum()
-                corr[2] += (diffs < 0.04).sum()
+        losses[0] += loss.x/len(locInputs)
+        losses[1] += loss.y/len(locInputs)
+        losses[2] += loss.c/len(locInputs)
+        losses[3] += loss.s/len(locInputs)
+        losses[4] += loss.loss.item()/len(locInputs)
+        corr += loss.corr/len(locInputs)
 
-            loss = loss_x + loss_y + loss_c + loss_s
+        recLosses = net.reconstructor(obj_features, targets[-1])
 
-            losses[0] += loss_x.item() / len(locInputs)
-            losses[1] += loss_y.item() / len(locInputs)
-            losses[2] += loss_c.item() / len(locInputs)
-            losses[3] += loss_s.item() / len(locInputs)
-            losses[4] += loss.item() / len(locInputs)
+        reconLosses[0] += recLosses.x
+        reconLosses[1] += recLosses.y
+        reconLosses[2] += recLosses.confidence
+        reconLosses[3] += recLosses.binary
+        reconLosses[4] += recLosses.continuous
+        reconLosses[5] += recLosses.cls
+        reconLosses[6] += recLosses.loss.item()
+        reconLosses[7] += recLosses.recall[0].item()
+        reconLosses[8] += recLosses.recall[1].item()
+        reconLosses[9] += recLosses.recall[2].item()
+        reconLosses[10] += recLosses.precision[0].item()
+        reconLosses[11] += recLosses.precision[1].item()
+        reconLosses[12] += recLosses.precision[2].item()
 
-            bar.update(i * timesteps + j)
-
-        if not localization:
-            recLosses = net.reconstructor(obj_features, targets[-1])
-
-            reconLosses[0] += recLosses.x
-            reconLosses[1] += recLosses.y
-            reconLosses[2] += recLosses.confidence
-            reconLosses[3] += recLosses.binary
-            reconLosses[4] += recLosses.continuous
-            reconLosses[5] += recLosses.cls
-            reconLosses[6] += recLosses.loss.item()
-            reconLosses[7] += recLosses.recall[0].item()
-            reconLosses[8] += recLosses.recall[1].item()
-            reconLosses[9] += recLosses.recall[2].item()
-            reconLosses[10] += recLosses.precision[0].item()
-            reconLosses[11] += recLosses.precision[1].item()
-            reconLosses[12] += recLosses.precision[2].item()
+        bar.update(i+1)
 
     bar.finish()
 
@@ -205,43 +184,33 @@ def val(epoch):
               losses[2] / float(len(teLoader)),
               losses[3] / float(len(teLoader)),
               losses[4] / float(len(teLoader)),
-              corr[0] / float(len(teLoader)*batch_size*num_players*timesteps) * 100,
-              corr[1] / float(len(teLoader)*batch_size*num_players*timesteps) * 100,
-              corr[2] / float(len(teLoader)*batch_size*num_players*timesteps) * 100,
+              corr[0].item() / float(len(teLoader)) * 100,
+              corr[1].item() / float(len(teLoader)) * 100,
+              corr[2].item() / float(len(teLoader)) * 100,
           )
     )
 
-    avg = sum(corr) / float(len(teLoader)*batch_size*num_players*timesteps*len(corr)) * 100
+    avg = corr.mean() / float(len(teLoader)) * 100
 
-    if not localization:
-        print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(teLoader)):.4f}, X: {reconLosses[0]/float(len(teLoader)):.4f},"
-              f" Y: {reconLosses[1]/float(len(teLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(teLoader)):.4f}," 
-              f" Bin: {reconLosses[3]/float(len(teLoader)):.4f}, Cont: {reconLosses[4]/float(len(teLoader)):.4f}, "
-              f"Cls: {reconLosses[5]/float(len(teLoader)):.4f} "
-              f"[Avg Prec: {(reconLosses[7] + reconLosses[10])/float(len(teLoader)) * 50.0:.2f}, "
-              f"{(reconLosses[8] + reconLosses[11])/float(len(teLoader)) * 50.0:.2f}, "
-              f"{(reconLosses[9] + reconLosses[12])/float(len(teLoader)) * 50.0:.2f}]")
+    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(teLoader)):.4f}, X: {reconLosses[0]/float(len(teLoader)):.4f},"
+          f" Y: {reconLosses[1]/float(len(teLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(teLoader)):.4f}," 
+          f" Bin: {reconLosses[3]/float(len(teLoader)):.4f}, Cont: {reconLosses[4]/float(len(teLoader)):.4f}, "
+          f"Cls: {reconLosses[5]/float(len(teLoader)):.4f} "
+          f"[Avg Prec: {(reconLosses[7] + reconLosses[10])/float(len(teLoader)) * 50.0:.2f}, "
+          f"{(reconLosses[8] + reconLosses[11])/float(len(teLoader)) * 50.0:.2f}, "
+          f"{(reconLosses[9] + reconLosses[12])/float(len(teLoader)) * 50.0:.2f}]")
 
-        avg = sum(reconLosses[7:]) / (6*float(len(teLoader))) * 100
+    avg += sum(reconLosses[7:]) / (6*float(len(teLoader))) * 100
 
-    return avg
+    return avg/2
 
-class Predictor(nn.Module):
-    def __init__(self, nFeatures, nOut):
-        super().__init__()
-        self.Lin = nn.Linear(nFeatures, nOut)
-
-    def forward(self, x):
-        x = self.Lin(x)
-        #x[:,0:2] = torch.tanh(x[:,0:2])
-        return x
 
 if __name__ == '__main__':
 
     # seeds set (all but env)
     set_random_seeds(42)
 
-    localization = False
+    localization = True
     baseName = "roboLoc" if localization else "roboRec"
 
     # constants
@@ -258,9 +227,9 @@ if __name__ == '__main__':
 
     reco_desc = env.recoDescriptor
 
-    batch_size = 32 #if localization else 8
+    batch_size = 16 #if localization else 8
     num_players = 4
-    timesteps = 6 #if localization else 9
+    timesteps = 7 #if localization else 9
     epochNum = 30
     num_time = 5
 
@@ -330,9 +299,7 @@ if __name__ == '__main__':
         train(epoch)
         avg = val(epoch)
         sceduler.step()
-
-        if not localization:
-            rec_sceduler.step()
+        rec_sceduler.step()
 
         if avg > bestAvg:
             bestAvg = avg

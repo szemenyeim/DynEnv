@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     obsType = DynEnv.ObservationType.PARTIAL
 
-    localization = False
+    localization = True
 
     set_random_seeds(42)
     env = DynEnv.RoboCupEnvironment(nPlayers=2, observationType=obsType, noiseType=DynEnv.NoiseType.REALISTIC, noiseMagnitude=1.0, allowHeadTurn=True, render=False)
@@ -54,16 +54,16 @@ if __name__ == '__main__':
         env.nPlayers = numPlayers
 
         while True:
-            faulty = False
 
-            env.reset()
-            inp = []
-            outp = []
-            locO = []
-            locI = []
-            act = []
+            observations = env.reset()
+            faulty = env.faultyFrame
 
-            initLoc = [env.getFullState(robot)[1][:, [0,1,4,5]] for robot in env.agents]
+            state = [env.getFullState(robot) for robot in env.agents]
+            inp = [[[o[0] for o in obs] for obs in observations], ]
+            outp = [[s[0::2] for s in state], ]
+            locO = [[s[1][:, [0, 1, 4, 5]] for s in state], ]
+            locI = [[[o[1] for o in obs] for obs in observations], ]
+            initLoc = locO[0]
 
             for action in actions:
                 observations, _, _, info = env.step(action)
@@ -96,6 +96,7 @@ if __name__ == '__main__':
         outputs.append(outp)
         locOuts.append(locO)
         locInputs.append(locI)
+        actions = [np.zeros((4,4)),] + actions
         actInputs.append(actions)
         locInits.append(initLoc)
 
@@ -115,14 +116,16 @@ if __name__ == '__main__':
         env.nPlayers = numPlayers
 
         while True:
-            faulty = False
 
-            env.reset()
-            inp = []
-            outp = []
-            locO = []
-            locI = []
-            initLoc = [env.getFullState(robot)[1][:, [0,1,4,5]] for robot in env.agents]
+            observations = env.reset()
+            faulty = env.faultyFrame
+
+            state = [env.getFullState(robot) for robot in env.agents]
+            inp = [[[o[0] for o in obs] for obs in observations],]
+            outp = [[s[0::2] for s in state],]
+            locO = [[s[1][:, [0,1,4,5]] for s in state],]
+            locI = [[[o[1] for o in obs] for obs in observations],]
+            initLoc = locO[0]
 
             for action in actions:
                 observations, _, _, info = env.step(action)
@@ -143,6 +146,7 @@ if __name__ == '__main__':
         outputs.append(outp)
         locOuts.append(locO)
         locInputs.append(locI)
+        actions = [np.zeros((4,4)),] + actions
         actInputs.append(actions)
         locInits.append(initLoc)
 
