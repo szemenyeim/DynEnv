@@ -18,16 +18,19 @@ import torch.nn as nn
 
 def train(epoch):
 
-    losses = np.zeros(5)
-    reconLosses = np.zeros(13)
+    losses = LocalizationLosses()
+    losses.cuda()
+
+    reconLosses = ReconLosses(num_classes=2, num_thresh=3)
+    reconLosses.cuda()
 
     net.train()
 
-    bar = progressbar.ProgressBar(0, len(trLoader), redirect_stdout=False)
-
-    corr = torch.zeros(3).cuda()
+    bar = progressbar.ProgressBar(0, len(trLoader))
 
     for i, (ind, _) in enumerate(trLoader):
+
+        bar.update(i)
 
         locInputs = trainData[0][ind].T
         inputs = trainData[1][ind].T
@@ -45,8 +48,8 @@ def train(epoch):
         rec_optimizer.zero_grad()
         optimizer.zero_grad()
 
-        loss = LocalizationLosses()
-        loss.cuda()
+        poses = []
+        locTars = []
 
         for j, (lI,lT,act,I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
@@ -55,16 +58,11 @@ def train(epoch):
 
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
-            loss += compute_loc_loss([pos,], [lT, ], criterion, LocalizationLosses())
+            poses.append(pos)
+            locTars.append(lT)
 
-        losses[0] += loss.x/len(locInputs)
-        losses[1] += loss.y/len(locInputs)
-        losses[2] += loss.c/len(locInputs)
-        losses[3] += loss.s/len(locInputs)
-        losses[4] += loss.loss.item()/len(locInputs)
-        corr += loss.corr/len(locInputs)
+        loss = compute_loc_loss(poses, locTars, criterion, LocalizationLosses())
 
-        bar.update(i+1)
         loss.loss.backward()
         optimizer.step()
 
@@ -72,56 +70,35 @@ def train(epoch):
         recLosses.loss.backward()
         rec_optimizer.step()
 
-        reconLosses[0] += recLosses.x
-        reconLosses[1] += recLosses.y
-        reconLosses[2] += recLosses.confidence
-        reconLosses[3] += recLosses.binary
-        reconLosses[4] += recLosses.continuous
-        reconLosses[5] += recLosses.cls
-        reconLosses[6] += recLosses.loss.item()
-        reconLosses[7] += recLosses.recall[0].item()
-        reconLosses[8] += recLosses.recall[1].item()
-        reconLosses[9] += recLosses.recall[2].item()
-        reconLosses[10] += recLosses.precision[0].item()
-        reconLosses[11] += recLosses.precision[1].item()
-        reconLosses[12] += recLosses.precision[2].item()
+        loss.detach_loss()
+        losses += loss
+        recLosses.detach_loss()
+        reconLosses += recLosses
 
     bar.finish()
 
-    print("[Train Epoch %d/%d][Losses: x %f, y %f, c %f, s %f, total %f][correct: %.2f, %.2f, %.2f]"
-        % (
-            epoch + 1,
-            epochNum,
-            losses[0] / float(len(trLoader)),
-            losses[1] / float(len(trLoader)),
-            losses[2] / float(len(trLoader)),
-            losses[3] / float(len(trLoader)),
-            losses[4] / float(len(trLoader)),
-            corr[0].item() / float(len(trLoader)) * 100,
-            corr[1].item() / float(len(trLoader)) * 100,
-            corr[2].item() / float(len(trLoader)) * 100,
-          )
-    )
-    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(trLoader)):.4f}, X: {reconLosses[0]/float(len(trLoader)):.4f},"
-          f" Y: {reconLosses[1]/float(len(trLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(trLoader)):.4f}," 
-          f" Bin: {reconLosses[3]/float(len(trLoader)):.4f}, Cont: {reconLosses[4]/float(len(trLoader)):.4f}, "
-          f"Cls: {reconLosses[5]/float(len(trLoader)):.4f} "
-          f"[Avg Prec: {(reconLosses[7] + reconLosses[10])/float(len(trLoader)) * 50.0:.2f}, "
-          f"{(reconLosses[8] + reconLosses[11])/float(len(trLoader)) * 50.0:.2f}, "
-          f"{(reconLosses[9] + reconLosses[12])/float(len(trLoader)) * 50.0:.2f}]")
+    losses.div(len(trLoader))
+    reconLosses.div(len(trLoader))
+
+    print("[Train Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
+    print(losses, flush=True)
+    print(reconLosses, flush=True)
 
 def val(epoch):
 
-    losses = np.zeros(5)
-    reconLosses = np.zeros(13)
+    losses = LocalizationLosses()
+    losses.cuda()
+
+    reconLosses = ReconLosses(num_classes=2, num_thresh=3)
+    reconLosses.cuda()
 
     net.eval()
 
-    bar = progressbar.ProgressBar(0, len(teLoader), redirect_stdout=False)
-
-    corr = torch.zeros(3).cuda()
+    bar = progressbar.ProgressBar(0, len(teLoader))
 
     for i, (ind, _) in enumerate(teLoader):
+
+        bar.update(i)
 
         locInputs = trainData[0][ind].T
         inputs = trainData[1][ind].T
@@ -136,8 +113,8 @@ def val(epoch):
 
         net.initialize(locInits)
 
-        loss = LocalizationLosses()
-        loss.cuda()
+        poses = []
+        locTars = []
 
         for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
@@ -146,61 +123,30 @@ def val(epoch):
 
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
-            loss += compute_loc_loss([pos,], [lT, ], criterion, LocalizationLosses())
+            poses.append(pos)
+            locTars.append(lT)
 
-        losses[0] += loss.x/len(locInputs)
-        losses[1] += loss.y/len(locInputs)
-        losses[2] += loss.c/len(locInputs)
-        losses[3] += loss.s/len(locInputs)
-        losses[4] += loss.loss.item()/len(locInputs)
-        corr += loss.corr/len(locInputs)
+        loss = compute_loc_loss(poses, locTars, criterion, LocalizationLosses())
 
         recLosses = net.reconstructor(obj_features, targets[-1])
 
-        reconLosses[0] += recLosses.x
-        reconLosses[1] += recLosses.y
-        reconLosses[2] += recLosses.confidence
-        reconLosses[3] += recLosses.binary
-        reconLosses[4] += recLosses.continuous
-        reconLosses[5] += recLosses.cls
-        reconLosses[6] += recLosses.loss.item()
-        reconLosses[7] += recLosses.recall[0].item()
-        reconLosses[8] += recLosses.recall[1].item()
-        reconLosses[9] += recLosses.recall[2].item()
-        reconLosses[10] += recLosses.precision[0].item()
-        reconLosses[11] += recLosses.precision[1].item()
-        reconLosses[12] += recLosses.precision[2].item()
+        loss.detach_loss()
+        losses += loss
 
-        bar.update(i+1)
+        recLosses.detach_loss()
+        reconLosses += recLosses
 
     bar.finish()
 
-    print("[Test Epoch %d/%d][Losses: x %f, y %f, c %f, s %f, total %f][correct: %.2f, %.2f, %.2f]"
-          % (
-              epoch + 1,
-              epochNum,
-              losses[0] / float(len(teLoader)),
-              losses[1] / float(len(teLoader)),
-              losses[2] / float(len(teLoader)),
-              losses[3] / float(len(teLoader)),
-              losses[4] / float(len(teLoader)),
-              corr[0].item() / float(len(teLoader)) * 100,
-              corr[1].item() / float(len(teLoader)) * 100,
-              corr[2].item() / float(len(teLoader)) * 100,
-          )
-    )
+    losses.div(len(teLoader))
+    reconLosses.div(len(teLoader))
 
-    avg = corr.mean() / float(len(teLoader)) * 100
+    print("[Test Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
+    print(losses, flush=True)
+    print(reconLosses, flush=True)
 
-    print("[Reconstrction] "f"Recon Loss: {reconLosses[6]/float(len(teLoader)):.4f}, X: {reconLosses[0]/float(len(teLoader)):.4f},"
-          f" Y: {reconLosses[1]/float(len(teLoader)):.4f}, " f"Conf: {reconLosses[2]/float(len(teLoader)):.4f}," 
-          f" Bin: {reconLosses[3]/float(len(teLoader)):.4f}, Cont: {reconLosses[4]/float(len(teLoader)):.4f}, "
-          f"Cls: {reconLosses[5]/float(len(teLoader)):.4f} "
-          f"[Avg Prec: {(reconLosses[7] + reconLosses[10])/float(len(teLoader)) * 50.0:.2f}, "
-          f"{(reconLosses[8] + reconLosses[11])/float(len(teLoader)) * 50.0:.2f}, "
-          f"{(reconLosses[9] + reconLosses[12])/float(len(teLoader)) * 50.0:.2f}]")
-
-    avg += sum(reconLosses[7:]) / (6*float(len(teLoader))) * 100
+    avg = losses.corr.mean()
+    avg += reconLosses.APs.mean()
 
     return avg/2
 
@@ -232,27 +178,6 @@ if __name__ == '__main__':
     timesteps = 7 #if localization else 9
     epochNum = 30
     num_time = 5
-
-    '''features_per_object_type = [flatdim(s) for s in loc_obs_space.spaces]
-    num_obj_types = len(features_per_object_type)
-
-    embedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
-                                                   timesteps,
-                                                   num_players, num_obj_types, num_time, extended_feature_cnt=4).cuda()
-
-    predictor = Predictor(feature_size, 4).cuda()
-
-    if not localization:
-        suffix = "Loc.pth"
-        embedder.load_state_dict(torch.load("models/embedder" + suffix))
-        predictor.load_state_dict(torch.load("models/predictor" + suffix))
-
-    features_per_object_type = [flatdim(s) for s in obj_obs_space.spaces]
-    num_obj_types = len(features_per_object_type)
-    objEmbedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
-                                                   timesteps,
-                                                   num_players, num_obj_types, num_time, extended_feature_cnt=4).cuda()
-    reconstructor = ReconNet(feature_size, reco_desc).cuda()'''
 
     net = DynEvnEncoder(feature_size, batch_size, timesteps, num_players, num_time, loc_obs_space, obj_obs_space, reco_desc).cuda()
 
@@ -303,7 +228,7 @@ if __name__ == '__main__':
 
         if avg > bestAvg:
             bestAvg = avg
-            print("Saving best model: %.2f" % avg)
+            print("Saving best model: %.2f" % avg, flush=True)
             suffix = "Loc.pth" if localization else "Rec.pth"
             torch.save(net.state_dict(),"models/net" + suffix)
 

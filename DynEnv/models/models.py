@@ -917,8 +917,9 @@ class LocalizationLosses(LossLogger):
                 self.__dict__[key] = self.__dict__[key].item()
 
     def __repr__(self):
-        c = self.corr.mean().item() * 100
-        return f"Loc Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, C: {self.c:.2f}, S: {self.s:.2f}, corr: {c:.2f}"
+        c = self.corr * 100
+        return f"Localization Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, C: {self.c:.4f}, S: {self.s:.4f}, " \
+               f"Correct: [{c[0].item():.2f}, {c[1].item():.2f}, {c[2].item():.2f}]"
 
 
 @dataclass
@@ -979,11 +980,10 @@ class ReconLosses(LossLogger):
             self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
 
     def __repr__(self):
-        recall = self.recall.mean().item() * 100.0
-        prec = self.precision.mean().item() * 100.0
-        return f"Recon Loss: {self.loss:.2f}, X: {self.x:.2f}, Y: {self.y:.2f}, Conf: {self.confidence:.2f}," \
-               f" Bin: {self.binary:.2f}, Cont: {self.continuous:.2f}, Cls: {self.cls:.2f} " \
-               f"  [Recall: {recall:.2f}, Precision: {prec:.2f}]"
+        self.APs = (self.recall + self.precision).mean(dim=0) * 100.0
+        return f"Recon Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
+               f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f} " \
+               f"  [Avg Precs: {self.APs[0].item():.2f}, {self.APs[1].item():.2f}, {self.APs[2].item():.2f}]"
 
 
 class ReconNet(nn.Module):
