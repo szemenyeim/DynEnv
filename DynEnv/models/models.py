@@ -345,9 +345,8 @@ class AttentionLayer(nn.Module):
         # shape = attObj[0].shape
 
         # Filter nans
-        with torch.no_grad():
-            for att in attObj:
-                att[torch.isnan(att)] = 0
+        for att in attObj:
+            att[torch.isnan(att)] = 0
 
         # Run temporal attention
         finalAtt = attObj[0]
@@ -356,8 +355,7 @@ class AttentionLayer(nn.Module):
             finalAtt = self.bn(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
             finalMask = masks[i + 1] & finalMask
             # Filter nans
-            with torch.no_grad():
-                finalAtt[torch.isnan(finalAtt)] = 0
+            finalAtt[torch.isnan(finalAtt)] = 0
 
         # Mask out final attention results
         finalMask = finalMask.permute(1, 0)
@@ -916,10 +914,12 @@ class LocalizationLosses(LossLogger):
             if key not in ["loss", "corr"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
+    def finalize_corr(self):
+        self.corr *= 100
+
     def __repr__(self):
-        c = self.corr * 100
         return f"Localization Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, C: {self.c:.4f}, S: {self.s:.4f}, " \
-               f"Correct: [{c[0].item():.2f}, {c[1].item():.2f}, {c[2].item():.2f}]"
+               f"Correct: [{self.corr[0].item():.2f}, {self.corr[1].item():.2f}, {self.corr[2].item():.2f}]"
 
 
 @dataclass
@@ -942,6 +942,7 @@ class ReconLosses(LossLogger):
         else:
             self.precision = torch.zeros((self.num_classes, self.num_thresh))
             self.recall = torch.zeros((self.num_classes, self.num_thresh))
+            self.APs = torch.zeros((self.num_thresh,))
 
     def div(self, other):
         for key in self.__dict__.keys():
@@ -979,8 +980,10 @@ class ReconLosses(LossLogger):
             self.precision[idx,i] = float(nCorrectPrec[i] / nPred) if nPred else 1
             self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
 
-    def __repr__(self):
+    def compute_APs(self):
         self.APs = (self.recall + self.precision).mean(dim=0) * 50.0
+
+    def __repr__(self):
         return f"Reconstruction Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
                f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f} " \
                f"  [Avg Precs: {self.APs[0].item():.2f}, {self.APs[1].item():.2f}, {self.APs[2].item():.2f}]"
@@ -1184,18 +1187,21 @@ class DynEvnEncoder(nn.Module):
         self.embedder.LSTM.set_state(locInits)
         self.objEmbedder.reset()
 
-    def compute_loc_loss(self, pos, target):
+    def compute_loc_loss(self, pos, target, faulties=None):
         # pos = pos[:len(pos)-1]
 
         losses = LocalizationLosses()
         if pos[0].is_cuda:
             losses.cuda()
 
-        for p, t in zip(pos, target):
-            loss_x = self.mse(p[:, 0], t[:, 0])
-            loss_y = self.mse(p[:, 1], t[:, 1])
-            loss_c = self.mse(p[:, 2], t[:, 2])
-            loss_s = self.mse(p[:, 3], t[:, 3])
+        if faulties is None:
+            faulties = torch.ones((len(pos), pos[0].shape[0])).bool()
+
+        for p, t, f in zip(pos, target, faulties):
+            loss_x = self.mse(p[f, 0], t[f, 0])
+            loss_y = self.mse(p[f, 1], t[f, 1])
+            loss_c = self.mse(p[f, 2], t[f, 2])
+            loss_s = self.mse(p[f, 3], t[f, 3])
 
             corr = torch.zeros(3).cuda()
 
