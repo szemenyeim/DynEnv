@@ -35,6 +35,7 @@ def train(epoch):
         locTargets = trainData[2][ind].T
         targets = trainData[3][ind].T
         actions = trainData[4][ind].T
+        faulties = trainFaults[ind].permute(1,0,2,3).all(dim=2).view((timesteps, -1))
         locInits = torch.tensor(trainInitLocs[ind])
         locInits += (torch.randn(locInits.shape))/50.0
         locInits = locInits.view(-1, locInits.shape[-1])
@@ -64,7 +65,7 @@ def train(epoch):
         loss = net.compute_loc_loss(poses, locTars)
         recLosses = net.reconstructor(obj_features, targets[-1])
 
-        derLoss = loss.loss * locFactor + recLosses.loss
+        derLoss = loss.loss #* locFactor + recLosses.loss
         derLoss.backward()
 
         optimizer.step()
@@ -78,6 +79,8 @@ def train(epoch):
 
     losses.div(len(trLoader))
     reconLosses.div(len(trLoader))
+    losses.finalize_corr()
+    reconLosses.compute_APs()
 
     print("[Train Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
     print(losses, flush=True)
@@ -97,12 +100,13 @@ def val(epoch):
 
     for i, (ind, _) in enumerate(teLoader):
 
-        locInputs = trainData[0][ind].T
-        inputs = trainData[1][ind].T
-        locTargets = trainData[2][ind].T
-        targets = trainData[3][ind].T
-        actions = trainData[4][ind].T
-        locInits = torch.tensor(trainInitLocs[ind])
+        locInputs = testData[0][ind].T
+        inputs = testData[1][ind].T
+        locTargets = testData[2][ind].T
+        targets = testData[3][ind].T
+        actions = testData[4][ind].T
+        faulties = testFaults[ind].permute(1,0,2,3).all(dim=2).view((timesteps, -1))
+        locInits = torch.tensor(testInitLocs[ind])
         locInits += (torch.randn(locInits.shape))/50.0
         locInits = locInits.view(-1, locInits.shape[-1])
         #locs = torch.zeros(locInits.shape[0], feature_size)
@@ -139,6 +143,8 @@ def val(epoch):
 
     losses.div(len(teLoader))
     reconLosses.div(len(teLoader))
+    losses.finalize_corr()
+    reconLosses.compute_APs()
 
     print("[Test Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
     print(losses, flush=True)
@@ -203,11 +209,13 @@ if __name__ == '__main__':
     file = open(baseName + 'Train.pickle', 'rb')
     trainData = pickle.load(file)
     trainInitLocs = np.array(trainData[-1])
-    trainData = np.array(trainData[:-1])
+    trainFaults = ~torch.tensor(trainData[-2])
+    trainData = np.array(trainData[:-2])
     file = open(baseName + 'Test.pickle', 'rb')
     testData = pickle.load(file)
     testInitLocs = np.array(testData[-1])
-    testData = np.array(testData[:-1])
+    testFaults = ~torch.tensor(testData[-2])
+    testData = np.array(testData[:-2])
 
     trTens = torch.arange(len(trainData[0]))
     teTens = torch.arange(len(testData[0]))
