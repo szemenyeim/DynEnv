@@ -971,7 +971,7 @@ class ReconLosses(LossLogger):
         for key in self.__dict__.keys():
             if key in ["recall", "precision"]:
                 self.__dict__[key] = self.__dict__[key].mean(dim=0).detach()
-            elif key not in ["loss", "num_classes", "num_thresh"]:
+            elif key not in ["loss", "num_classes", "num_thresh", "APs"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
     def update_stats(self, nCorrect: list, nCorrectPrec: list, nPred: int, nTotal: int, idx: int):
@@ -980,8 +980,8 @@ class ReconLosses(LossLogger):
             self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
 
     def __repr__(self):
-        self.APs = (self.recall + self.precision).mean(dim=0) * 100.0
-        return f"Recon Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
+        self.APs = (self.recall + self.precision).mean(dim=0) * 50.0
+        return f"Reconstruction Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
                f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f} " \
                f"  [Avg Precs: {self.APs[0].item():.2f}, {self.APs[1].item():.2f}, {self.APs[2].item():.2f}]"
 
@@ -993,7 +993,7 @@ class ReconNet(nn.Module):
 
         self.reco_desc = reco_desc
         self.inplanes = inplanes
-        self.ignore_threses = [0.0025, 0.01, 0.04]
+        self.ignore_threses = [0.01, 0.04, 0.16] #[0.0025, 0.01, 0.04] #
 
         self.numChannels = 0
         self._create_class_defs()
@@ -1177,10 +1177,38 @@ class DynEvnEncoder(nn.Module):
                                              num_players, num_obj_types, num_time, extended_feature_cnt=4)
         self.reconstructor = ReconNet(feature_size, reco_desc)
 
+        self.mse = nn.MSELoss()
+
     def initialize(self, locInits):
         self.embedder.reset()
         self.embedder.LSTM.set_state(locInits)
         self.objEmbedder.reset()
+
+    def compute_loc_loss(self, pos, target):
+        # pos = pos[:len(pos)-1]
+
+        losses = LocalizationLosses()
+        if pos[0].is_cuda:
+            losses.cuda()
+
+        for p, t in zip(pos, target):
+            loss_x = self.mse(p[:, 0], t[:, 0])
+            loss_y = self.mse(p[:, 1], t[:, 1])
+            loss_c = self.mse(p[:, 2], t[:, 2])
+            loss_s = self.mse(p[:, 3], t[:, 3])
+
+            corr = torch.zeros(3).cuda()
+
+            with torch.no_grad():
+                diffs = (p[:, 0] - t[:, 0]) ** 2 + (p[:, 1] - t[:, 1]) ** 2
+                corr[0] = float((diffs < 0.0025).sum()) / float(len(diffs))
+                corr[1] = float((diffs < 0.01).sum()) / float(len(diffs))
+                corr[2] = float((diffs < 0.04).sum()) / float(len(diffs))
+
+            losses.update_losses(loss_x, loss_y, loss_c, loss_s, corr)
+
+        losses.prepare_losses(len(pos))
+        return losses
 
     def reset(self, reset_indices=None):
         self.embedder.reset(reset_indices)

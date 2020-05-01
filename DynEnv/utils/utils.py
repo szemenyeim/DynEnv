@@ -16,32 +16,6 @@ from ..environment_base import PredictionDescriptor
 flatten = lambda l: [item for sublist in l for item in sublist]
 
 
-def compute_loc_loss(pos, target, mse, losses):
-    # pos = pos[:len(pos)-1]
-
-    if pos[0].is_cuda:
-        losses.cuda()
-
-    for p, t in zip(pos, target):
-        loss_x = mse(p[:, 0], t[:, 0])
-        loss_y = mse(p[:, 1], t[:, 1])
-        loss_c = mse(p[:, 2], t[:, 2])
-        loss_s = mse(p[:, 3], t[:, 3])
-
-        corr = torch.zeros(3).cuda()
-
-        with torch.no_grad():
-            diffs = (p[:, 0] - t[:, 0]) ** 2 + (p[:, 1] - t[:, 1]) ** 2
-            corr[0] = float((diffs < 0.0025).sum()) / float(len(diffs))
-            corr[1] = float((diffs < 0.01).sum()) / float(len(diffs))
-            corr[2] = float((diffs < 0.04).sum()) / float(len(diffs))
-
-        losses.update_losses(loss_x, loss_y, loss_c, loss_s, corr)
-
-    losses.prepare_losses(len(pos))
-    return losses
-
-
 def transformActions(actions, discreteTurn = False):
     newActions = actions.clone()
     newActions[:, 2] = newActions[:, 0].clone()
@@ -452,12 +426,12 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
             nGT += 1
 
             # Convert to position relative to box
-            gx = 0#min(0.9999, max(0, target[t, predInfo.posIdx[0]])) * nGx
-            gy = 0#min(0.9999, max(0, target[t, predInfo.posIdx[1]])) * nGy
+            gx = target[t, predInfo.posIdx[0]]
+            gy = target[t, predInfo.posIdx[1]]
 
             # Get grid box indices
-            gi = int(gx)
-            gj = int(gy)
+            gi = 0
+            gj = 0
 
             # target coords
             dx = (gx - gi)
