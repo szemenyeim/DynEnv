@@ -17,7 +17,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
     randomInit = False
     deterministicTurn = False
-    canFall = False
+    canFall = True
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
                  noiseMagnitude=2, obs_space_cast=False, allowHeadTurn=False):
@@ -29,8 +29,6 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Basic settings
         self.allowHeadTurn = allowHeadTurn
-
-        self.faultyFrame = False
 
         self._setup_normalization()
 
@@ -440,7 +438,6 @@ class RoboCupEnvironment(EnvironmentBase):
         self.robotPosRewards = np.array([0.0, 0.0] * self.nPlayers)
         observations = []
         finished = False
-        self.faultyFrame = False
 
         # Run simulation for 500 ms (time for every action, except the kick)
         for i in range(self.stepIterCnt):
@@ -493,7 +490,6 @@ class RoboCupEnvironment(EnvironmentBase):
 
         info = {'Full State': self.getFullState()}
         info['Recon States'] = [self.getFullState(robot) for robot in self.agents]
-        info['Faulty'] = self.faultyFrame
 
         t2 = time.clock()
         # print((t2-t1)*1000)
@@ -1244,6 +1240,9 @@ class RoboCupEnvironment(EnvironmentBase):
             if cross[0] == SightingType.Misclassified:
                 ballDets.append([SightingType.Normal, cross[1], cross[2], 0])
 
+        robotsSeen = [self.agents[i].id for i, rob in enumerate(robDets) if rob[0] != SightingType.NoSighting]
+        ballsSeen = [i for i, ball in enumerate(ballDets) if ball[0] != SightingType.NoSighting and ball[0] != SightingType.Misclassified]
+
         # Remove occlusion and misclassified originals
         ballDets = [ball for i, ball in enumerate(ballDets) if
                     ball[0] != SightingType.NoSighting and ball[0] != SightingType.Misclassified]
@@ -1255,9 +1254,10 @@ class RoboCupEnvironment(EnvironmentBase):
                           cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
         lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
 
+        faulty = False
         numLandMarks = len(fieldCrossDets) + len(lineDets) + len(crossDets) + len(goalDets)
         if numLandMarks == 0:# or (numLandMarks == len(lineDets) and numLandMarks == 1):
-            self.faultyFrame = True
+            faulty = True
 
         # Random false positives
         for i in range(10):
@@ -1544,4 +1544,4 @@ class RoboCupEnvironment(EnvironmentBase):
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
 
-        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets, lineDets) #, circleDets
+        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets, lineDets), (faulty, robotsSeen, ballsSeen)
