@@ -126,8 +126,8 @@ class RoboCupEnvironment(EnvironmentBase):
                                                     "active": MultiBinary(1),
                                                     "confidence": confidence, }))
 
-        #robot_pred = PredictionDescriptor(numContinuous=2, numBinary=1, contIdx=[2, 3], binaryIdx=[4, ])
-        robot_pred = PredictionDescriptor(numContinuous=3, numBinary=1,contIdx=[2, 3, 4], binaryIdx=[5, ])
+        #robot_pred = PredictionDescriptor(numContinuous=1, numBinary=1, contIdx=[4], binaryIdx=[5,])
+        robot_pred = PredictionDescriptor(numContinuous=3, numBinary=1, contIdx=[2, 3, 4], binaryIdx=[5, ])
 
 
         self.recoDescriptor = RecoDescriptor(featureGridSize=(1, 1),

@@ -27,13 +27,13 @@ if __name__ == '__main__':
 
     obsType = DynEnv.ObservationType.PARTIAL
 
-    localization = True
+    small = False
 
     set_random_seeds(42)
     env = DynEnv.RoboCupEnvironment(nPlayers=2, observationType=obsType, noiseType=DynEnv.NoiseType.REALISTIC, noiseMagnitude=1.0, allowHeadTurn=True, render=False)
     env.agentVisID = 0
     env.randomInit = True
-    env.deterministicTurn = not localization
+    #env.deterministicTurn = True
     env.canFall = False
 
     inputs = []
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     actInputs = []
     locInits = []
 
-    trNum = int(2**10) #if localization else int(2**6)
+    trNum = int(2**6) if small else int(2**10)
     teNum = trNum // 4
     steps = 2 #if localization else 3
     interval = 3
@@ -156,7 +156,7 @@ if __name__ == '__main__':
     print("%d training and %d test datapoints generated." % (trDataNum, teDataNum))
     print("Saving")
 
-    baseName = "roboLoc" if localization else "roboRec"
+    baseName = "roboSmall" if small else "robo"
     file = open(baseName + "Train.pickle","wb")
     pickle.dump(trainData,file)
 
