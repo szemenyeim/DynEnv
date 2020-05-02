@@ -996,7 +996,7 @@ class ReconNet(nn.Module):
 
         self.reco_desc = reco_desc
         self.inplanes = inplanes
-        self.ignore_threses = [0.01, 0.04, 0.16] #[0.0025, 0.01, 0.04] #
+        self.ignore_threses = [0.0025, 0.01, 0.04] #[0.01, 0.04, 0.16] #
 
         self.numChannels = 0
         self._create_class_defs()
@@ -1044,7 +1044,7 @@ class ReconNet(nn.Module):
                         currClassDef += [key, ] * x.shape[0]
             self.classDefs.append([classDef.numItemsPerGridCell, currClassDef])
 
-    def forward(self, x, targets):
+    def forward(self, x, targets, seens):
 
         x = x.reshape([-1, self.inplanes, 1, 1])
 
@@ -1079,6 +1079,10 @@ class ReconNet(nn.Module):
             lenA = nElems // nA
             elemDesc = elemIDs[:lenA]
 
+            seen = seens[classInd].view(-1, nA, 1, 1)
+            if x.is_cuda:
+                seen = seen.cuda()
+
             cPreds = preds[:, predOffs:predOffs + nElems]
             cPreds = cPreds.view((-1, nA, lenA, nGy, nGx)).permute((0, 1, 3, 4, 2)).contiguous()
             predOffs += nElems
@@ -1112,7 +1116,8 @@ class ReconNet(nn.Module):
                     grid_size_x=nGx,
                     ignore_threses=self.ignore_threses,
                     predInfo=predInfo,
-                    classInd=classInd
+                    classInd=classInd,
+                    seen=seen
                 )
 
                 nProposals = int((pred_conf > 0.5).sum().item())
@@ -1137,19 +1142,19 @@ class ReconNet(nn.Module):
                 conf_mask_false = conf_mask ^ mask
 
                 # Mask outputs to ignore non-existing objects
-                loss_x = self.mse_loss(x[mask], tx[mask])
-                loss_y = self.mse_loss(y[mask], ty[mask])
-                loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0).type(FloatTensor)
-                loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0).type(FloatTensor)
-                loss_conf1 = self.bce_loss(pred_conf[conf_mask_false],
-                                           tconf[conf_mask_false]) if conf_mask_false.any() else torch.tensor(0).type(FloatTensor)
-                loss_conf2 = self.bce_loss(pred_conf[conf_mask_true],
-                                           tconf[conf_mask_true]) if conf_mask_true.any() else torch.tensor(0).type(FloatTensor)
-                loss_conf = 1 * loss_conf1 + loss_conf2
-                loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0).type(FloatTensor)
-                '''print("Ball: [%.2f, %.2f] Self: [%.2f, %.2f] Robot: [%.2f, %.2f] " % (recall[0].item()*100, precision[0].item()*100,
-                                                                              recall[1].item()*100, precision[1].item()*100,
-                                                                              recall[2].item()*100, precision[2].item()*100))'''
+                if mask.any():
+                    loss_x = self.mse_loss(x[mask], tx[mask])
+                    loss_y = self.mse_loss(y[mask], ty[mask])
+                    loss_cont = self.mse_loss(pred_cont[mask], tcont[mask]) if pred_cont is not None else torch.tensor(0).type(FloatTensor)
+                    loss_bin = self.bce_loss(pred_bins[mask], tbin[mask]) if pred_bins is not None else torch.tensor(0).type(FloatTensor)
+                    loss_conf1 = self.bce_loss(pred_conf[conf_mask_false],
+                                               tconf[conf_mask_false]) if conf_mask_false.any() else torch.tensor(0).type(FloatTensor)
+                    loss_conf2 = self.bce_loss(pred_conf[conf_mask_true],
+                                               tconf[conf_mask_true]) if conf_mask_true.any() else torch.tensor(0).type(FloatTensor)
+                    loss_conf = 1 * loss_conf1 + loss_conf2
+                    loss_cls = self.ce_loss(pred_class[mask], tcls[mask]) if pred_class is not None else torch.tensor(0).type(FloatTensor)
+                else:
+                    loss_x = loss_y = loss_cont = loss_bin = loss_cls = loss_conf = torch.tensor(0.0).cuda()
 
                 reco_losses.update_losses(loss_x, loss_y, loss_conf, loss_cont, loss_bin, loss_cls)
 
@@ -1229,7 +1234,7 @@ class DynEvnEncoder(nn.Module):
         self.embedder.LSTM.set_states(states[0])
         self.objEmbedder.LSTM.set_states(states[1])
 
-    def forward(self, x, recon=True):
+    def forward(self, x):
 
         inputs, locInputs, act = x
 
@@ -1237,6 +1242,6 @@ class DynEvnEncoder(nn.Module):
 
         pos = self.predictor(features)
 
-        obj_features = self.objEmbedder(inputs, pos.detach()) if recon else None
+        obj_features = self.objEmbedder(inputs, pos.detach())
 
         return features, obj_features, pos

@@ -390,8 +390,8 @@ def get_anchor_distances(x, y, preds):
     return (x - px) ** 2 + (y - py) ** 2
 
 
-def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
-                  grid_size_x, ignore_threses, predInfo: PredictionDescriptor, classInd):
+def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y, grid_size_x,
+                  ignore_threses, predInfo: PredictionDescriptor, classInd, seen):
     nB = len(targets)
     nA = num_anchors
     nGx = grid_size_x
@@ -423,7 +423,7 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
 
         for t in range(target.shape[0]):
 
-            nGT += 1
+            objSeen = seen[b,t].item()
 
             # Convert to position relative to box
             gx = target[t, predInfo.posIdx[0]]
@@ -452,8 +452,13 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y,
                 ignored_confs = pred_conf[b, anch_dists < thresh, gj, gi]
                 corr[i][b, anch_dists < thresh, gj, gi] = (ignored_confs > 0.5).byte()
 
+            if not objSeen:
+                continue
+
             # Find the best matching anchor box
             best_n = np.argmin(anch_dists)
+
+            nGT += 1
 
             # Get the best prediction
             pred_box = pred_coords[b, best_n, gj, gi].unsqueeze(0)
