@@ -1232,6 +1232,9 @@ class RoboCupEnvironment(EnvironmentBase):
         [addNoiseLine(line, self.noiseType, self.noiseMagnitude, self.randBase, self.maxVisDist[1]) for i, line in
          enumerate(lineDets)]
 
+        robotsSeen = np.array([rob[0] != SightingType.NoSighting for rob in robDets]).astype('uint8')
+        ballsSeen = (ballDets[0][0] != SightingType.NoSighting and ballDets[0][0] != SightingType.Misclassified)
+
         # Balls and crosses might by miscalssified - move them in the other list
         for ball in ballDets:
             if ball[0] == SightingType.Misclassified:
@@ -1239,9 +1242,6 @@ class RoboCupEnvironment(EnvironmentBase):
         for cross in crossDets:
             if cross[0] == SightingType.Misclassified:
                 ballDets.append([SightingType.Normal, cross[1], cross[2], 0])
-
-        robotsSeen = [self.agents[i].id for i, rob in enumerate(robDets) if rob[0] != SightingType.NoSighting]
-        ballsSeen = [i for i, ball in enumerate(ballDets) if ball[0] != SightingType.NoSighting and ball[0] != SightingType.Misclassified]
 
         # Remove occlusion and misclassified originals
         ballDets = [ball for i, ball in enumerate(ballDets) if
