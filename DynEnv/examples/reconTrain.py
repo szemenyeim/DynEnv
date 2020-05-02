@@ -35,7 +35,12 @@ def train(epoch):
         locTargets = trainData[2][ind].T
         targets = trainData[3][ind].T
         actions = trainData[4][ind].T
-        faulties = trainFaults[ind].permute(1,0,2,3).all(dim=2).view((timesteps, -1))
+        #faulties = trainFaults[ind].permute(1,0,2,3).all(dim=2).view((timesteps, -1))
+        objSeens = trainObjSeens[ind].transpose(1,0,3,2,4).reshape(timesteps, num_players*batch_size, num_time, 2)
+        robSeens = torch.tensor([[[[s for s in sight] for sight in time] for time in rob] for rob in objSeens[..., 0]]).bool().any(dim=2)
+        ballSeens = torch.tensor(objSeens[..., 1].astype('bool')).any(dim=2)
+        robSeen = robSeens.any(dim=0)
+        ballSeen = ballSeens.any(dim=0)
         locInits = torch.tensor(trainInitLocs[ind])
         locInits += (torch.randn(locInits.shape))/50.0
         locInits = locInits.view(-1, locInits.shape[-1])
@@ -52,6 +57,9 @@ def train(epoch):
 
         bar.update(i)
 
+        recLosses = ReconLosses(num_classes=2, num_thresh=3)
+        recLosses.cuda()
+
         for j, (lI,lT,act,I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
@@ -59,13 +67,15 @@ def train(epoch):
 
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
+            recLosses += net.reconstructor(obj_features, targets[j], (ballSeens[j], robSeens[j]))
+
             poses.append(pos)
             locTars.append(lT)
 
         loss = net.compute_loc_loss(poses, locTars)
-        recLosses = net.reconstructor(obj_features, targets[-1])
+        recLosses.div(timesteps)
 
-        derLoss = loss.loss #* locFactor + recLosses.loss
+        derLoss = loss.loss * locFactor + recLosses.loss
         derLoss.backward()
 
         optimizer.step()
@@ -105,7 +115,12 @@ def val(epoch):
         locTargets = testData[2][ind].T
         targets = testData[3][ind].T
         actions = testData[4][ind].T
-        faulties = testFaults[ind].permute(1,0,2,3).all(dim=2).view((timesteps, -1))
+        #faulties = testFaults[ind].permute(1,0,2,3).all(dim=2).view((timesteps, -1))
+        objSeens = testObjSeens[ind].transpose(1, 0, 3, 2, 4).reshape(timesteps, num_players * batch_size, num_time, 2)
+        robSeens = torch.tensor([[[[s for s in sight] for sight in time] for time in rob] for rob in objSeens[..., 0]]).bool().any(dim=2)
+        ballSeens = torch.tensor(objSeens[..., 1].astype('bool')).any(dim=2)
+        #robSeen = robSeens.any(dim=0)
+        #ballSeen = ballSeens.any(dim=0)
         locInits = torch.tensor(testInitLocs[ind])
         locInits += (torch.randn(locInits.shape))/50.0
         locInits = locInits.view(-1, locInits.shape[-1])
@@ -119,6 +134,9 @@ def val(epoch):
 
         bar.update(i)
 
+        recLosses = ReconLosses(num_classes=2, num_thresh=3)
+        recLosses.cuda()
+
         for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
 
@@ -126,16 +144,17 @@ def val(epoch):
 
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
+            recLosses += net.reconstructor(obj_features, targets[j], (ballSeens[j], robSeens[j]))
+
             poses.append(pos)
             locTars.append(lT)
 
         loss = net.compute_loc_loss(poses, locTars)
 
-        recLosses = net.reconstructor(obj_features, targets[-1])
-
         loss.detach_loss()
         losses += loss
 
+        recLosses.div(timesteps)
         recLosses.detach_loss()
         reconLosses += recLosses
 
@@ -181,7 +200,7 @@ if __name__ == '__main__':
 
     reco_desc = env.recoDescriptor
 
-    batch_size = 8 if small else 16
+    batch_size = 4 if small else 4
     num_players = 4
     timesteps = 7 #if localization else 9
     epochNum = 30
@@ -209,13 +228,15 @@ if __name__ == '__main__':
     file = open(baseName + 'Train.pickle', 'rb')
     trainData = pickle.load(file)
     trainInitLocs = np.array(trainData[-1])
-    trainFaults = ~torch.tensor(trainData[-2])
-    trainData = np.array(trainData[:-2])
+    trainObjSeens = np.array(trainData[-2])
+    trainFaults = ~torch.tensor(trainData[-3])
+    trainData = np.array(trainData[:-3])
     file = open(baseName + 'Test.pickle', 'rb')
     testData = pickle.load(file)
     testInitLocs = np.array(testData[-1])
-    testFaults = ~torch.tensor(testData[-2])
-    testData = np.array(testData[:-2])
+    testObjSeens = np.array(testData[-2])
+    testFaults = ~torch.tensor(testData[-3])
+    testData = np.array(testData[:-3])
 
     trTens = torch.arange(len(trainData[0]))
     teTens = torch.arange(len(testData[0]))

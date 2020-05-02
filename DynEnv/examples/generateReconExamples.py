@@ -32,7 +32,7 @@ if __name__ == '__main__':
     set_random_seeds(42)
     env = DynEnv.RoboCupEnvironment(nPlayers=2, observationType=obsType, noiseType=DynEnv.NoiseType.REALISTIC, noiseMagnitude=1.0, allowHeadTurn=True, render=False)
     env.agentVisID = 0
-    env.randomInit = True
+    env.randomInit = False
     #env.deterministicTurn = True
     #env.canFall = False
 
@@ -43,6 +43,7 @@ if __name__ == '__main__':
     actInputs = []
     locInits = []
     faultys = []
+    objSeens = []
 
     trNum = int(2**6) if small else int(2**10)
     teNum = trNum // 4
@@ -63,6 +64,7 @@ if __name__ == '__main__':
         locO = [[s[1][:, [0, 1, 4, 5]] for s in state], ]
         locI = [[[o[1] for o in obs] for obs in observations], ]
         faulty = [[[o[2][0] for o in obs] for obs in observations], ]
+        objSeen = [[[o[2][1:] for o in obs] for obs in observations], ]
         initLoc = locO[0]
 
         for action in actions:
@@ -72,6 +74,7 @@ if __name__ == '__main__':
             locI.append([[o[1] for o in obs] for obs in observations])
             locO.append([s[1][:, [0,1,4,5]] for s in state])
             faulty.append([[o[2][0] for o in obs] for obs in observations])
+            objSeen.append([[o[2][1:] for o in obs] for obs in observations])
             outp.append([s[0::2] for s in state])
 
         for action in actions:
@@ -94,10 +97,11 @@ if __name__ == '__main__':
         actInputs.append(actions)
         faultCnt += np.array(faulty).sum()
         faultys.append(faulty)
+        objSeens.append(objSeen)
         locInits.append(initLoc)
 
     trDataNum = len(inputs)
-    trainData = [locInputs, inputs, locOuts, outputs, actInputs, faultys, locInits]
+    trainData = [locInputs, inputs, locOuts, outputs, actInputs, faultys, objSeens, locInits]
     print("Faulty: ", faultCnt)
 
     inputs = []
@@ -107,6 +111,7 @@ if __name__ == '__main__':
     actInputs = []
     locInits = []
     faultys = []
+    objSeens = []
     faultCnt = 0
 
     for i in tqdm.tqdm(range(teNum)):
@@ -123,6 +128,7 @@ if __name__ == '__main__':
         locO = [[s[1][:, [0,1,4,5]] for s in state],]
         locI = [[[o[1] for o in obs] for obs in observations],]
         faulty = [[[o[2][0] for o in obs] for obs in observations], ]
+        objSeen = [[[o[2][1:] for o in obs] for obs in observations], ]
         initLoc = locO[0]
 
         for action in actions:
@@ -132,6 +138,7 @@ if __name__ == '__main__':
             locI.append([[o[1] for o in obs] for obs in observations])
             locO.append([s[1][:, [0,1,4,5]] for s in state])
             faulty.append([[o[2][0] for o in obs] for obs in observations])
+            objSeen.append([[o[2][1:] for o in obs] for obs in observations])
             outp.append([s[0::2] for s in state])
 
         for action in actions:
@@ -156,9 +163,10 @@ if __name__ == '__main__':
         locInits.append(initLoc)
         faultCnt += np.array(faulty).sum()
         faultys.append(faulty)
+        objSeens.append(objSeen)
 
     teDataNum = len(inputs)
-    testData = [locInputs, inputs, locOuts, outputs, actInputs, faultys, locInits]
+    testData = [locInputs, inputs, locOuts, outputs, actInputs, faultys, objSeens, locInits]
     print("Faulty: ", faultCnt)
 
     print("%d training and %d test datapoints generated." % (trDataNum, teDataNum))
