@@ -1,5 +1,5 @@
 from os.path import abspath
-from time import gmtime, strftime
+from time import gmtime, strftime, sleep
 
 import numpy as np
 import torch
@@ -10,7 +10,7 @@ import os.path as osp
 np.set_printoptions(precision=1)
 
 from ..utils.logger import TemporalLogger
-from ..utils.utils import AgentCheckpointer, transformActions, flatten, compute_loc_loss
+from ..utils.utils import AgentCheckpointer, transformActions, flatten
 from .storage import RolloutStorage
 from .models import ReconLosses, A2CLosses, ICMLosses, LocalizationLosses
 from gym.spaces import Box
@@ -62,11 +62,13 @@ class Runner(object):
 
         """Environment reset"""
         obs = self.env.reset()
-        self.storage.states.append(obs)
-        initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+        self.storage.states.append(obs[..., :-1])
+        self.storage.seens.append(obs[..., -1])
+
+        '''initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
         if self.is_cuda:
             initLoc = initLoc.cuda()
-        self.net.a2c.embedder_base.initialize(initLoc)
+        self.net.a2c.embedder_base.initialize(initLoc)'''
 
         """Variables for proper logging"""
         epLen = self.env.get_attr('stepNum')[0]
@@ -90,6 +92,7 @@ class Runner(object):
         num_rollout = 0
 
         for num_update in range(self.params.num_updates):
+            bar.update(num_rollout)
             self.net.optimizer.zero_grad()
 
             """A2C cycle"""
@@ -101,9 +104,10 @@ class Runner(object):
             # a_t_pred: inv_loss
             icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
 
-            los_losses = compute_loc_loss(self.storage.positions, self.storage.pos_target) if self.recon else LocalizationLosses()
+            los_losses = self.net.a2c.embedder_base.compute_loc_loss(self.storage.positions, self.storage.pos_target) \
+                if self.recon else LocalizationLosses()
 
-            recon_loss = self.net.a2c.embedder_base.reconstructor(self.storage.features[-2, :, self.net.feat_size:], self.storage.full_state_targets[-1]) \
+            recon_loss = self.compute_recon_losses(self.storage.features[:-2, :, self.net.feat_size:], self.storage.full_state_targets, self.storage.seens) \
                 if self.recon else ReconLosses(num_thresh=3, num_classes=2)
 
             if not self.recon:
@@ -138,7 +142,8 @@ class Runner(object):
             los_losses.detach_loss()
             loc_losses_accumulated += los_losses
             num_rollout += 1
-            bar.update(num_rollout)
+            los_losses.finalize_corr()
+            recon_loss.compute_APs()
 
             """Print to console at the end of each episode"""
             dones = self.storage.dones[-1].bool()
@@ -157,11 +162,10 @@ class Runner(object):
                 """Get goals"""
                 goals = np.array(self.storage.goals).T * self.params.num_envs
 
-                #recon_loss_accumulated.div(num_rollout)
-                #loc_losses_accumulated.div(num_rollout)
-                recon_loss_accumulated.precision /= num_rollout
-                recon_loss_accumulated.recall /= num_rollout
-                loc_losses_accumulated.corr /= num_rollout
+                recon_loss_accumulated.div(num_rollout)
+                loc_losses_accumulated.div(num_rollout)
+                loc_losses_accumulated.finalize_corr()
+                recon_loss_accumulated.compute_APs()
 
                 self.logger.log(
                     **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
@@ -178,10 +182,10 @@ class Runner(object):
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
-                      "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]")
+                      "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]", flush=True)
 
-                print(recon_loss_accumulated)
-                print(loc_losses_accumulated)
+                print(recon_loss_accumulated, flush=True)
+                print(loc_losses_accumulated, flush=True)
 
                 r_loss = 0
 
@@ -195,17 +199,19 @@ class Runner(object):
                     recon_loss_accumulated.cuda()
 
                 num_rollout = 0
+                sleep(0.5)
                 bar = progressbar.ProgressBar(0, updatesPerEpisode, redirect_stdout=False)
 
-                initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+                '''initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
                 if self.is_cuda:
                     initLoc = initLoc.cuda()
-                self.net.a2c.embedder_base.initialize(initLoc)
+                self.net.a2c.embedder_base.initialize(initLoc)'''
 
                 """Best model is saved according to reward in the driving env, but positive rewards are used for robocup"""
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
                 if len(rewards_that_count) >= rewards_that_count.maxlen:
                     self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
+                    print("BEST")
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
@@ -222,6 +228,14 @@ class Runner(object):
 
     def episode_rollout(self):
         episode_action_probs = []
+
+        if self.recon:
+            initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+            initLoc += (torch.randn(initLoc.shape))/(20)
+            if self.is_cuda:
+                initLoc = initLoc.cuda()
+            self.net.a2c.embedder_base.initialize(initLoc)
+
         for step in range(self.params.rollout_size):
             """Interact with the environments """
             # call A2C
@@ -230,14 +244,14 @@ class Runner(object):
             # accumulate episode entropy
             episode_action_probs.append(action_probs)
 
+            truePos = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
+            if self.is_cuda:
+                truePos = truePos.cuda()
+
             # interact
             actionsForEnv = (torch.stack(actions, dim=1)).view(
                 (self.net.num_envs, self.net.num_players, -1)).detach().cpu().numpy()
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
-
-            truePos = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
-            if self.is_cuda:
-                truePos = truePos.cuda()
             #self.net.a2c.embedder_base.initialize(truePos)
 
             # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)
@@ -248,8 +262,8 @@ class Runner(object):
             # save episode reward
             self.storage.log_episode_rewards(state)
 
-            self.storage.insert(step, rewards, agentFinished, new_obs, actions, log_probs, values, dones, features,
-                                fullStates, pos, truePos)
+            self.storage.insert(step, rewards, agentFinished, new_obs[..., :-1], actions, log_probs, values, dones, features,
+                                fullStates, pos, truePos, new_obs[..., -1])
 
         # Note:
         # get the estimate of the final reward
@@ -257,11 +271,36 @@ class Runner(object):
         # detach, as the final value will only be used as a
         with torch.no_grad():
             states = self.net.a2c.embedder_base.get_states()
-            _, _, _, final_value, final_features, final_pos = self.net.a2c.get_action(
+            _, _, _, final_value, final_features, _ = self.net.a2c.get_action(
                 (self.storage.get_state(step + 1), transformActions(self.storage.actions[step].t())))
             self.net.a2c.embedder_base.set_states(states)
 
-        self.storage.features[step + 1].copy_(final_features)
+        self.storage.features[step + 1].copy_(final_features.detach())
         #self.storage.positions.append(final_pos)
 
         return final_value, episode_action_probs
+
+    def compute_recon_losses(self, features, targets, seens):
+
+        objSeens = np.array(seens)
+        sizes = objSeens.shape
+        objSeens = objSeens.transpose(0, 1, 3, 2).reshape(sizes[0], -1, sizes[2])
+        robSeens = torch.tensor(
+            [[[[s for s in step[1]] for step in rob] for rob in time] for time in objSeens]).bool().any(
+            dim=2)
+        ballSeens = torch.tensor(
+            [[[step[2] for step in rob] for rob in time] for time in objSeens]).bool().any(
+            dim=2)
+        robSeenBefore = [robSeens[:i + 1].any(dim=0) for i in range(robSeens.shape[0])]
+        ballSeenBefore = [ballSeens[:i + 1].any(dim=0) for i in range(ballSeens.shape[0])]
+
+        recLosses = ReconLosses(num_classes=2, num_thresh=3)
+        recLosses.cuda()
+
+        for j, (obj_features) in enumerate(features):
+
+            recLosses += self.net.a2c.embedder_base.reconstructor(obj_features, targets[j], (ballSeenBefore[j], robSeenBefore[j]))
+
+        recLosses.div(features.shape[0])
+
+        return recLosses
