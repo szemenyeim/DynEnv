@@ -172,7 +172,7 @@ if __name__ == '__main__':
     print("%d training and %d test datapoints generated." % (trDataNum, teDataNum))
     print("Saving")
 
-    baseName = "roboSmall" if small else "robo"
+    baseName = "data/roboSmall" if small else "data/robo"
     file = open(baseName + "Train.pickle","wb")
     pickle.dump(trainData,file)
 

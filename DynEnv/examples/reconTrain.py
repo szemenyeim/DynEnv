@@ -178,7 +178,7 @@ if __name__ == '__main__':
     set_random_seeds(42)
 
     small = False
-    baseName = "roboSmall" if small else "robo"
+    baseName = "data/roboSmall" if small else "data/robo"
 
     # constants
     feature_size = 64
