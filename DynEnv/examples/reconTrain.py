@@ -39,8 +39,8 @@ def train(epoch):
         objSeens = trainObjSeens[ind].transpose(1,0,3,2,4).reshape(timesteps, num_players*batch_size, num_time, 2)
         robSeens = torch.tensor([[[[s for s in sight] for sight in time] for time in rob] for rob in objSeens[..., 0]]).bool().any(dim=2)
         ballSeens = torch.tensor(objSeens[..., 1].astype('bool')).any(dim=2)
-        robSeen = robSeens.any(dim=0)
-        ballSeen = ballSeens.any(dim=0)
+        robSeenBefore = [robSeens[:i+1].any(dim=0) for i in range(robSeens.shape[0])]
+        ballSeenBefore = [ballSeens[:i+1].any(dim=0) for i in range(ballSeens.shape[0])]
         locInits = torch.tensor(trainInitLocs[ind])
         locInits += (torch.randn(locInits.shape))/50.0
         locInits = locInits.view(-1, locInits.shape[-1])
@@ -61,13 +61,13 @@ def train(epoch):
         recLosses.cuda()
 
         for j, (lI,lT,act,I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
+
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
-
-            features, obj_features, pos = net((I, lI, act), True)
-
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
-            recLosses += net.reconstructor(obj_features, targets[j], (ballSeens[j], robSeens[j]))
+            features, obj_features, pos = net((I, lI, act))
+
+            recLosses += net.reconstructor(obj_features, targets[j], (ballSeenBefore[j], robSeenBefore[j]))
 
             poses.append(pos)
             locTars.append(lT)
@@ -75,7 +75,7 @@ def train(epoch):
         loss = net.compute_loc_loss(poses, locTars)
         recLosses.div(timesteps)
 
-        derLoss = loss.loss * locFactor + recLosses.loss
+        derLoss = loss.loss * locFactor + recLosses.loss * recFactor
         derLoss.backward()
 
         optimizer.step()
@@ -91,8 +91,6 @@ def train(epoch):
     reconLosses.div(len(trLoader))
     losses.finalize_corr()
     reconLosses.compute_APs()
-
-    print("[Train Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
     print(losses, flush=True)
     print(reconLosses, flush=True)
 
@@ -119,8 +117,8 @@ def val(epoch):
         objSeens = testObjSeens[ind].transpose(1, 0, 3, 2, 4).reshape(timesteps, num_players * batch_size, num_time, 2)
         robSeens = torch.tensor([[[[s for s in sight] for sight in time] for time in rob] for rob in objSeens[..., 0]]).bool().any(dim=2)
         ballSeens = torch.tensor(objSeens[..., 1].astype('bool')).any(dim=2)
-        #robSeen = robSeens.any(dim=0)
-        #ballSeen = ballSeens.any(dim=0)
+        robSeenBefore = [robSeens[:i+1].any(dim=0) for i in range(robSeens.shape[0])]
+        ballSeenBefore = [ballSeens[:i+1].any(dim=0) for i in range(ballSeens.shape[0])]
         locInits = torch.tensor(testInitLocs[ind])
         locInits += (torch.randn(locInits.shape))/50.0
         locInits = locInits.view(-1, locInits.shape[-1])
@@ -138,13 +136,13 @@ def val(epoch):
         recLosses.cuda()
 
         for j, (lI, lT, act, I) in enumerate(zip(locInputs, locTargets, actions, inputs)):
+
             act = torch.tensor(flatten(list(act))).float().cuda().squeeze()
-
-            features, obj_features, pos = net((I, lI, act), True)
-
             lT = torch.tensor(flatten(list(lT))).cuda().squeeze()
 
-            recLosses += net.reconstructor(obj_features, targets[j], (ballSeens[j], robSeens[j]))
+            features, obj_features, pos = net((I, lI, act))
+
+            recLosses += net.reconstructor(obj_features, targets[j], (ballSeenBefore[j], robSeenBefore[j]))
 
             poses.append(pos)
             locTars.append(lT)
@@ -165,7 +163,6 @@ def val(epoch):
     losses.finalize_corr()
     reconLosses.compute_APs()
 
-    print("[Test Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
     print(losses, flush=True)
     print(reconLosses, flush=True)
 
@@ -190,6 +187,7 @@ if __name__ == '__main__':
 
     # Localization relative weight
     locFactor = 1.0
+    recFactor = 1.0
 
     # env
     env = RoboCupEnvironment(1, observationType=ObservationType.PARTIAL)
@@ -251,6 +249,7 @@ if __name__ == '__main__':
 
     for epoch in range(epochNum):
 
+        print("[Epoch %d/%d]" % (epoch + 1, epochNum), flush=True)
         train(epoch)
         avg = val(epoch)
         sceduler.step()
