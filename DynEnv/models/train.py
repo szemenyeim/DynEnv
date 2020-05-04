@@ -104,21 +104,23 @@ class Runner(object):
             # a_t_pred: inv_loss
             icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
 
-            los_losses = self.net.a2c.embedder_base.compute_loc_loss(self.storage.positions, self.storage.pos_target) \
+            loc_losses = self.net.a2c.embedder_base.compute_loc_loss(self.storage.positions, self.storage.pos_target) \
                 if self.recon else LocalizationLosses()
 
             recon_loss = self.compute_recon_losses(self.storage.features[:-2, :, self.net.feat_size:], self.storage.full_state_targets, self.storage.seens) \
                 if self.recon else ReconLosses(num_thresh=3, num_classes=2)
 
             if not self.recon:
-                los_losses.prepare_losses()
+                loc_losses.cuda()
+                recon_loss.cuda()
+                loc_losses.prepare_losses()
                 recon_loss.prepare_losses()
 
             """Assemble loss"""
             a2c_losses, rewards = self.storage.a2c_loss(final_value, action_probs, self.params.value_coeff,
                                                         self.params.entropy_coeff)
 
-            loss = a2c_losses.loss + icm_losses.loss + self.recon_factor * (recon_loss.loss + los_losses.loss)
+            loss = a2c_losses.loss + icm_losses.loss + self.recon_factor * (recon_loss.loss + loc_losses.loss)
 
             loss.backward(retain_graph=False)
 
@@ -139,10 +141,10 @@ class Runner(object):
             """Running recon losses"""
             recon_loss.detach_loss()
             recon_loss_accumulated += recon_loss
-            los_losses.detach_loss()
-            loc_losses_accumulated += los_losses
+            loc_losses.detach_loss()
+            loc_losses_accumulated += loc_losses
             num_rollout += 1
-            los_losses.finalize_corr()
+            loc_losses.finalize_corr()
             recon_loss.compute_APs()
 
             """Print to console at the end of each episode"""
@@ -184,8 +186,9 @@ class Runner(object):
                       "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]", flush=True)
 
-                print(recon_loss_accumulated, flush=True)
-                print(loc_losses_accumulated, flush=True)
+                if self.recon:
+                    print(recon_loss_accumulated, flush=True)
+                    print(loc_losses_accumulated, flush=True)
 
                 r_loss = 0
 

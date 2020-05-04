@@ -74,9 +74,9 @@ def get_args():
 
 
     # Reconstruction settings
-    parser.add_argument('--use-reconstruction', type=bool, default=True, metavar='RECON',
+    parser.add_argument('--use-reconstruction', type=bool, default=False, metavar='RECON',
                         help='Enable reconstruction training')
-    parser.add_argument('--recon-pretrained', type=bool, default=True, metavar='PRETRAINED',
+    parser.add_argument('--recon-pretrained', type=bool, default=False, metavar='PRETRAINED',
                         help='Enable pre-trained reconstruction model')
 
     parser.add_argument('--note', type=str, default='None',
