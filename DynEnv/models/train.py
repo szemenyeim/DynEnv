@@ -215,10 +215,6 @@ class Runner(object):
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
                 if len(rewards_that_count) >= rewards_that_count.maxlen:
                     self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
-                    name = "models/bestRec" if self.recon else "models/best"
-                    ext = "Pret.pth" if self.pret else ".pth"
-                    torch.save(self.net.state_dict(), "models/best")
-                    print("BEST")
 
             # it stores a lot of data which let's the graph
             # grow out of memory, so it is crucial to reset
