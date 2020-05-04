@@ -45,8 +45,9 @@ class RolloutStorage(object):
         self.episode_pos_rewards = sliceable_deque(maxlen=num_envs * 10)
         self.goals = sliceable_deque(maxlen=num_envs)
         self.full_state_targets = sliceable_deque(maxlen=rollout_size)
-        self.positions = sliceable_deque(maxlen=rollout_size+1)
+        self.positions = sliceable_deque(maxlen=rollout_size)
         self.pos_target = sliceable_deque(maxlen=rollout_size)
+        self.seens = sliceable_deque(maxlen=rollout_size)
         self.use_full_entropy = use_full_entropy
 
         # initialize the buffers with zeros
@@ -106,6 +107,8 @@ class RolloutStorage(object):
         :return:
         """
         self.states = [self.states[-1]]
+        self.pos_target = [self.pos_target[-1]]
+        self.seens = [self.seens[-1]]
         self.reset_buffers()
 
     def get_state(self, step):
@@ -118,7 +121,7 @@ class RolloutStorage(object):
         """
         return self.states[step]
 
-    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features, fullStates, pos, truePos):
+    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features, fullStates, pos, truePos, seen):
         """
         Inserts new data into the log for each environment at index step
 
@@ -138,6 +141,7 @@ class RolloutStorage(object):
         self.full_state_targets.append(fullStates)
         self.positions.append(pos)
         self.pos_target.append(truePos)
+        self.seens.append(seen)
 
         self.rewards[step].copy_(torch.from_numpy(reward).view(-1))
         self.agentFinished[step].copy_(agent_finished.view(-1))
