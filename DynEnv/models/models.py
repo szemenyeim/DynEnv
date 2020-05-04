@@ -942,6 +942,8 @@ class ReconLosses(LossLogger):
         else:
             self.precision = torch.zeros((self.num_classes, self.num_thresh))
             self.recall = torch.zeros((self.num_classes, self.num_thresh))
+            self.Ps = torch.zeros((self.num_thresh,))
+            self.Rs = torch.zeros((self.num_thresh,))
             self.APs = torch.zeros((self.num_thresh,))
 
     def div(self, other):
@@ -972,7 +974,7 @@ class ReconLosses(LossLogger):
         for key in self.__dict__.keys():
             if key in ["recall", "precision"]:
                 self.__dict__[key] = self.__dict__[key].mean(dim=0).detach()
-            elif key not in ["loss", "num_classes", "num_thresh", "APs"]:
+            elif key not in ["loss", "num_classes", "num_thresh", "APs", "Ps", "Rs"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
     def update_stats(self, nCorrect: list, nCorrectPrec: list, nPred: int, nTotal: int, idx: int):
@@ -981,12 +983,15 @@ class ReconLosses(LossLogger):
             self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
 
     def compute_APs(self):
-        self.APs = (self.recall + self.precision).mean(dim=0) * 50.0
+        self.Ps = (self.precision).mean(dim=0) * 100.0
+        self.Rs = (self.recall).mean(dim=0) * 100.0
+        self.APs = (self.Ps + self.Rs)/2.0
 
     def __repr__(self):
         return f"Reconstruction Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
                f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f} " \
-               f"  [Avg Precs: {self.APs[0].item():.2f}, {self.APs[1].item():.2f}, {self.APs[2].item():.2f}]"
+               f"  [Precs: {self.Ps[0].item():.2f}, {self.Ps[1].item():.2f}, {self.Ps[2].item():.2f}]" \
+               f"  [Recs: {self.Rs[0].item():.2f}, {self.Rs[1].item():.2f}, {self.Rs[2].item():.2f}]"
 
 
 class ReconNet(nn.Module):
@@ -996,7 +1001,7 @@ class ReconNet(nn.Module):
 
         self.reco_desc = reco_desc
         self.inplanes = inplanes
-        self.ignore_threses = [0.0025, 0.01, 0.04] #[0.01, 0.04, 0.16] #
+        self.ignore_threses = [0.01, 0.04, 0.16] #[0.0025, 0.01, 0.04] #
 
         self.numChannels = 0
         self._create_class_defs()
@@ -1004,7 +1009,8 @@ class ReconNet(nn.Module):
         self.nn = nn.Sequential(
             nn.ConvTranspose2d(inplanes, inplanes * 2, self.reco_desc.featureGridSize),
             nn.LeakyReLU(0.1),
-            nn.BatchNorm2d(inplanes * 2),
+            nn.LayerNorm([inplanes * 2, self.reco_desc.featureGridSize[0], self.reco_desc.featureGridSize[1]]),
+            #nn.BatchNorm2d(inplanes * 2),
             nn.Conv2d(inplanes * 2, self.numChannels, 1)
         )
 
@@ -1079,7 +1085,9 @@ class ReconNet(nn.Module):
             lenA = nElems // nA
             elemDesc = elemIDs[:lenA]
 
-            seen = seens[classInd].view(-1, nA, 1, 1)
+            numTar = targets[0][classInd].shape[0]
+
+            seen = seens[classInd].view(-1, numTar, 1, 1)
             if x.is_cuda:
                 seen = seen.cuda()
 
@@ -1242,6 +1250,8 @@ class DynEvnEncoder(nn.Module):
 
         pos = self.predictor(features)
 
-        obj_features = self.objEmbedder(inputs, pos.detach())
+        inLoc = pos.detach()
+
+        obj_features = self.objEmbedder(inputs, inLoc)
 
         return features, obj_features, pos
