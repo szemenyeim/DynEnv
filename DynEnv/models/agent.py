@@ -9,7 +9,7 @@ from ..environment_base import RecoDescriptor
 
 class ICMAgent(nn.Module):
     def __init__(self, num_envs, num_players, action_descriptor, attn_target, attn_type, obs_space, feat_size,
-                 reco_desc: RecoDescriptor, forward_coeff, icm_beta, pretrained, num_rollout, num_time,
+                 reco_desc: RecoDescriptor, forward_coeff, icm_beta, num_rollout, pretrained, num_time,
                  lr=1e-4):
         """
         Container class of an A2C and an ICM network, the baseline for experimenting with other curiosity-based
