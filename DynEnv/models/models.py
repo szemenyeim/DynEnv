@@ -1233,6 +1233,10 @@ class DynEvnEncoder(nn.Module):
         self.embedder.reset(reset_indices)
         self.objEmbedder.reset(reset_indices)
 
+    def detach(self):
+        self.embedder.detach()
+        self.objEmbedder.detach()
+
     def get_states(self):
         s1 = self.embedder.LSTM.get_states()
         s2 = self.objEmbedder.LSTM.get_states()
