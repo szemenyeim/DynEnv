@@ -45,5 +45,5 @@ if __name__ == '__main__':
                               RewardType.INTRINSIC_AND_EXTRINSIC, args.note, args.use_full_entropy)
 
     # runner object & training
-    runner = Runner(agent, env, param, args.use_reconstruction, args.recon_factor, args.cuda, args.seed, args.log_dir)
+    runner = Runner(agent, env, param, args.use_reconstruction, args.recon_factor, args.cuda, args.seed, args.log_dir, args.recon_pretrained)
     runner.train()

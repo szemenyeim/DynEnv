@@ -20,7 +20,7 @@ import progressbar
 
 class Runner(object):
 
-    def __init__(self, net, env, params, recon, recon_factor, is_cuda=True, seed=42, log_dir=abspath("/data/patrik")):
+    def __init__(self, net, env, params, recon, recon_factor, is_cuda=True, seed=42, log_dir=abspath("/data/patrik"), pret=False):
         super().__init__()
 
         # constants
@@ -34,6 +34,7 @@ class Runner(object):
         self.params = params
         self.recon_factor = recon_factor
         self.recon = recon
+        self.pret = pret
 
         """Logger"""
         self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir,
@@ -214,6 +215,9 @@ class Runner(object):
                 rewards_that_count = self.storage.episode_rewards if self.params.env_name == 'Driving' else self.storage.episode_pos_rewards
                 if len(rewards_that_count) >= rewards_that_count.maxlen:
                     self.checkpointer.checkpoint(loss, rewards_that_count, self.net, updatesPerEpisode)
+                    name = "models/bestRec" if self.recon else "models/best"
+                    ext = "Pret.pth" if self.pret else ".pth"
+                    torch.save(self.net.state_dict(), "models/best")
                     print("BEST")
 
             # it stores a lot of data which let's the graph
