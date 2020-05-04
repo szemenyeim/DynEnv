@@ -118,7 +118,7 @@ class RoboCupEnvironment(EnvironmentBase):
         self_pred = PredictionDescriptor(numContinuous=4, numBinary=1, contIdx=[2, 3, 4, 5], binaryIdx=[7, ])
 
         # Robot
-        robot_state = StateSpaceDescriptor(3, Dict({"position": position_xy,
+        robot_state = StateSpaceDescriptor(4, Dict({"position": position_xy,
                                                     "orientation": Box(-1.0, +1.0, shape=(2,)),
                                                     "team": Box(-1, 1, shape=(1,)),
                                                     "active": MultiBinary(1),

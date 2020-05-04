@@ -12,6 +12,7 @@ import torch
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 
 from ..environment_base import PredictionDescriptor
+import itertools
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -397,7 +398,7 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y, gri
     nGx = grid_size_x
     nGy = grid_size_y
 
-    ignore_thres = ignore_threses[1]
+    ignore_thres = ignore_threses[2]
 
     # Masks: mask is one for the best bounding box
     # Conf mask is one for BBs, where the confidence is enforced to match target
@@ -415,13 +416,37 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y, gri
 
     nGT = 0
     nCorrect = [0,]*len(ignore_threses)
+
+    numObj = nA
+    numPos = int(np.sqrt(numObj))
+    anch_positions = torch.tensor([[(i+1)/numPos - 1 for i in range(numPos*2)],
+                                   [(i+1)/numPos - 1 for i in range(numPos*2)]])
+    anch_positions = anch_positions[:, 0::2]
+    anch_positions = torch.tensor(flatten([[
+        [anch_positions[0][i].item(), anch_positions[1][i].item()],
+        [anch_positions[0][i].item(), anch_positions[1][numPos - 1 - i].item()]]
+        for i in range(numPos)]))
+
     for b, target in enumerate(targets):
         target = target[classInd]
 
         if len(target.shape) < 2:
             target = np.expand_dims(target, 0)
 
+        if numObj > 1:
+            coords = target[:, predInfo.posIdx]
+            seens = seen[b].squeeze()
+            anchor_assignments = assign_greedy(coords, anch_positions, seens)
+        else:
+            anchor_assignments = torch.tensor([0,]).long()
+
         for t in range(target.shape[0]):
+
+            # Find the best matching anchor box
+            best_n = anchor_assignments[t]
+
+            # anchor_pos
+            x_offs, y_offs = anch_positions[best_n]
 
             objSeen = seen[b,t].item()
 
@@ -441,9 +466,9 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y, gri
             anch_dists = get_anchor_distances(dx, dy, pred_coords[b, :, gj, gi])
 
             # Override distances for anchors already taken - unless they are all taken
-            curr_mask = mask[b, :, gj, gi].bool()
+            '''curr_mask = mask[b, :, gj, gi].bool()
             if curr_mask.sum() < nA:
-                anch_dists[curr_mask] = 1e10
+                anch_dists[curr_mask] = 1e10'''
 
             # Where the overlap is larger than threshold set conf_mask to zero (ignore)
             conf_mask[b, anch_dists < ignore_thres, gj, gi] = 0
@@ -454,9 +479,6 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y, gri
 
             if not objSeen:
                 continue
-
-            # Find the best matching anchor box
-            best_n = np.argmin(anch_dists)
 
             nGT += 1
 
@@ -492,3 +514,31 @@ def build_targets(pred_coords, pred_conf, targets, num_anchors, grid_size_y, gri
                     corr[i][b, best_n, gj, gi] = 1
 
     return nGT, nCorrect, mask, conf_mask, tx, ty, tcont, tbin, tconf, tcls, corr
+
+def assign_greedy(pos, anch, seen):
+    n = pos.shape[0]
+    d = pos.shape[1]
+    m = anch.shape[0]
+
+    pos = torch.tensor(pos).unsqueeze(1).expand((n, m, d))
+    anch = anch.unsqueeze(0).expand((n, m, d))
+
+    dist = torch.pow(pos - anch, 2).sum(2)
+    dist[~seen, :] = 0
+
+    bestPerm = torch.arange(m)
+
+    if not seen.any():
+        return bestPerm
+
+    bestCost = 100.0
+
+    for p in itertools.permutations(range(m)):
+
+        cost = sum([dist[i, p[i]] for i in range(n)])
+
+        if cost < bestCost:
+            bestCost = cost
+            bestPerm = p
+
+    return torch.tensor(bestPerm)
