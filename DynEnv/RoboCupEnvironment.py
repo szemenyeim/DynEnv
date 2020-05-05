@@ -426,7 +426,7 @@ class RoboCupEnvironment(EnvironmentBase):
         return [self.allowHeadTurn]
 
     def get_agent_locs(self):
-        return [self.getFullState(agent)[1][:, [0, 1, 4, 5]] for agent in self.agents]
+        return [self.getFullState(agent)[1][:, [0, 1, 2, 3, 4, 5]] for agent in self.agents]
 
     # Main step function
     def step(self, actions):
@@ -1155,8 +1155,8 @@ class RoboCupEnvironment(EnvironmentBase):
                 np.array([[
                     normalizeAfterScale(agent.getPos()[0], self.standardNormX, self.meanX, team),
                     normalizeAfterScale(agent.getPos()[1], self.standardNormY, self.meanY, team),
-                    math.cos(agent.getAngle(team)), math.sin(agent.getAngle(team)),
                     math.cos(agent.getAngle(team) + agent.headAngle), math.sin(agent.getAngle(team) + agent.headAngle),
+                    math.cos(agent.headAngle), math.sin(agent.headAngle),
                     agent.team,
                     int(agent.fallen or agent.penalized)], ]).astype('float32'),
 

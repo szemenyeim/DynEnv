@@ -5,6 +5,7 @@ import pickle
 import tqdm
 import copy
 from DynEnv.utils.utils import set_random_seeds
+from time import sleep
 
 def generateActions(actionDefs,nPlayers,steps,interval = 3):
     fullActions = []
@@ -50,6 +51,8 @@ if __name__ == '__main__':
     steps = 2 #if localization else 3
     interval = 3
     faultCnt = 0
+    ballS = 0
+    robS = 0
 
     for i in tqdm.tqdm(range(trNum)):
         numPlayers = 2
@@ -61,7 +64,7 @@ if __name__ == '__main__':
         state = [env.getFullState(robot) for robot in env.agents]
         inp = [[[o[0] for o in obs] for obs in observations], ]
         outp = [[s[0::2] for s in state], ]
-        locO = [[s[1][:, [0, 1, 4, 5]] for s in state], ]
+        locO = [[s[1][:, [0, 1, 2, 3, 4, 5]] for s in state], ]
         locI = [[[o[1] for o in obs] for obs in observations], ]
         faulty = [[[o[2][0] for o in obs] for obs in observations], ]
         objSeen = [[[o[2][1:] for o in obs] for obs in observations], ]
@@ -72,7 +75,7 @@ if __name__ == '__main__':
             state = info['Recon States']
             inp.append([[o[0] for o in obs] for obs in observations])
             locI.append([[o[1] for o in obs] for obs in observations])
-            locO.append([s[1][:, [0,1,4,5]] for s in state])
+            locO.append([s[1][:, [0,1,2,3,4,5]] for s in state])
             faulty.append([[o[2][0] for o in obs] for obs in observations])
             objSeen.append([[o[2][1:] for o in obs] for obs in observations])
             outp.append([s[0::2] for s in state])
@@ -95,14 +98,17 @@ if __name__ == '__main__':
         locInputs.append(locI)
         actions = [np.zeros((4,4)),] + actions
         actInputs.append(actions)
-        faultCnt += np.array(faulty).sum()
         faultys.append(faulty)
         objSeens.append(objSeen)
         locInits.append(initLoc)
+        faultCnt += (np.array(faulty).sum(axis=1) == 0).sum()
+        robS += np.array([[[[s for s in rob[0]] for rob in sight] for sight in time] for time in objSeen]).any(axis=1).mean()
+        ballS += np.array([[[rob[1] for rob in sight] for sight in time] for time in objSeen]).any(axis=1).mean()
 
     trDataNum = len(inputs)
     trainData = [locInputs, inputs, locOuts, outputs, actInputs, faultys, objSeens, locInits]
-    print("Faulty: ", faultCnt)
+    print("Faulty: ", faultCnt, "Balls: ", ballS/len(inputs)*100, "Robots: ", robS/len(inputs)*100)
+    sleep(0.5)
 
     inputs = []
     locInputs = []
@@ -113,6 +119,8 @@ if __name__ == '__main__':
     faultys = []
     objSeens = []
     faultCnt = 0
+    ballS = 0
+    robS = 0
 
     for i in tqdm.tqdm(range(teNum)):
         numPlayers = 2
@@ -125,7 +133,7 @@ if __name__ == '__main__':
         state = [env.getFullState(robot) for robot in env.agents]
         inp = [[[o[0] for o in obs] for obs in observations],]
         outp = [[s[0::2] for s in state],]
-        locO = [[s[1][:, [0,1,4,5]] for s in state],]
+        locO = [[s[1][:, [0,1,2,3,4,5]] for s in state],]
         locI = [[[o[1] for o in obs] for obs in observations],]
         faulty = [[[o[2][0] for o in obs] for obs in observations], ]
         objSeen = [[[o[2][1:] for o in obs] for obs in observations], ]
@@ -136,7 +144,7 @@ if __name__ == '__main__':
             state = info['Recon States']
             inp.append([[o[0] for o in obs] for obs in observations])
             locI.append([[o[1] for o in obs] for obs in observations])
-            locO.append([s[1][:, [0,1,4,5]] for s in state])
+            locO.append([s[1][:, [0,1,2,3,4,5]] for s in state])
             faulty.append([[o[2][0] for o in obs] for obs in observations])
             objSeen.append([[o[2][1:] for o in obs] for obs in observations])
             outp.append([s[0::2] for s in state])
@@ -161,13 +169,16 @@ if __name__ == '__main__':
         actions = [np.zeros((4,4)),] + actions
         actInputs.append(actions)
         locInits.append(initLoc)
-        faultCnt += np.array(faulty).sum()
         faultys.append(faulty)
         objSeens.append(objSeen)
+        faultCnt += (np.array(faulty).sum(axis=1) == 0).sum()
+        robS += np.array([[[[s for s in rob[0]] for rob in sight] for sight in time] for time in objSeen]).any(axis=1).mean()
+        ballS += np.array([[[rob[1] for rob in sight] for sight in time] for time in objSeen]).any(axis=1).mean()
 
     teDataNum = len(inputs)
     testData = [locInputs, inputs, locOuts, outputs, actInputs, faultys, objSeens, locInits]
-    print("Faulty: ", faultCnt)
+    print("Faulty: ", faultCnt, "Balls: ", ballS/len(inputs)*100, "Robots: ", robS/len(inputs)*100)
+
 
     print("%d training and %d test datapoints generated." % (trDataNum, teDataNum))
     print("Saving")

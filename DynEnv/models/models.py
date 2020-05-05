@@ -391,7 +391,7 @@ class LSTMLayer(nn.Module):
 
         # Transformer
         self.transformer = nn.Sequential(
-            nn.Linear(4, self.feature_size),
+            nn.Linear(6, self.feature_size),
             nn.Tanh()
         )
 
@@ -879,15 +879,21 @@ class LocalizationLosses(LossLogger):
     y: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     c: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     s: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    c_h: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    s_h: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     corr: torch.Tensor = field(default_factory=lambda: torch.tensor([0.0, 0.0, 0.0]))
 
-    def update_losses(self, loss_x: torch.Tensor, loss_y: torch.Tensor, loss_c: torch.Tensor,
-                      loss_s: torch.Tensor, corr: torch.Tensor):
+    def update_losses(self, loss_x: torch.Tensor, loss_y: torch.Tensor,
+                      loss_c: torch.Tensor, loss_s: torch.Tensor,
+                      loss_c_h: torch.Tensor, loss_s_h: torch.Tensor,
+                      corr: torch.Tensor):
 
         self.x += loss_x
         self.y += loss_y
         self.c += loss_c
         self.s += loss_s
+        self.c_h += loss_c_h
+        self.s_h += loss_s_h
         self.corr += corr
 
     def cuda(self):
@@ -905,7 +911,9 @@ class LocalizationLosses(LossLogger):
         self.y /= numSteps
         self.c /= numSteps
         self.s /= numSteps
-        self.loss = self.x.sum() + self.y.sum() + self.c.sum() + self.s.sum()
+        self.c_h /= numSteps
+        self.s_h /= numSteps
+        self.loss = self.x.sum() + self.y.sum() + self.c.sum() + self.s.sum() + self.c_h.sum() + self.s_h.sum()
 
         self.corr /= numSteps
 
@@ -918,7 +926,8 @@ class LocalizationLosses(LossLogger):
         self.corr *= 100
 
     def __repr__(self):
-        return f"Localization Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, C: {self.c:.4f}, S: {self.s:.4f}, " \
+        return f"Localization Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, " \
+               f"C: {self.c:.4f}, S: {self.s:.4f}, C_h: {self.c_h:.4f}, S_h: {self.s_h:.4f}," \
                f"Correct: [{self.corr[0].item():.2f}, {self.corr[1].item():.2f}, {self.corr[2].item():.2f}]"
 
 
@@ -1183,14 +1192,14 @@ class DynEvnEncoder(nn.Module):
                                           timesteps,
                                           num_players, num_obj_types, num_time, extended_feature_cnt=4)
 
-        self.predictor = nn.Linear(feature_size, 4)
+        self.predictor = nn.Linear(feature_size, 6)
 
         features_per_object_type = [flatdim(s) for s in obj_obs_space.spaces]
         num_obj_types = len(features_per_object_type)
 
         self.objEmbedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
                                              timesteps,
-                                             num_players, num_obj_types, num_time, extended_feature_cnt=4)
+                                             num_players, num_obj_types, num_time, extended_feature_cnt=6)
         self.reconstructor = ReconNet(feature_size, reco_desc)
 
         self.mse = nn.MSELoss()
@@ -1215,6 +1224,8 @@ class DynEvnEncoder(nn.Module):
             loss_y = self.mse(p[f, 1], t[f, 1])
             loss_c = self.mse(p[f, 2], t[f, 2])
             loss_s = self.mse(p[f, 3], t[f, 3])
+            loss_c_h = self.mse(p[f, 4], t[f, 4])
+            loss_s_h = self.mse(p[f, 5], t[f, 5])
 
             corr = torch.zeros(3).cuda()
 
@@ -1224,7 +1235,7 @@ class DynEvnEncoder(nn.Module):
                 corr[1] = float((diffs < 0.01).sum()) / float(len(diffs))
                 corr[2] = float((diffs < 0.04).sum()) / float(len(diffs))
 
-            losses.update_losses(loss_x, loss_y, loss_c, loss_s, corr)
+            losses.update_losses(loss_x, loss_y, loss_c, loss_s, loss_c_h, loss_s_h, corr)
 
         losses.prepare_losses(len(pos))
         return losses
