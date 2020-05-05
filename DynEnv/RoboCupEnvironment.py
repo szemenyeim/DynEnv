@@ -64,10 +64,8 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def _setup_normalization(self):
         self.mean = 2.0 if ObservationType.PARTIAL else 1.0
-        self.normX = self.mean * 2 / self.W
-        self.normY = self.mean * 2 / self.H
-        self.standardNormX = 2.0 / (self.W)
-        self.standardNormY = 2.0 / (self.H)
+        self.norm = self.mean * 2 / self.W
+        self.standardNorm = 2.0 / (self.W)
         self.meanX = self.W / 2
         self.meanY = self.H / 2
 
@@ -1130,15 +1128,15 @@ class RoboCupEnvironment(EnvironmentBase):
     def getFullState(self, agent=None):
 
         if agent is None:
-            state = [np.array([[normalize(rob.getPos()[0], self.standardNormX, 0),
-                                normalize(rob.getPos()[1], self.standardNormY, 0),
+            state = [np.array([[normalize(rob.getPos()[0], self.standardNorm, 0),
+                                normalize(rob.getPos()[1], self.standardNorm, 0),
                                 math.cos(rob.getAngle()), math.sin(rob.getAngle()),
                                 rob.team,
                                 int(rob.fallen or rob.penalized)]
                                for rob in self.agents]).astype('float32'),
 
-                     np.array([normalize(self.ball.getPos()[0], self.standardNormX, 0),
-                               normalize(self.ball.getPos()[1], self.standardNormY, 0),
+                     np.array([normalize(self.ball.getPos()[0], self.standardNorm, 0),
+                               normalize(self.ball.getPos()[1], self.standardNorm, 0),
                                self.ballOwned]).astype('float32')]
         else:
             # flip axes for team -1
@@ -1147,22 +1145,22 @@ class RoboCupEnvironment(EnvironmentBase):
 
             state = [
                 np.array([
-                    [normalizeAfterScale(self.ball.getPos()[0], self.standardNormX, self.meanX, team),
-                     normalizeAfterScale(self.ball.getPos()[1], self.standardNormY, self.meanY, team),
+                    [normalizeAfterScale(self.ball.getPos()[0], self.standardNorm, self.meanX, team),
+                     normalizeAfterScale(self.ball.getPos()[1], self.standardNorm, self.meanY, team),
                      self.ballOwned * agent.team,
                      agent.id in self.closestID], ]).astype('float32'),
 
                 np.array([[
-                    normalizeAfterScale(agent.getPos()[0], self.standardNormX, self.meanX, team),
-                    normalizeAfterScale(agent.getPos()[1], self.standardNormY, self.meanY, team),
+                    normalizeAfterScale(agent.getPos()[0], self.standardNorm, self.meanX, team),
+                    normalizeAfterScale(agent.getPos()[1], self.standardNorm, self.meanY, team),
                     math.cos(agent.getAngle(team) + agent.headAngle), math.sin(agent.getAngle(team) + agent.headAngle),
                     math.cos(agent.headAngle), math.sin(agent.headAngle),
                     agent.team,
                     int(agent.fallen or agent.penalized)], ]).astype('float32'),
 
                 np.array([
-                    [normalizeAfterScale(rob.getPos()[0], self.standardNormX, self.meanX, team),
-                     normalizeAfterScale(rob.getPos()[1], self.standardNormY, self.meanY, team),
+                    [normalizeAfterScale(rob.getPos()[0], self.standardNorm, self.meanX, team),
+                     normalizeAfterScale(rob.getPos()[1], self.standardNorm, self.meanY, team),
                      math.cos(rob.getAngle(team)), math.sin(rob.getAngle(team)),
                      rob.team * agent.team,
                      int(rob.fallen or rob.penalized)]
@@ -1519,25 +1517,25 @@ class RoboCupEnvironment(EnvironmentBase):
             return np.concatenate((topCamImg, bottomCamImg))
 
         # Convert to numpy
-        ballDets = np.array([[normalize(ball[1].x, self.normX), normalize(ball[1].y, self.normY),
+        ballDets = np.array([[normalize(ball[1].x, self.standardNorm), normalize(ball[1].y, self.standardNorm),
                               normalizeAfterScale(ball[2], self.sizeNorm, self.ballRadius * 2), ball[3],
                               agent.id in self.closestID] for ball in ballDets]).astype('float32')
-        robDets = np.array([[normalize(rob[1].x, self.normX), normalize(rob[1].y, self.normY),
+        robDets = np.array([[normalize(rob[1].x, self.standardNorm), normalize(rob[1].y, self.standardNorm),
                              normalizeAfterScale(rob[2], self.sizeNorm, Robot.totalRadius),
                              math.cos(rob[3]), math.sin(rob[3]), rob[4], rob[5]] for rob in robDets]).astype('float32')
-        goalDets = np.array([convertToPolar(goal, self.normX, self.goalPostRadius, self.sizeNorm, agent.team) for goal in
+        goalDets = np.array([convertToPolar(goal, self.standardNorm, self.goalPostRadius, self.sizeNorm, agent.team) for goal in
                              goalDets]).astype('float32')
-        crossDets = np.array([convertToPolar(cross, self.normX, self.penaltyRadius, self.sizeNorm, agent.team) for cross in
+        crossDets = np.array([convertToPolar(cross, self.standardNorm, self.penaltyRadius, self.sizeNorm, agent.team) for cross in
                               crossDets]).astype('float32')
-        fieldCrossDets = np.array([convertToPolar(cross, self.normX, self.penaltyRadius, self.sizeNorm, agent.team) + [math.cos(cross[5]), -math.sin(cross[5])] for cross in
+        fieldCrossDets = np.array([convertToPolar(cross, self.standardNorm, self.penaltyRadius, self.sizeNorm, agent.team) + [math.cos(cross[5]), -math.sin(cross[5])] for cross in
                               fieldCrossDets]).astype('float32')
-        selfDets = np.array([[normalizeAfterScale(agent.getPos()[0], self.standardNormX, self.meanX, agent.team),
-                        normalizeAfterScale(agent.getPos()[1], self.standardNormY, self.meanY, agent.team),
+        selfDets = np.array([[normalizeAfterScale(agent.getPos()[0], self.standardNorm, self.meanX, agent.team),
+                        normalizeAfterScale(agent.getPos()[1], self.standardNorm, self.meanY, agent.team),
                         math.cos(agent.getAngle(agent.team) + agent.headAngle),
                         math.sin(agent.getAngle(agent.team) + agent.headAngle),],]).astype('float32')
-        lineDets = np.array([normalizeLine(line, self.standardNormX) for line in lineDets]).astype('float32')
-        circleDets = np.array([[normalize(circleDets[1].x, self.normX),
-                                normalize(circleDets[1].y, self.normY),
+        lineDets = np.array([normalizeLine(line, self.standardNorm) for line in lineDets]).astype('float32')
+        circleDets = np.array([[normalize(circleDets[1].x, self.standardNorm),
+                                normalize(circleDets[1].y, self.standardNorm),
                                 normalizeAfterScale(circleDets[2], self.sizeNorm * 0.1,
                                                     self.centerCircleRadius * 2)]]).astype('float32') \
             if circleDets[0] != SightingType.NoSighting else np.array([])
