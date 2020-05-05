@@ -337,7 +337,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def _setup_action_space(self):
         if self.allowHeadTurn:
-            self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-6, high=6, shape=(1,))))
+            self.action_space = Tuple((MultiDiscrete([5, 3, 3]), Box(low=-3, high=3, shape=(1,))))
         else:
             self.action_space = Tuple((MultiDiscrete([5, 3, 3, 7]),))
 
@@ -478,6 +478,8 @@ class RoboCupEnvironment(EnvironmentBase):
 
             if self.renderVar:
                 self._render_internal()
+
+        self.processSeens(observations)
 
         self.robotRewards[:self.nPlayers] += self.teamRewards[0]
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
@@ -1254,10 +1256,7 @@ class RoboCupEnvironment(EnvironmentBase):
                           cross[0] != SightingType.NoSighting and cross[0] != SightingType.Misclassified]
         lineDets = [line for i, line in enumerate(lineDets) if line[0] != SightingType.NoSighting]
 
-        faulty = False
         numLandMarks = len(fieldCrossDets) + len(lineDets) + len(crossDets) + len(goalDets)
-        if numLandMarks == 0:# or (numLandMarks == len(lineDets) and numLandMarks == 1):
-            faulty = True
 
         # Random false positives
         for i in range(10):
@@ -1544,4 +1543,16 @@ class RoboCupEnvironment(EnvironmentBase):
             if circleDets[0] != SightingType.NoSighting else np.array([])
 
 
-        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets, lineDets), (faulty, robotsSeen, ballsSeen)
+        return (ballDets, robDets), (goalDets, crossDets, fieldCrossDets, lineDets), (numLandMarks, robotsSeen, ballsSeen)
+
+    def processSeens(self, observations):
+
+        factor = 0.1
+        sfactor = 0.01
+
+        for robID in range(self.nPlayers*2):
+            lSeens = np.clip(np.array([float(obs[robID][2][0]) for obs in observations]).mean(), a_min=0.0, a_max=3.0)
+            rSeens = np.clip(np.array([list(obs[robID][2][1]) for obs in observations]).sum(axis=0), a_min=0.0, a_max=3.0).sum()
+            bSeens = np.clip(np.array([float(obs[robID][2][2]) for obs in observations]).sum(), a_min=0.0, a_max=3.0)
+            self.robotPosRewards[robID] += (factor * (bSeens + lSeens) + sfactor * rSeens)
+            self.robotRewards[robID] += (factor * (bSeens + lSeens) + sfactor * rSeens)
