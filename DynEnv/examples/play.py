@@ -18,9 +18,9 @@ def doRoboCup(args):
     env.renderMode = 'human'
     env.agentVisID = 0
 
-    action0 = [0, 0, 0]
-    action1 = [0, 0, 0]
-    action2 = [0, 0, 0]
+    action0 = [0, 0, 0, 3]
+    action1 = [0, 0, 0, 3]
+    action2 = [0, 0, 0, 3]
 
     while True:
         for event in pygame.event.get():
@@ -47,6 +47,20 @@ def doRoboCup(args):
                     action1[2] = 1
                 elif event.key == K_f:
                     action1[2] = 2
+                elif event.key == K_0:
+                    action1[3] = 0
+                elif event.key == K_1:
+                    action1[3] = 1
+                elif event.key == K_2:
+                    action1[3] = 2
+                elif event.key == K_3:
+                    action1[3] = 3
+                elif event.key == K_4:
+                    action1[3] = 4
+                elif event.key == K_5:
+                    action1[3] = 5
+                elif event.key == K_6:
+                    action1[3] = 6
                 elif event.key == K_UP:
                     action2[0] = 1
                 elif event.key == K_DOWN:
@@ -66,11 +80,12 @@ def doRoboCup(args):
                 elif event.key == K_RETURN:
                     env.reset()
             elif event.type == KEYUP:
-                action1 = [0, 0, 0]
-                action2 = [0, 0, 0]
+                action1 = [0, 0, 0, 3]
+                action2 = [0, 0, 0, 3]
 
         action = np.array([action1, ] + [action0,] * (args.num_players-1) + [action2,] + [action0,] * (args.num_players-1))
-        #a1 = np.stack((np.random.randint(0,5,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)),np.random.randint(0,3,(nPlayers*2)))).T
+        '''action = np.stack((np.random.randint(0,5,(args.num_players*2)),np.random.randint(0,3,(args.num_players*2)),
+                           np.random.randint(0,3,(args.num_players*2)),np.random.randint(0,6,(args.num_players*2)))).T'''
         ret = env.step(action)
         rend = env.render()
         if ret[2]:
@@ -134,7 +149,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Play with the env')
 
     # env Params
-    parser.add_argument('--env', default=DynEnvType.DRIVE, type=DynEnvType.argparse, choices=list(DynEnvType),
+    parser.add_argument('--env', default=DynEnvType.ROBO_CUP, type=DynEnvType.argparse, choices=list(DynEnvType),
                         help='Environment type')
     parser.add_argument('--num-players', type=int, default=2, metavar='NUM_PLAYERS',
                         help='number of players in the environment [1-5]')
