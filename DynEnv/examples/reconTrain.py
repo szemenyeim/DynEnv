@@ -15,6 +15,7 @@ import numpy as np
 import progressbar
 from gym.spaces import flatdim
 import torch.nn as nn
+from time import sleep
 
 def train(epoch):
 
@@ -93,6 +94,7 @@ def train(epoch):
     reconLosses.compute_APs()
     print(losses, flush=True)
     print(reconLosses, flush=True)
+    sleep(0.5)
 
 def val(epoch):
 
@@ -168,6 +170,7 @@ def val(epoch):
 
     avg = losses.corr.mean()
     avg += reconLosses.APs.mean()
+    sleep(0.5)
 
     return avg/2
 
