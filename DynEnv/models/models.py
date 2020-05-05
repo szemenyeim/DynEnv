@@ -927,7 +927,7 @@ class LocalizationLosses(LossLogger):
 
     def __repr__(self):
         return f"Localization Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, " \
-               f"C: {self.c:.4f}, S: {self.s:.4f}, C_h: {self.c_h:.4f}, S_h: {self.s_h:.4f}," \
+               f"C: {self.c:.4f}, S: {self.s:.4f}, C_h: {self.c_h:.4f}, S_h: {self.s_h:.4f}, " \
                f"Correct: [{self.corr[0].item():.2f}, {self.corr[1].item():.2f}, {self.corr[2].item():.2f}]"
 
 
@@ -998,9 +998,9 @@ class ReconLosses(LossLogger):
 
     def __repr__(self):
         return f"Reconstruction Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
-               f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f} " \
-               f"  [Precs: {self.Ps[0].item():.2f}, {self.Ps[1].item():.2f}, {self.Ps[2].item():.2f}]" \
-               f"  [Recs: {self.Rs[0].item():.2f}, {self.Rs[1].item():.2f}, {self.Rs[2].item():.2f}]"
+               f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f}" \
+               f" [Precs: {self.Ps[0].item():.2f}, {self.Ps[1].item():.2f}, {self.Ps[2].item():.2f}]" \
+               f" [Recs: {self.Rs[0].item():.2f}, {self.Rs[1].item():.2f}, {self.Rs[2].item():.2f}]"
 
 
 class ReconNet(nn.Module):
