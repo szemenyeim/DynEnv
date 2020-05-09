@@ -951,8 +951,10 @@ class ReconLosses(LossLogger):
         else:
             self.precision = torch.zeros((self.num_classes, self.num_thresh))
             self.recall = torch.zeros((self.num_classes, self.num_thresh))
+            self.totalRecall = torch.zeros((self.num_classes, self.num_thresh))
             self.Ps = torch.zeros((self.num_thresh,))
             self.Rs = torch.zeros((self.num_thresh,))
+            self.TRs = torch.zeros((self.num_thresh,))
             self.APs = torch.zeros((self.num_thresh,))
 
     def div(self, other):
@@ -981,26 +983,29 @@ class ReconLosses(LossLogger):
 
         # detach items
         for key in self.__dict__.keys():
-            if key in ["recall", "precision"]:
+            if key in ["recall", "precision", "totalRecall"]:
                 self.__dict__[key] = self.__dict__[key].mean(dim=0).detach()
-            elif key not in ["loss", "num_classes", "num_thresh", "APs", "Ps", "Rs"]:
+            elif key not in ["loss", "num_classes", "num_thresh", "APs", "Ps", "Rs", "TRs"]:
                 self.__dict__[key] = self.__dict__[key].item()
 
-    def update_stats(self, nCorrect: list, nCorrectPrec: list, nPred: int, nTotal: int, idx: int):
+    def update_stats(self, nCorrect: list, nCorrectPrec: list, nPred: int, nTotal: int, nObjs: int, idx: int):
         for i in range(self.num_thresh):
             self.precision[idx,i] = float(nCorrectPrec[i] / nPred) if nPred else 1
             self.recall[idx, i] = float(nCorrect[i] / nTotal) if nTotal else 1
+            self.totalRecall[idx, i] = float(nCorrect[i] / nObjs) if nObjs else 1
 
     def compute_APs(self):
         self.Ps = (self.precision).mean(dim=0) * 100.0
         self.Rs = (self.recall).mean(dim=0) * 100.0
+        self.TRs = (self.totalRecall).mean(dim=0) * 100
         self.APs = (self.Ps + self.Rs)/2.0
 
     def __repr__(self):
         return f"Reconstruction Loss: {self.loss:.4f}, X: {self.x:.4f}, Y: {self.y:.4f}, Conf: {self.confidence:.4f}," \
                f" Bin: {self.binary:.4f}, Cont: {self.continuous:.4f}, Cls: {self.cls:.4f}" \
                f" [Precs: {self.Ps[0].item():.2f}, {self.Ps[1].item():.2f}, {self.Ps[2].item():.2f}]" \
-               f" [Recs: {self.Rs[0].item():.2f}, {self.Rs[1].item():.2f}, {self.Rs[2].item():.2f}]"
+               f" [Recs: {self.Rs[0].item():.2f}, {self.Rs[1].item():.2f}, {self.Rs[2].item():.2f}]" \
+               f" [TRecs: {self.TRs[0].item():.2f}, {self.TRs[1].item():.2f}, {self.TRs[2].item():.2f}]"
 
 
 class ReconNet(nn.Module):
@@ -1139,7 +1144,8 @@ class ReconNet(nn.Module):
 
                 nProposals = int((pred_conf > 0.5).sum().item())
                 nCorrPrec = [int((c).sum().item()) for c in corr]
-                reco_losses.update_stats(nCorrect=nCorrect, nCorrectPrec=nCorrPrec, nPred=nProposals, nTotal=nGT,
+                nObjs = seen.numel()
+                reco_losses.update_stats(nCorrect=nCorrect, nCorrectPrec=nCorrPrec, nPred=nProposals, nTotal=nGT, nObjs=nObjs,
                                          idx=classInd)
 
                 # Handle masks
