@@ -188,7 +188,7 @@ class Runner(object):
                          icm_loss_accumulated.forward, icm_loss_accumulated.inverse),
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
-                      "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r),
+                      "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), ",",
                       "{0:.2f}".format(last_o_r), "/", "{0:.2f}".format(last_avg_o_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]", flush=True)
 
