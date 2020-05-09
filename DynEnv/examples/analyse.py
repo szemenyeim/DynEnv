@@ -4,23 +4,11 @@ import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
 
-    N = 50
+    N = 100
 
     print("ROBO")
-    print("RCM")
-    fName = "../../log/RoboCup/time_log_2019-12-03 06_33_02.hdf5"
-    f = h5py.File(fName, 'r')
-    pos0 = np.array(f['ep_pos_rewards']['mean'])
-    avg_pos0 = np.convolve(pos0, np.ones((N,))/N, mode='valid')
-    max0 = np.array(f['ep_pos_rewards']['max'])
-    print(np.max(pos0),np.max(avg_pos0),np.max(max0))
-    pos01 = np.array(f['ep_rewards']['mean'])
-    avg_pos01 = np.convolve(pos01, np.ones((N,))/N, mode='valid')
-    max01 = np.array(f['ep_rewards']['max'])
-    print(np.max(pos01),np.max(avg_pos01),np.max(max01))
-
-    print("ICM")
-    fName = "../../log/RoboCup/time_log_2019-12-04 09_18_51.hdf5"
+    print("NoRec")
+    fName = "../../log/RoboCup/time_log_2020-05-04 17_44_50.hdf5"
     f = h5py.File(fName, 'r')
     pos1 = np.array(f['ep_pos_rewards']['mean'])
     avg_pos1 = np.convolve(pos1, np.ones((N,))/N, mode='valid')
@@ -31,8 +19,20 @@ if __name__ == '__main__':
     max11 = np.array(f['ep_rewards']['max'])
     print(np.max(pos11),np.max(avg_pos11),np.max(max11))
 
-    print("ICM-TER")
-    fName = "../../log/RoboCup/time_log_2019-12-04 09_18_57.hdf5"
+    print("ReconFalse")
+    fName = "../../log/RoboCup/time_log_2020-05-04 17_44_59.hdf5"
+    f = h5py.File(fName, 'r')
+    pos0 = np.array(f['ep_pos_rewards']['mean'])
+    avg_pos0 = np.convolve(pos0, np.ones((N,))/N, mode='valid')
+    max0 = np.array(f['ep_pos_rewards']['max'])
+    print(np.max(pos0),np.max(avg_pos0),np.max(max0))
+    pos01 = np.array(f['ep_rewards']['mean'])
+    avg_pos01 = np.convolve(pos01, np.ones((N,))/N, mode='valid')
+    max01 = np.array(f['ep_rewards']['max'])
+    print(np.max(pos01),np.max(avg_pos01),np.max(max01))
+
+    print("ReconPret")
+    fName = "../../log/RoboCup/time_log_2020-05-05 17_24_54.hdf5"
     f = h5py.File(fName, 'r')
     pos2 = np.array(f['ep_pos_rewards']['mean'])
     avg_pos2 = np.convolve(pos2, np.ones((N,))/N, mode='valid')
@@ -45,10 +45,11 @@ if __name__ == '__main__':
 
     ep = range(avg_pos0.shape[0])
     plt.figure()
-    plt.plot(ep,avg_pos01,ep,avg_pos11,ep,avg_pos21)
+    plt.plot(ep,avg_pos0,ep,avg_pos1,ep,avg_pos2)
     plt.xticks(np.arange(0, pos0.shape[0], 50))
+    plt.show()
 
-    print("Drive")
+    '''print("Drive")
     print("RCM")
     fName = "../../log/Driving/time_log_2019-12-02 14_21_17.hdf5"
     f = h5py.File(fName, 'r')
@@ -77,4 +78,4 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(ep,avg_pos0,ep,avg_pos1,ep,avg_pos2)
     plt.xticks(np.arange(0, avg_pos0.shape[0], 50))
-    plt.show()
+    plt.show()'''
