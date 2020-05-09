@@ -38,7 +38,7 @@ class Runner(object):
 
         """Logger"""
         self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir,
-                                     *["ep_rewards", "ep_pos_rewards", "ep_goals"])
+                                     *["ep_rewards", "ep_pos_rewards", "ep_obs_rewards", "ep_goals"])
         self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp, log_dir)
 
         """Environment"""
@@ -162,6 +162,9 @@ class Runner(object):
                 last_p_r = np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]).mean()
                 last_avg_p_r = np.array(self.storage.episode_pos_rewards).mean()
 
+                last_o_r = np.array(self.storage.episode_obs_rewards[-self.params.num_envs:]).mean()
+                last_avg_o_r = np.array(self.storage.episode_obs_rewards).mean()
+
                 """Get goals"""
                 goals = np.array(self.storage.goals).T * self.params.num_envs
 
@@ -172,7 +175,8 @@ class Runner(object):
 
                 self.logger.log(
                     **{"ep_rewards": np.array(self.storage.episode_rewards[-self.params.num_envs:]),
-                       "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:])})
+                       "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]),
+                       "ep_obs_rewards": np.array(self.storage.episode_obs_rewards[-self.params.num_envs:])})
 
                 self.avgPrecs.append((recon_loss_accumulated.recall.mean(dim=0)+recon_loss_accumulated.precision.mean(dim=0))/2)
                 self.corrs.append(loc_losses_accumulated.corr)
@@ -184,7 +188,8 @@ class Runner(object):
                          icm_loss_accumulated.forward, icm_loss_accumulated.inverse),
                       "R: [",
                       "{0:.2f}".format(last_r), "/", "{0:.2f}".format(last_avg_r), ",",
-                      "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r), "]",
+                      "{0:.2f}".format(last_p_r), "/", "{0:.2f}".format(last_avg_p_r),
+                      "{0:.2f}".format(last_o_r), "/", "{0:.2f}".format(last_avg_o_r), "]",
                       "[", int(goals.mean(axis=1)[0]), ":", int(goals.mean(axis=1)[1]), "]", flush=True)
 
                 if self.recon:
@@ -226,7 +231,7 @@ class Runner(object):
 
         self.env.close()
 
-        self.logger.save(*["ep_rewards", "ep_pos_rewards", "ep_goals"])
+        self.logger.save(*["ep_rewards", "ep_pos_rewards", "ep_obs_rewards", "ep_goals"])
         self.params.save(self.logger.data_dir, self.timestamp)
 
     def episode_rollout(self):

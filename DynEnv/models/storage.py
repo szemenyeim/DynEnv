@@ -43,6 +43,7 @@ class RolloutStorage(object):
         self.is_cuda = is_cuda
         self.episode_rewards = sliceable_deque(maxlen=num_envs * 10)
         self.episode_pos_rewards = sliceable_deque(maxlen=num_envs * 10)
+        self.episode_obs_rewards = sliceable_deque(maxlen=num_envs * 10)
         self.goals = sliceable_deque(maxlen=num_envs)
         self.full_state_targets = sliceable_deque(maxlen=rollout_size)
         self.positions = sliceable_deque(maxlen=rollout_size)
@@ -254,6 +255,8 @@ class RolloutStorage(object):
                 self.episode_rewards.append(info['episode_r'])
             if 'episode_p_r' in info.keys():
                 self.episode_pos_rewards.append(info['episode_p_r'])
+            if 'episode_p_r' in info.keys():
+                self.episode_obs_rewards.append(info['episode_o_r'])
             if 'episode_g' in info.keys():
                 self.goals.append(info['episode_g'])
 

@@ -18,6 +18,7 @@ class RoboCupEnvironment(EnvironmentBase):
     randomInit = False
     deterministicTurn = False
     canFall = True
+    useObsRewards = True
 
     def __init__(self, nPlayers, render=False, observationType=ObservationType.PARTIAL, noiseType=NoiseType.REALISTIC,
                  noiseMagnitude=2, obs_space_cast=False, allowHeadTurn=False):
@@ -133,6 +134,7 @@ class RoboCupEnvironment(EnvironmentBase):
     def _init_rewards(self):
         self.episodeRewards = 0
         self.episodePosRewards = 0
+        self.episodeObsRewards = 0
 
     def _create_penalty_spots(self):
         # Penalty spots (for penalized robots)
@@ -432,6 +434,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
         # Setup reward and state variables
         self.teamRewards = np.array([0.0, 0.0])
+        self.obsRewards = np.array([0.0, 0.0] * self.nPlayers)
         self.robotRewards = np.array([0.0, 0.0] * self.nPlayers)
         self.robotPosRewards = np.array([0.0, 0.0] * self.nPlayers)
         observations = []
@@ -481,12 +484,15 @@ class RoboCupEnvironment(EnvironmentBase):
 
         self.robotRewards[:self.nPlayers] += self.teamRewards[0]
         self.robotRewards[self.nPlayers:] += self.teamRewards[1]
+        self.robotRewards += self.obsRewards
         self.episodeRewards += self.robotRewards
 
         # Psoitive reward for logging
         self.robotPosRewards[:self.nPlayers] += max(0.0, self.teamRewards[0])
-        self.robotRewards[self.nPlayers:] += max(0.0, self.teamRewards[1])
+        self.robotPosRewards[self.nPlayers:] += max(0.0, self.teamRewards[1])
+        self.robotPosRewards += np.clip(self.obsRewards, a_max=None, a_min=0.0)
         self.episodePosRewards += self.robotPosRewards
+        self.episodeObsRewards += self.obsRewards
 
         info = {'Full State': self.getFullState()}
         info['Recon States'] = [self.getFullState(robot) for robot in self.agents]
@@ -497,6 +503,7 @@ class RoboCupEnvironment(EnvironmentBase):
             finished = True
             info['episode_r'] = self.episodeRewards
             info['episode_p_r'] = self.episodePosRewards
+            info['episode_o_r'] = self.episodeObsRewards
             info['episode_g'] = self.goals
             # print(self.episodeRewards,self.episodePosRewards)
 
@@ -1545,12 +1552,12 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def processSeens(self, observations):
 
-        factor = 0.1
-        sfactor = 0.01
+        factor = 0.01
+        sfactor = 0.0025
 
         for robID in range(self.nPlayers*2):
             lSeens = np.clip(np.array([float(obs[robID][2][0]) for obs in observations]).mean(), a_min=0.0, a_max=3.0)
-            rSeens = np.clip(np.array([list(obs[robID][2][1]) for obs in observations]).sum(axis=0), a_min=0.0, a_max=3.0).sum()
+            rSeens = np.clip(np.array([list(obs[robID][2][1]) for obs in observations]).sum(axis=0), a_min=0.0, a_max=2.0).sum()
             bSeens = np.clip(np.array([float(obs[robID][2][2]) for obs in observations]).sum(), a_min=0.0, a_max=3.0)
-            self.robotPosRewards[robID] += (factor * (bSeens + lSeens) + sfactor * rSeens)
-            self.robotRewards[robID] += (factor * (bSeens + lSeens) + sfactor * rSeens)
+            if self.useObsRewards:
+                self.obsRewards[robID] += (factor * (bSeens + lSeens) + sfactor * rSeens)
