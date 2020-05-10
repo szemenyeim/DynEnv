@@ -28,7 +28,7 @@ class Robot(object):
         d = (self.length,-self.length)
 
         angle = 0 if team > 0 else math.pi
-        headAngle = (random.random()-0.5) * self.headMaxAngle * 2
+        headAngle = 0#(random.random()-0.5) * self.headMaxAngle * 2
 
         # Setup left foot
         inertia = moment_for_segment(self.mass,a,b,self.radius)

@@ -273,10 +273,10 @@ class RoboCupEnvironment(EnvironmentBase):
             self.robotSpots = [
                 # Kickoff team
                 [(centX - (self.ballRadius * 2 + Robot.totalRadius) - random.random() * 50,
-                  self.H / 2 + (random.random() - 0.5) * 50),
-                 (centX - (Robot.totalRadius + self.lineWidth / 2) - random.random() * 50,
+                  self.H / 2 + (random.random() - 0.5) * 25),
+                 (centX - (Robot.totalRadius + self.lineWidth*2) - random.random() * 50,
                   self.sideLength + self.fieldH / 4 + (random.random() - 0.5) * 50),
-                 (centX - (Robot.totalRadius + self.lineWidth / 2) - random.random() * 50,
+                 (centX - (Robot.totalRadius + self.lineWidth*2) - random.random() * 50,
                   self.sideLength + 3 * self.fieldH / 4 + (random.random() - 0.5) * 50),
                  (centX - (self.fieldW / 4) - (random.random() - 0.5) * 50,
                   self.sideLength + self.fieldH / 2 + (random.random() - 0.5) * 50),
