@@ -6,7 +6,7 @@ pymunkoptions.options["debug"] = False
 from DynEnv import *
 from DynEnv.models.agent import ICMAgent
 from DynEnv.models import DynEvnEncoder
-from DynEnv.models.models import ReconLosses, LocalizationLosses
+from DynEnv.models.loss_descriptors import LocalizationLosses, ReconLosses
 from DynEnv.utils.utils import set_random_seeds, AttentionTarget, AttentionType, flatten
 import pickle
 import torch

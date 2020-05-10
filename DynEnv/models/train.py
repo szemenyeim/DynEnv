@@ -12,7 +12,7 @@ np.set_printoptions(precision=1)
 from ..utils.logger import TemporalLogger
 from ..utils.utils import AgentCheckpointer, transformActions, flatten
 from .storage import RolloutStorage
-from .models import ReconLosses, A2CLosses, ICMLosses, LocalizationLosses
+from .loss_descriptors import A2CLosses, ICMLosses, LocalizationLosses, ReconLosses
 from gym.spaces import Box
 
 import progressbar

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.distributions import Categorical
 
-from ..models.models import A2CLosses
+from ..models.loss_descriptors import A2CLosses
 
 
 class sliceable_deque(deque):
