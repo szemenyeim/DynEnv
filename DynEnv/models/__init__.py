@@ -1,5 +1,6 @@
 from .agent import ICMAgent
-from .models import EmbedBlock, InputLayer, ActorBlock, ActorLayer, RecurrentTemporalAttention, DynEnvFeatureExtractor, InOutArranger, ReconNet, DynEvnEncoder
+from .models import InputLayer, RecurrentTemporalAttention, DynEnvFeatureExtractor, InOutArranger, ReconNet, \
+    DynEvnEncoder, EmbedBlock
+from .actor_critic import ActorLayer, ActorBlock
 
-
-__all__ = ["ICMAgent","EmbedBlock","InputLayer","ActorBlock","ActorLayer", "RecurrentTemporalAttention", "DynEnvFeatureExtractor", "InOutArranger", "ReconNet", "DynEvnEncoder"]
+__all__ = ["ICMAgent", "InputLayer", "RecurrentTemporalAttention", "DynEnvFeatureExtractor", "InOutArranger", "ReconNet", "DynEvnEncoder"]
