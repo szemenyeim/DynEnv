@@ -312,9 +312,9 @@ class InputLayer(nn.Module):
 
 
 # Layer for reducing timeStep and Objects dimension via attention
-class AttentionLayer(nn.Module):
+class RecurrentTemporalAttention(nn.Module):
     def __init__(self, feature_size, num_heads=1):
-        super(AttentionLayer, self).__init__()
+        super(RecurrentTemporalAttention, self).__init__()
 
         self.feature_size = feature_size
 
@@ -467,7 +467,7 @@ class DynEnvFeatureExtractor(nn.Module):
 
         # feature encoding
         self.InNet = InputLayer(features_per_object_type, feature_size, num_envs, num_players, num_obj_types, num_time)
-        self.AttNet = AttentionLayer(feature_size)
+        self.AttNet = RecurrentTemporalAttention(feature_size)
 
         # feature transform
         self.TransformNet = nn.Sequential(
