@@ -225,3 +225,24 @@ class AttentionNet(nn.Module):
 
     def forward(self, target, attn=None):
         return target * (F.softmax(self.attention(target if attn is None else attn), dim=-1))
+
+
+class LongHorizonCuriosityLoss(nn.Module):
+    def __init__(self, attention_size) -> None:
+        super().__init__()
+
+
+        self.attention = AttentionNet(attention_size)
+
+    def forward(self, pred_states, true_states):
+        device = pred_states.device
+        mse_loss = torch.tensor(0.0).to(device)
+        weight = torch.tensor(1.0).to(device)
+
+        for (pred, true) in zip(pred_states, true_states):
+            mse_step_loss = F.mse_loss(pred, true, reduction="none")
+            mse_loss += weight * mse_step_loss
+
+            weight = self.attention(mse_step_loss)
+
+        return mse_loss
