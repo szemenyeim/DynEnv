@@ -11,7 +11,7 @@ import pandas as pd
 import torch
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 
-from ..environment_base import PredictionDescriptor
+from environment_base import PredictionDescriptor
 import itertools
 
 flatten = lambda l: [item for sublist in l for item in sublist]

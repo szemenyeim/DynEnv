@@ -1,12 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from gym.spaces.utils import flatdim
 
-from .models import DynEvnEncoder
-from .icm import ICMNet
 from .actor_critic import A2CNet
-from ..environment_base import RecoDescriptor
+from .icm import ICMNet
+from environment_base import RecoDescriptor
 
 
 class ICMAgent(nn.Module):

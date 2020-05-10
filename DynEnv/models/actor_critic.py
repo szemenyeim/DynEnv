@@ -4,7 +4,7 @@ from torch import nn as nn
 from torch.distributions import Categorical
 from torch.nn import functional as F
 
-from models import DynEvnEncoder
+from .models import DynEvnEncoder
 from utils.utils import flatten
 
 
