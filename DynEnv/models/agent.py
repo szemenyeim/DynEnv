@@ -4,7 +4,7 @@ import torch.optim as optim
 
 from .actor_critic import A2CNet
 from .icm import ICMNet
-from environment_base import RecoDescriptor
+from ..environment_base import RecoDescriptor
 
 
 class ICMAgent(nn.Module):

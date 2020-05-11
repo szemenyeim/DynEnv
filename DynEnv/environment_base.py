@@ -11,8 +11,8 @@ import pygame
 import pymunk.pygame_util
 from gym import Space
 
-from cutils import CollisionType
-from cutils import ObservationType, NoiseType
+from .cutils import CollisionType
+from .cutils import ObservationType, NoiseType
 
 
 @dataclass

@@ -4,10 +4,10 @@ from gym.spaces import MultiDiscrete
 from torch import nn as nn
 from torch.nn import functional as F
 
-from models.actor_critic import ActorLayer
-from models.loss_descriptors import ICMLosses
-from utils import AttentionTarget, AttentionType
-from utils.utils import flatten
+from ..models.actor_critic import ActorLayer
+from ..models.loss_descriptors import ICMLosses
+from ..utils import AttentionTarget, AttentionType
+from ..utils.utils import flatten
 
 
 class ICMNet(nn.Module):

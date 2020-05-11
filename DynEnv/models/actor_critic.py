@@ -5,7 +5,7 @@ from torch.distributions import Categorical
 from torch.nn import functional as F
 
 from .models import DynEvnEncoder
-from utils.utils import flatten
+from ..utils.utils import flatten
 
 
 class A2CNet(nn.Module):

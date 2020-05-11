@@ -9,8 +9,8 @@ from gym.spaces import flatdim
 from torch import nn as nn
 
 from .loss_descriptors import LocalizationLosses, ReconLosses
-from environment_base import RecoDescriptor
-from utils.utils import build_targets, flatten
+from ..environment_base import RecoDescriptor
+from ..utils.utils import build_targets, flatten
 
 
 class LSTMLayer(nn.Module):
