@@ -505,7 +505,7 @@ class RoboCupEnvironment(EnvironmentBase):
             info['episode_p_r'] = self.episodePosRewards
             info['episode_o_r'] = self.episodeObsRewards
             info['episode_g'] = self.goals
-            # print(self.episodeRewards,self.episodePosRewards)
+        #print(self.episodeRewards,self.episodePosRewards,self.episodeObsRewards)
 
         return observations, self.robotRewards, finished, info
 
@@ -1552,12 +1552,12 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def processSeens(self, observations):
 
-        factor = 0.01
-        sfactor = 0.0025
+        factor = 0.0025
+        bfactor = 0.01
 
         for robID in range(self.nPlayers*2):
             lSeens = np.clip(np.array([float(obs[robID][2][0]) for obs in observations]).mean(), a_min=0.0, a_max=3.0)
             rSeens = np.clip(np.array([list(obs[robID][2][1]) for obs in observations]).sum(axis=0), a_min=0.0, a_max=2.0).sum()
             bSeens = np.clip(np.array([float(obs[robID][2][2]) for obs in observations]).sum(), a_min=0.0, a_max=3.0)
             if self.useObsRewards:
-                self.obsRewards[robID] += (factor * (bSeens + lSeens) + sfactor * rSeens)
+                self.obsRewards[robID] += (factor * (rSeens + lSeens) + bfactor * bSeens)
