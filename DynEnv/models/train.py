@@ -1,11 +1,10 @@
-from os.path import abspath
+import os.path as osp
+import pickle
 from time import gmtime, strftime, sleep
 
 import numpy as np
 import torch
 import torch.nn as nn
-import pickle
-import os.path as osp
 
 np.set_printoptions(precision=1)
 
@@ -20,26 +19,27 @@ import progressbar
 
 class Runner(object):
 
-    def __init__(self, net, env, params, recon, recon_factor, is_cuda=True, seed=42, log_dir=abspath("/data/patrik"), pret=False):
+    def __init__(self, net, env, net_params, hparams):
         super().__init__()
 
         # constants
         self.timestamp = strftime("%Y-%m-%d %H_%M_%S", gmtime())
-        self.seed = seed
-        self.is_cuda = torch.cuda.is_available() and is_cuda
+        self.seed = hparams.seed
+        self.is_cuda = torch.cuda.is_available() and hparams.is_cuda
 
         self.mse = torch.nn.MSELoss()
 
         # parameters
-        self.params = params
-        self.recon_factor = recon_factor
-        self.recon = recon
-        self.pret = pret
+        self.params = net_params
+        self.recon = hparams.use_reconstruction
+        self.recon_factor = hparams.recon_factor
+        self.recon_pretrained = hparams.recon_pretrained
 
         """Logger"""
-        self.logger = TemporalLogger(self.params.env_name, self.timestamp, log_dir,
+        self.logger = TemporalLogger(self.params.env_name, self.timestamp, hparams.log_dir,
                                      *["ep_rewards", "ep_pos_rewards", "ep_obs_rewards", "ep_goals"])
-        self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp, log_dir)
+        self.checkpointer = AgentCheckpointer(self.params.env_name, self.params.num_updates, self.timestamp,
+                                              hparams.log_dir)
 
         """Environment"""
         self.env = env
@@ -56,7 +56,7 @@ class Runner(object):
 
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
-                                      self.numActions, self.params.n_stack, self.net.feat_size*2,
+                                      self.numActions, self.params.n_stack, self.net.feat_size * 2,
                                       is_cuda=self.is_cuda, use_full_entropy=self.params.use_full_entropy)
 
     def train(self):
@@ -108,7 +108,8 @@ class Runner(object):
             loc_losses = self.net.a2c.embedder_base.compute_loc_loss(self.storage.positions, self.storage.pos_target) \
                 if self.recon else LocalizationLosses()
 
-            recon_loss = self.compute_recon_losses(self.storage.features[:-2, :, self.net.feat_size:], self.storage.full_state_targets, self.storage.seens) \
+            recon_loss = self.compute_recon_losses(self.storage.features[:-2, :, self.net.feat_size:],
+                                                   self.storage.full_state_targets, self.storage.seens) \
                 if self.recon else ReconLosses(num_thresh=3, num_classes=2)
 
             if not self.recon:
@@ -179,7 +180,8 @@ class Runner(object):
                        "ep_pos_rewards": np.array(self.storage.episode_pos_rewards[-self.params.num_envs:]),
                        "ep_obs_rewards": np.array(self.storage.episode_obs_rewards[-self.params.num_envs:])})
 
-                self.avgPrecs.append((recon_loss_accumulated.recall.mean(dim=0)+recon_loss_accumulated.precision.mean(dim=0))/2)
+                self.avgPrecs.append(
+                    (recon_loss_accumulated.recall.mean(dim=0) + recon_loss_accumulated.precision.mean(dim=0)) / 2)
                 self.corrs.append(loc_losses_accumulated.corr)
 
                 print("Ep %d: (%d/%d) L: (Loss: %.2f, P: %.2f, V: %.2f, E: %.2f, TE: %.2f, F: %.2f, I: %.2f)"
@@ -240,7 +242,7 @@ class Runner(object):
 
         if self.recon:
             initLoc = torch.tensor(flatten(self.env.env_method('get_agent_locs'))).squeeze()
-            initLoc += (torch.randn(initLoc.shape))/(20)
+            initLoc += (torch.randn(initLoc.shape)) / (20)
             if self.is_cuda:
                 initLoc = initLoc.cuda()
             self.net.a2c.embedder_base.initialize(initLoc)
@@ -249,7 +251,7 @@ class Runner(object):
             """Interact with the environments """
             # call A2C
             actions, log_probs, action_probs, values, features, pos = self.net.a2c.get_action(
-                (self.storage.get_state(step), transformActions(self.storage.actions[step-1].t(), True)))
+                (self.storage.get_state(step), transformActions(self.storage.actions[step - 1].t(), True)))
             # accumulate episode entropy
             episode_action_probs.append(action_probs)
 
@@ -261,7 +263,7 @@ class Runner(object):
             actionsForEnv = (torch.stack(actions, dim=1)).view(
                 (self.net.num_envs, self.net.num_players, -1)).detach().cpu().numpy()
             new_obs, rewards, dones, state = self.env.step(actionsForEnv)
-            #self.net.a2c.embedder_base.initialize(truePos)
+            # self.net.a2c.embedder_base.initialize(truePos)
 
             # Finished states (ICM loss ignores predictions from crashed/finished cars or penalized robots)
             fullStates = [s['Recon States'] for s in state]
@@ -271,7 +273,8 @@ class Runner(object):
             # save episode reward
             self.storage.log_episode_rewards(state)
 
-            self.storage.insert(step, rewards, agentFinished, new_obs[..., :-1], actions, log_probs, values, dones, features,
+            self.storage.insert(step, rewards, agentFinished, new_obs[..., :-1], actions, log_probs, values, dones,
+                                features,
                                 fullStates, pos, truePos, new_obs[..., -1])
 
         # Note:
@@ -285,7 +288,7 @@ class Runner(object):
             self.net.a2c.embedder_base.set_states(states)
 
         self.storage.features[step + 1].copy_(final_features.detach())
-        #self.storage.positions.append(final_pos)
+        # self.storage.positions.append(final_pos)
 
         return final_value, episode_action_probs
 
@@ -307,8 +310,8 @@ class Runner(object):
         recLosses.cuda()
 
         for j, (obj_features) in enumerate(features):
-
-            recLosses += self.net.a2c.embedder_base.reconstructor(obj_features, targets[j], (ballSeenBefore[j], robSeenBefore[j]))
+            recLosses += self.net.a2c.embedder_base.reconstructor(obj_features, targets[j],
+                                                                  (ballSeenBefore[j], robSeenBefore[j]))
 
         recLosses.div(features.shape[0])
 

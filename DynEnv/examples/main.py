@@ -34,14 +34,12 @@ if __name__ == '__main__':
     reco_desc = env.get_attr('recoDescriptor', 0)[0]
 
     # agent
-    agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,
-                     reco_desc, args.forward_coeff, args.long_horizon_coeff, args.icm_beta, args.rollout_size,
-                     args.recon_pretrained, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
+    agent = ICMAgent(args, num_players, action_size, attn_target, attn_type, obs_space, feature_size, reco_desc,
+                     5 if args.env is DynEnvType.ROBO_CUP else 1)
 
     # params
     param = NetworkParameters(env_name, args, attn_target, attn_type, RewardType.INTRINSIC_AND_EXTRINSIC)
 
     # runner object & training
-    runner = Runner(agent, env, param, args.use_reconstruction, args.recon_factor, args.cuda, args.seed, args.log_dir,
-                    args.recon_pretrained)
+    runner = Runner(agent, env, param, args)
     runner.train()
