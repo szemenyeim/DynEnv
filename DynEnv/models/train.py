@@ -112,8 +112,9 @@ class Runner(object):
                 if self.recon else ReconLosses(num_thresh=3, num_classes=2)
 
             if not self.recon:
-                loc_losses.cuda()
-                recon_loss.cuda()
+                if self.is_cuda:
+                    loc_losses.cuda()
+                    recon_loss.cuda()
                 loc_losses.prepare_losses()
                 recon_loss.prepare_losses()
 
