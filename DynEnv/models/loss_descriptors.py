@@ -44,6 +44,7 @@ class A2CLosses(LossLogger):
 class ICMLosses(LossLogger):
     inverse: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
     forward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
+    long_horizon_forward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0))
 
     def prepare_losses(self):
         self.loss = self.inverse.sum() + self.forward.sum()

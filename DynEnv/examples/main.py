@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     # agent
     agent = ICMAgent(args.num_envs, num_players, action_size, attn_target, attn_type, obs_space, feature_size,
-                     reco_desc, args.forward_coeff, args.icm_beta, args.rollout_size,
+                     reco_desc, args.forward_coeff, args.long_horizon_coeff, args.icm_beta, args.rollout_size,
                      args.recon_pretrained, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
 
     # params

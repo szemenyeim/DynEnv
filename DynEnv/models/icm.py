@@ -11,8 +11,8 @@ from ..utils.utils import flatten
 
 
 class ICMNet(nn.Module):
-    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type,
-                 feat_size, forward_coeff, icm_beta, num_envs):
+    def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, feat_size, forward_coeff,
+                 long_horizon_coeff, icm_beta, num_envs):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -44,6 +44,8 @@ class ICMNet(nn.Module):
         self.loss_attn_flag = attn_target is AttentionTarget.ICM_LOSS and attn_type is AttentionType.SINGLE_ATTENTION
         if self.loss_attn_flag:
             self.loss_attn = AttentionNet(self.feat_size)
+
+        self.loss_long_horizon_curiosity = LongHorizonCuriosityLoss(self.feat_size)
 
     def forward(self, features, action, agentFinished):
         """
@@ -87,7 +89,11 @@ class ICMNet(nn.Module):
                   (a_pred, a) in zip(action_preds, actions)]
         loss_inv = torch.stack(losses).mean()
 
-        icm_losses = ICMLosses(forward=self.forward_coeff * loss_fwd, inverse=self.icm_beta * loss_inv)
+        # long-horizon curiosity loss
+        loss_long_fwd = self.loss_long_horizon_curiosity(feature_preds, features)
+
+        icm_losses = ICMLosses(forward=self.forward_coeff * loss_fwd, inverse=self.icm_beta * loss_inv,
+                               long_horizon_forward=loss_long_fwd)
         icm_losses.prepare_losses()
 
         return icm_losses
@@ -229,20 +235,44 @@ class AttentionNet(nn.Module):
 
 class LongHorizonCuriosityLoss(nn.Module):
     def __init__(self, attention_size) -> None:
+        """
+        Class for calculating the attention-corrected loss for
+        long-horizon forward prediction in curiosity.
+
+        The base idea is the following (for implementation details, check the forward method):
+            - it would be good to have a multi-step lookahead in the curiosity module
+            - using previous (predicted) states for further prediction should be good, as it is
+              expected that temporally near states are similar to each other
+            - the problem is that using a predicted state as a base for further prediction
+             would mean that errors would be accumulated
+            - with trainable weights (attention layer) we intend compensate for this error accumulation
+        """
+
         super().__init__()
 
-
+        # todo: use only 1 attention layer or so much as the prediction length (rollout)?
         self.attention = AttentionNet(attention_size)
 
     def forward(self, pred_states, true_states):
+        # device
         device = pred_states.device
+
+        # default values (set to the correct device)
         mse_loss = torch.tensor(0.0).to(device)
         weight = torch.tensor(1.0).to(device)
 
+        # loop over timesteps in the rollout
         for (pred, true) in zip(pred_states, true_states):
+            # calculate MSE without reduction (needed for the attention layer)
             mse_step_loss = F.mse_loss(pred, true, reduction="none")
-            mse_loss += weight * mse_step_loss
+            # accumulate
+            mse_loss += (weight * mse_step_loss).mean()
 
+            # calculate "lookahead weight"
+            # this is the "confidence" compensating for the "drift" in long term forward prediction
+            # i.e. as the prediction for s_t will not be perfect, if that prediction is used to predict for t+1, t+2, ...
+            # then a prediction of the same quality would result in higher losses (as the starting point - which is the
+            # prediction of the previous step - is not perfect), which would be good to eliminate
             weight = self.attention(mse_step_loss)
 
         return mse_loss
