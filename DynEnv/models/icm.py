@@ -12,7 +12,7 @@ from ..utils.utils import flatten
 
 class ICMNet(nn.Module):
     def __init__(self, n_stack, num_players, action_descriptor, attn_target, attn_type, feat_size, forward_coeff,
-                 long_horizon_coeff, icm_beta, num_envs):
+                 long_horizon_coeff, icm_beta, num_envs, num_rollout):
         """
         Network implementing the Intrinsic Curiosity Module (ICM) of https://arxiv.org/abs/1705.05363
 
@@ -33,9 +33,11 @@ class ICMNet(nn.Module):
         self.num_actions = len(self.action_descriptor)
         self.num_envs = num_envs
         self.num_players = num_players
+        self.num_rollout = num_rollout
 
         self.icm_beta = icm_beta
         self.forward_coeff = forward_coeff
+        self.long_horizon_coeff = long_horizon_coeff
 
         # networks
         self.pred_net = ICMDynamics(self.feat_size, self.action_descriptor, attn_target,
@@ -46,6 +48,7 @@ class ICMNet(nn.Module):
             self.loss_attn = AttentionNet(self.feat_size)
 
         self.loss_long_horizon_curiosity = LongHorizonCuriosityLoss(self.feat_size)
+        self.long_horizon_fwd_net = LongHorizonForwardNet(self.feat_size, self.action_descriptor, self.num_rollout)
 
     def forward(self, features, action, agentFinished):
         """
@@ -66,10 +69,12 @@ class ICMNet(nn.Module):
         # Agent finished status to mask inverse and forward losses
         agentFinishedMask = torch.logical_not(agentFinished)
 
-        return self._calc_loss(next_features, next_feature_pred, action_pred, action,
+        long_horizon_feature_preds = self.long_horizon_fwd_net(features[0,...], action)
+
+        return self._calc_loss(next_features, next_feature_pred, long_horizon_feature_preds, action_pred, action,
                                agentFinishedMask)
 
-    def _calc_loss(self, features, feature_preds, action_preds, actions, agentFinished):
+    def _calc_loss(self, features, feature_preds, long_horizon_feature_preds, action_preds, actions, agentFinished):
 
         # If all agents finished, the loss is 0
         if not agentFinished.any():
@@ -90,10 +95,10 @@ class ICMNet(nn.Module):
         loss_inv = torch.stack(losses).mean()
 
         # long-horizon curiosity loss
-        loss_long_fwd = self.loss_long_horizon_curiosity(feature_preds, features)
+        loss_long_fwd = self.loss_long_horizon_curiosity(long_horizon_feature_preds, features)
 
         icm_losses = ICMLosses(forward=self.forward_coeff * loss_fwd, inverse=self.icm_beta * loss_inv,
-                               long_horizon_forward=loss_long_fwd)
+                               long_horizon_forward=self.long_horizon_coeff*loss_long_fwd)
         icm_losses.prepare_losses()
 
         return icm_losses
@@ -136,7 +141,40 @@ class ForwardNet(nn.Module):
         return self.fc2(self.relu(self.fc1(x)))
 
 
-class ICMDynamics(nn.Module):
+class DynamicsBase(nn.Module):
+    def __init__(self, feat_size, action_descriptor):
+        super().__init__()
+
+        self.action_descriptor = action_descriptor
+        self.feat_size = feat_size
+
+        self._calc_action_nums_per_type()
+
+    def _calc_action_nums_per_type(self):
+        # number of discrete actions per type
+        self.action_num_per_type = flatten([
+            [num for num in action.nvec] if type(action) == MultiDiscrete else sum(action.shape)
+            for action in self.action_descriptor])
+
+        # start idx of each action type (i.e. cumsum)
+        self.action_num_per_type_start_idx = np.cumsum([0, *self.action_num_per_type[:-1]])
+
+    def _actions2onehot(self, actions):
+        num_frames, num_action_types, num_actions = actions.shape
+        # encode the current action into a one-hot vector
+        # set device to that of the underlying network (it does not matter, the device of which layer is queried)
+        device = actions.device
+        action_one_hot = torch.zeros((num_frames, num_actions, np.array(self.action_num_per_type).sum())).to(device)
+        # indicate with 1 the action taken by every player
+        for frame_idx in range(num_frames):
+            for a_type_idx in range(num_action_types):
+                for a_idx, action in enumerate(actions[frame_idx, a_type_idx]):
+                    action_one_hot[
+                        frame_idx, a_idx, int(self.action_num_per_type_start_idx[a_type_idx] + action.item())] = 1
+        return action_one_hot
+
+
+class ICMDynamics(DynamicsBase):
     def __init__(self, feat_size, action_descriptor, attn_target, attention_type):
         """
         Network for exploiting the forward and inverse dynamics
@@ -146,18 +184,7 @@ class ICMDynamics(nn.Module):
         :param feat_size: size of the feature space
         :param action_descriptor: size of the action space, pass env.action_space.n
         """
-        super().__init__()
-
-        # constants
-        self.feat_size = feat_size
-        self.action_descriptor = action_descriptor
-        # number of discrete actions per type
-        self.action_num_per_type = flatten([
-            [num for num in action.nvec] if type(action) == MultiDiscrete else sum(action.shape)
-            for action in self.action_descriptor])
-
-        # start indx of each action type (i.e. cumsum)
-        self.action_num_per_type_start_idx = np.cumsum([0, *self.action_num_per_type[:-1]])
+        super().__init__(feat_size, action_descriptor)
 
         # networks
         self.fwd_net = ForwardNet(self.feat_size, np.array(self.action_num_per_type).sum())
@@ -183,19 +210,7 @@ class ICMDynamics(nn.Module):
         """
 
         """Forward dynamics"""
-        num_frames, num_action_types, num_actions = actions.shape
-
-        # encode the current action into a one-hot vector
-        # set device to that of the underlying network (it does not matter, the device of which layer is queried)
-        device = current_feature.device
-        action_one_hot = torch.zeros((num_frames, num_actions, np.array(self.action_num_per_type).sum())).to(device)
-
-        # indicate with 1 the action taken by every player
-        for frame_idx in range(num_frames):
-            for a_type_idx in range(num_action_types):
-                for a_idx, action in enumerate(actions[frame_idx, a_type_idx]):
-                    action_one_hot[
-                        frame_idx, a_idx, int(self.action_num_per_type_start_idx[a_type_idx] + action.item())] = 1
+        action_one_hot = self._actions2onehot(actions)
 
         if self.attn_target is AttentionTarget.ICM:
             if self.attention_type == AttentionType.SINGLE_ATTENTION:
@@ -276,3 +291,40 @@ class LongHorizonCuriosityLoss(nn.Module):
             weight = self.attention(mse_step_loss)
 
         return mse_loss
+
+
+class LongHorizonForwardNet(DynamicsBase):
+
+    def __init__(self, feat_size, action_descriptor, num_pred_steps):
+        """
+        Network for the long-horizon forward dynamics
+
+        :param in_size: size(feature_space) + size(action_space)
+        """
+        super().__init__(feat_size, action_descriptor)
+
+        # constants
+        self.feat_size = feat_size
+        self.action_size = np.array(self.action_num_per_type).sum()
+
+        self.num_pred_steps = num_pred_steps
+
+        # layers
+        self.fwd_nets = nn.ModuleList([ForwardNet(self.feat_size, self.action_size) for _ in range(self.num_pred_steps)])
+
+
+    def forward(self, current_feature, actions):
+        """
+        @param current_feature: current state transformed into the feature space,
+        @param actions: (predicted) actions for the rollout #todo: use predicted or real actions? -> I would opt for the former
+
+        @return: predicted next states (in feature space) for the whole rollout
+        """
+
+        one_hot_actions = self._actions2onehot(actions)
+
+        pred_features = [current_feature]
+        for fwd_net, one_hot_action in zip(self.fwd_nets, one_hot_actions):
+            pred_features.append(fwd_net(torch.cat((pred_features[-1], one_hot_action), 1)))
+
+        return torch.stack(pred_features[1:])

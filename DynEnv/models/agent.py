@@ -35,7 +35,7 @@ class ICMAgent(nn.Module):
 
         # networks
         self.icm = ICMNet(self.num_envs, self.num_players, self.action_descriptor, attn_target, attn_type,
-                          self.feat_size, forward_coeff, long_horizon_coeff, icm_beta, num_envs)
+                          self.feat_size, forward_coeff, long_horizon_coeff, icm_beta, num_envs, num_rollout)
         self.a2c = A2CNet(self.num_envs, self.num_players, self.action_descriptor, obs_space,
                           self.feat_size, num_rollout, num_time, reco_desc)
 
