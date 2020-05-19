@@ -39,10 +39,7 @@ if __name__ == '__main__':
                      args.recon_pretrained, 5 if args.env is DynEnvType.ROBO_CUP else 1, lr=args.lr)
 
     # params
-    param = NetworkParameters(env_name, args.num_envs, args.n_stack, args.rollout_size,
-                              args.num_updates, args.max_grad_norm, args.icm_beta,
-                              args.value_coeff, args.forward_coeff, args.entropy_coeff, attn_target, attn_type,
-                              RewardType.INTRINSIC_AND_EXTRINSIC, args.note, args.use_full_entropy)
+    param = NetworkParameters(env_name, args, attn_target, attn_type, RewardType.INTRINSIC_AND_EXTRINSIC)
 
     # runner object & training
     runner = Runner(agent, env, param, args.use_reconstruction, args.recon_factor, args.cuda, args.seed, args.log_dir,

@@ -227,29 +227,24 @@ class HyperparamScheduler(object):
 
 
 class NetworkParameters(object):
-    def __init__(self, env_name: str, num_envs: int, n_stack: int, rollout_size: int = 5, num_updates: int = 2500000,
-                 max_grad_norm: float = 0.5,
-                 icm_beta: float = 0.2, value_coeff: float = 0.5, forward_coeff=1e+3, entropy_coeff: float = 0.02,
-                 attention_target: AttentionTarget = AttentionTarget.NONE,
+    def __init__(self, env_name: str, hparams, attention_target: AttentionTarget = AttentionTarget.NONE,
                  attention_type: AttentionType = AttentionType.SINGLE_ATTENTION,
-                 reward_type: RewardType = RewardType.INTRINSIC_ONLY,
-                 note: str = 'None',
-                 use_full_entropy: bool = False):
+                 reward_type: RewardType = RewardType.INTRINSIC_ONLY):
         self.env_name = env_name
-        self.num_envs = num_envs
-        self.n_stack = n_stack
-        self.rollout_size = rollout_size
-        self.num_updates = num_updates
-        self.max_grad_norm = max_grad_norm
-        self.icm_beta = icm_beta
-        self.value_coeff = value_coeff
-        self.forward_coeff = forward_coeff
-        self.entropy_coeff = entropy_coeff
+        self.num_envs = hparams.num_envs
+        self.n_stack = hparams.n_stack
+        self.rollout_size = hparams.rollout_size
+        self.num_updates = hparams.num_updates
+        self.max_grad_norm = hparams.max_grad_norm
+        self.icm_beta = hparams.icm_beta
+        self.value_coeff = hparams.value_coeff
+        self.forward_coeff = hparams.forward_coeff
+        self.entropy_coeff = hparams.entropy_coeff
         self.attention_target = attention_target
         self.attention_type = attention_type
         self.reward_type = reward_type
-        self.note = note
-        self.use_full_entropy = use_full_entropy
+        self.note = hparams.note
+        self.use_full_entropy = hparams.use_full_entropy
 
     def save(self, data_dir, timestamp):
         param_dict = {**self.__dict__, "timestamp": timestamp}
