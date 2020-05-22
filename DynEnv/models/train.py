@@ -25,7 +25,7 @@ class Runner(object):
         # constants
         self.timestamp = strftime("%Y-%m-%d %H_%M_%S", gmtime())
         self.seed = hparams.seed
-        self.is_cuda = torch.cuda.is_available() and hparams.is_cuda
+        self.is_cuda = torch.cuda.is_available() and hparams.cuda
 
         self.mse = torch.nn.MSELoss()
 
