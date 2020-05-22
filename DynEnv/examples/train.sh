@@ -39,5 +39,5 @@ do
    echo "$CMD"
    tmux new-window -t RL:$seed
    tmux send-keys -t RL:$seed "$CMD" C-m
-   sleep 0.5
+   sleep 2
 done
