@@ -1,5 +1,8 @@
 tmux new-session -d -s RL
-for seed in 42 658 94846 341 #35710 4380 5646 83465 97 4162
+#for seed in 5646 83465
+#for seed in 97 4162
+#for seed in 35710 4380
+for seed in 42 658 94846 341
 do
     NOTE="seed-${seed}-"
     ARGS=""
@@ -39,5 +42,5 @@ do
    echo "$CMD"
    tmux new-window -t RL:$seed
    tmux send-keys -t RL:$seed "$CMD" C-m
-   sleep 2
+   sleep 10
 done

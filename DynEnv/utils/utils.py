@@ -331,6 +331,7 @@ class AgentCheckpointer(object):
         self.best_reward = -np.inf
         log_keys = np.int32(self.num_updates * np.array(log_points) - 1).tolist()
         self.log_points = dict(zip(log_keys, log_points))
+        print(self.timestamp)
 
         # file structure
         self.base_dir = join(dirname(dirname(abspath(__file__))), "log") if log_dir is None else log_dir
