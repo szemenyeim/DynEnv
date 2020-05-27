@@ -430,7 +430,7 @@ class RoboCupEnvironment(EnvironmentBase):
 
     # Main step function
     def step(self, actions):
-        t1 = time.clock()
+        #t1 = time.clock()
 
         # Setup reward and state variables
         self.teamRewards = np.array([0.0, 0.0])
@@ -497,7 +497,7 @@ class RoboCupEnvironment(EnvironmentBase):
         info = {'Full State': self.getFullState()}
         info['Recon States'] = [self.getFullState(robot) for robot in self.agents]
 
-        t2 = time.clock()
+        #t2 = time.clock()
         # print((t2-t1)*1000)
         if self.elapsed >= self.maxTime:
             finished = True

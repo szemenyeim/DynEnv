@@ -1,8 +1,5 @@
 tmux new-session -d -s RL
-#for seed in 5646 83465
-#for seed in 97 4162
-#for seed in 35710 4380
-for seed in 42 658 94846 341
+for seed in 5646 83465 97 4162 35710 4380 42 658 94846 341
 do
     NOTE="seed-${seed}-"
     ARGS=""
@@ -11,11 +8,11 @@ do
     do
         if [ "$arg" == "--partial" ]
         then
-            ARGS+=" --observationType ObservationType.PARTIAL"
+            ARGS+=" --observationType PARTIAL"
             NOTE+="PartialObs-"
         elif [ "$arg" == "--full" ]
         then
-            ARGS+=" --observationType ObservationType.FULL"
+            ARGS+=" --observationType FULL"
             NOTE+="FullObs-"
         fi
         
@@ -42,5 +39,5 @@ do
    echo "$CMD"
    tmux new-window -t RL:$seed
    tmux send-keys -t RL:$seed "$CMD" C-m
-   sleep 10
+   sleep 5
 done

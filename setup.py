@@ -25,8 +25,7 @@ setuptools.setup(
         'pymunk',
         'pygame',
         'gym',
-        'tensorflow',
-        'stable-baselines',
+        'imageio',
         'torch',
         'pandas',
         'matplotlib'

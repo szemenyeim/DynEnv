@@ -58,8 +58,6 @@ def set_random_seeds(seed=42):
     :return:
     """
     # 0. call stable baselines seed config routine
-    from stable_baselines.common import set_global_seeds
-    set_global_seeds(seed)
 
     # 1. Set the `PYTHONHASHSEED` environment variable at a fixed value
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -69,10 +67,6 @@ def set_random_seeds(seed=42):
 
     # 3. Set the `numpy` pseudo-random generator at a fixed value
     np.random.seed(seed)
-
-    # 4. Set the `tensorflow` pseudo-random generator at a fixed value
-    import tensorflow as tf
-    tf.compat.v1.set_random_seed(seed)
 
     # 5. set the PyTorch seed + CUDA backend
     torch.manual_seed(seed)

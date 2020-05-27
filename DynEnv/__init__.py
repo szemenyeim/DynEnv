@@ -1,7 +1,7 @@
 from .cutils import ObservationType, NoiseType, DynEnvType
 from .RoboCupEnvironment import RoboCupEnvironment
 from .DrivingEnvironment import DrivingEnvironment
-from stable_baselines.common.vec_env import SubprocVecEnv
+from .utils.subproc_vec_env import SubprocVecEnv
 
 def make_dyn_env(env, num_envs, num_players, render, observationType, noiseType, noiseMagnitude,
                  use_continuous_actions):
