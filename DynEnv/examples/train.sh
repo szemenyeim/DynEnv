@@ -27,8 +27,6 @@ do
         then
             ARGS+=" --long-horizon-coeff 1e-3"
             NOTE+="LongTermPred"
-        else
-            ARGS+=" --long-horizon-coeff 0.0"
         fi
     done
    # echo "$seed"
