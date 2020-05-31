@@ -110,6 +110,10 @@ class EnvironmentBase(object, metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def get_full_obs(self):
+        pass
+
+    @abstractmethod
     def get_class_specific_args(self):
         # include all arguments of the subclass constructor,
         # which are specific to that subclass
@@ -213,7 +217,7 @@ class EnvironmentBase(object, metaclass=ABCMeta):
         observations = []
         for _ in range(self.nTimeSteps):
             if self.observationType == ObservationType.FULL:
-                observations.append([self.getFullState(agent) for agent in self.agents])
+                observations.append(self.get_full_obs())
             else:
                 observations.append([self.getAgentVision(agent) for agent in self.agents])
 

@@ -390,10 +390,19 @@ class RoboCupEnvironment(EnvironmentBase):
                 "closest": MultiBinary(1),
             })
 
+            robot_space = Dict({
+                "position": pos_xy,
+                "orientation": Box(-1, 1, shape=(2,)),
+                "team": team,
+                "penalized or penalized": MultiBinary(1)
+            })
+
             self.observation_space = Tuple([
-                ball_space,
-                self_space,
-                robot_space
+                Tuple([
+                    ball_space,
+                    robot_space]),
+                Tuple([
+                    self_space,]),
             ])
         elif self.observationType == ObservationType.IMAGE:
             self.observation_space = Box(0, 1, shape=(4, 480, 640))
@@ -427,6 +436,11 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def get_agent_locs(self):
         return [self.getFullState(agent)[1][:, [0, 1, 2, 3, 4, 5]] for agent in self.agents]
+
+    def get_full_obs(self):
+        obs = [self.getFullState(robot) for robot in self.agents]
+        obs = [([o[0], o[2]], [o[1], ], (1, 1, 1)) for o in obs]
+        return obs
 
     # Main step function
     def step(self, actions):
@@ -473,7 +487,7 @@ class RoboCupEnvironment(EnvironmentBase):
             # Get observations every 100 ms
             if i % 10 == 9:
                 if self.observationType == ObservationType.FULL:
-                    observations.append([self.getFullState(robot) for robot in self.agents])
+                    observations.append(self.get_full_obs())
                 else:
                     observations.append([self.getAgentVision(robot) for robot in self.agents])
 
@@ -1552,6 +1566,8 @@ class RoboCupEnvironment(EnvironmentBase):
 
     def processSeens(self, observations):
 
+        if self.observationType == ObservationType.FULL:
+            return
         factor = 0.0025
         bfactor = 0.01
 
