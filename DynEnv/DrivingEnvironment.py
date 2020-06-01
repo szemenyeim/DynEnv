@@ -124,7 +124,7 @@ class DrivingEnvironment(EnvironmentBase):
         return obs
 
     def get_agent_locs(self):
-        return [self.getFullState(agent)[0][[0, 1, 2, 3]] for agent in self.agents]
+        return [self.getFullState(agent)[0][:, [0, 1, 2, 3]] for agent in self.agents]
 
     def _setup_reconstruction_info(self):
 
@@ -207,6 +207,10 @@ class DrivingEnvironment(EnvironmentBase):
             lane_space = Dict({
                 "points": Box(-self.mean * 2, self.mean * 2, shape=(4,)),
                 "type": type
+            })
+            obstacle_space = Dict({
+                "position": pos_xy,
+                "width_height": width_height,
             })
         else:
             lane_space = Dict({
@@ -706,7 +710,7 @@ class DrivingEnvironment(EnvironmentBase):
         # Otherwise add self observation separately
         else:
             state = [
-                np.array([normalize(agent.getPos().x, self.standardNormX),
+                np.array([[normalize(agent.getPos().x, self.standardNormX),
                           normalize(agent.getPos().y, self.standardNormY),
                           math.cos(agent.getAngle()),
                           math.sin(agent.getAngle()),
@@ -714,7 +718,7 @@ class DrivingEnvironment(EnvironmentBase):
                           normalize(agent.height, self.standardNormH, mean=0.5),
                           normalize(agent.goal.x, self.standardNormX),
                           normalize(agent.goal.y, self.standardNormY),
-                          agent.finished]).astype('float32'),
+                          agent.finished],]).astype('float32'),
 
                 np.array([[normalize(c.getPos().x, self.standardNormX),
                            normalize(c.getPos().y, self.standardNormY),
