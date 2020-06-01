@@ -607,7 +607,8 @@ class DynEnvFeatureExtractor(nn.Module):
 
 class DynEvnEncoder(nn.Module):
 
-    def __init__(self, feature_size, batch_size, timesteps, num_players, num_time, obs_space, obj_obs_space, reco_desc):
+    def __init__(self, feature_size, batch_size, timesteps, num_players, num_time, obs_space, obj_obs_space, reco_desc,
+                 action_num, loc_feature_num):
         super().__init__()
 
         features_per_object_type = [flatdim(s) for s in obs_space.spaces]
@@ -615,16 +616,16 @@ class DynEvnEncoder(nn.Module):
 
         self.embedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
                                                timesteps,
-                                               num_players, num_obj_types, num_time, extended_feature_cnt=4)
+                                               num_players, num_obj_types, num_time, extended_feature_cnt=action_num)
 
-        self.predictor = nn.Linear(feature_size, 6)
+        self.predictor = nn.Linear(feature_size, loc_feature_num)
 
         features_per_object_type = [flatdim(s) for s in obj_obs_space.spaces]
         num_obj_types = len(features_per_object_type)
 
         self.objEmbedder = DynEnvFeatureExtractor(features_per_object_type, feature_size, batch_size,
                                                   timesteps,
-                                                  num_players, num_obj_types, num_time, extended_feature_cnt=6)
+                                                  num_players, num_obj_types, num_time, extended_feature_cnt=loc_feature_num)
         self.reconstructor = ReconNet(feature_size, reco_desc)
 
         self.mse = nn.MSELoss()

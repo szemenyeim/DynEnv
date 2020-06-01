@@ -9,7 +9,7 @@ from ..environment_base import RecoDescriptor
 
 class ICMAgent(nn.Module):
     def __init__(self, hparams, num_players, action_descriptor, attn_target, attn_type, obs_space, feat_size,
-                 reco_desc: RecoDescriptor, num_time):
+                 reco_desc: RecoDescriptor, num_time, loc_feature_cnt):
         """
         Container class of an A2C and an ICM network, the baseline for experimenting with other curiosity-based
         methods.
@@ -35,7 +35,7 @@ class ICMAgent(nn.Module):
                           self.feat_size, hparams.forward_coeff, hparams.long_horizon_coeff, hparams.icm_beta,
                           hparams.num_envs, hparams.rollout_size)
         self.a2c = A2CNet(self.num_envs, self.num_players, self.action_descriptor, obs_space,
-                          self.feat_size, hparams.rollout_size, num_time, reco_desc)
+                          self.feat_size, hparams.rollout_size, num_time, reco_desc, loc_feature_cnt)
 
         if self.is_cuda:
             self.icm.cuda()

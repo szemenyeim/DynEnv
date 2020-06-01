@@ -10,7 +10,7 @@ from ..utils.utils import flatten
 
 class A2CNet(nn.Module):
     def __init__(self, num_envs, num_players, action_descriptor, obs_space, feature_size, num_rollout, num_time,
-                 reco_desc):
+                 reco_desc, loc_feature_cnt):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
@@ -27,9 +27,10 @@ class A2CNet(nn.Module):
         self.action_descriptor = action_descriptor
         self.num_players = num_players
         self.num_envs = num_envs
+        actionCnt = sum([sum(space.shape) for space in action_descriptor.spaces])
 
         self.embedder_base = DynEvnEncoder(feature_size, num_envs, num_rollout, num_players, num_time,
-                                           obs_space.spaces[1], obs_space.spaces[0], reco_desc)
+                                           obs_space.spaces[1], obs_space.spaces[0], reco_desc, actionCnt, loc_feature_cnt)
 
         self.actor = ActorLayer(self.feature_size * 2, self.action_descriptor)
         self.critic = CriticLayer(self.feature_size * 2)
