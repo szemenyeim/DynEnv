@@ -1,5 +1,5 @@
 # coding=utf-8
-import time
+#import time
 
 import cv2
 import pygame
@@ -118,6 +118,14 @@ class DrivingEnvironment(EnvironmentBase):
         self.episodeRewards = np.array([0.0, ] * self.nPlayers)
         self.episodePosRewards = np.array([0.0, ] * self.nPlayers)
 
+    def get_full_obs(self):
+        obs = [self.getFullState(car) for car in self.agents]
+        obs = [([o[1], o[2], o[3]], [o[0], o[4]], (1, 1, 1)) for o in obs]
+        return obs
+
+    def get_agent_locs(self):
+        return [self.getFullState(agent)[0][[0, 1, 2, 3]] for agent in self.agents]
+
     def _setup_reconstruction_info(self):
 
         # components
@@ -200,26 +208,24 @@ class DrivingEnvironment(EnvironmentBase):
                 "points": Box(-self.mean * 2, self.mean * 2, shape=(4,)),
                 "type": type
             })
-            self.observation_space = Tuple([
-                self_space,
-                car_space,
-                obstacle_space,
-                pedestrian_space,
-                lane_space
-            ])
         else:
             lane_space = Dict({
                 "signed_distance": Box(-self.mean * 2, self.mean * 2, shape=(1,)),
                 "orientation": orientation,
                 "type": type
             })
-            self.observation_space = Tuple([
-                self_space,
+
+        self.observation_space = Tuple([
+            Tuple([
                 car_space,
                 obstacle_space,
                 pedestrian_space,
+                ]),
+            Tuple([
+                self_space,
                 lane_space
             ])
+        ])
 
     def _setup_normalization(self):
         self.mean = 5.0 if ObservationType.PARTIAL else 1.0
@@ -236,7 +242,7 @@ class DrivingEnvironment(EnvironmentBase):
         return [self.continuousActions]
 
     def step(self, actions):
-        t1 = time.clock()
+        #t1 = time.clock()
 
         # Setup reward and state variables
         self.teamReward = 0.0
@@ -279,7 +285,7 @@ class DrivingEnvironment(EnvironmentBase):
             # Get observations every 100 ms
             if i % 10 == 9:
                 if self.observationType == ObservationType.FULL:
-                    observations.append([self.getFullState(car) for car in self.agents])
+                    observations.append(self.get_full_obs())
                 else:
                     observations.append([self.getAgentVision(car) for car in self.agents])
 
@@ -301,11 +307,12 @@ class DrivingEnvironment(EnvironmentBase):
             finished = True
             info['episode_r'] = self.episodeRewards
             info['episode_p_r'] = self.episodePosRewards
+            info['episode_o_r'] = [0,]*self.nPlayers
             info['episode_g'] = [sum([car.finished and not car.crashed for car in self.agents]),
                                  sum([car.crashed for car in self.agents])]
             # print(self.episodeRewards)
 
-        t2 = time.clock()
+        #t2 = time.clock()
         # print((t2 - t1) * 1000)
 
         return observations, self.carRewards, finished, info
@@ -963,7 +970,7 @@ class DrivingEnvironment(EnvironmentBase):
             'float32')
 
         # return
-        return selfDet, carDets, obsDets, pedDets, laneDets
+        return (carDets, obsDets, pedDets), (selfDet, laneDets), (1,1,1)
 
     # Print env params
     def __str__(self):
