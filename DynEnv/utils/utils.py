@@ -19,19 +19,23 @@ flatten = lambda l: [item for sublist in l for item in sublist]
 
 def transformActions(actions, discreteTurn = False):
     newActions = actions.clone()
-    newActions[:, 2] = newActions[:, 0].clone()
-    turns = newActions[:, 1]
-    turns[turns == 2] = -1
-    forwards = newActions[:, 0]
-    forwards[forwards < 3] = 0
-    forwards[forwards == 3] = 1
-    forwards[forwards == 4] = -1
-    sides = newActions[:, 2]
-    sides[sides > 2] = 0
-    sides[sides == 2] = 1
-    sides[sides == 1] = -1
-    if discreteTurn:
-        newActions[:,3] -= 3
+    if actions.shape[1] == 4:
+        newActions[:, 2] = newActions[:, 0].clone()
+        turns = newActions[:, 1]
+        turns[turns == 2] = -1
+        forwards = newActions[:, 0]
+        forwards[forwards < 3] = 0
+        forwards[forwards == 3] = 1
+        forwards[forwards == 4] = -1
+        sides = newActions[:, 2]
+        sides[sides > 2] = 0
+        sides[sides == 2] = 1
+        sides[sides == 1] = -1
+        if discreteTurn:
+            newActions[:,3] -= 3
+    else:
+        newActions[:,0] -= 1
+        newActions[:,1] -= 1
     return newActions
 
 class AttentionType(Enum):
