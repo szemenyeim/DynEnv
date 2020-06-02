@@ -1,5 +1,6 @@
 tmux new-session -d -s RL
-for seed in 5646 83465 97 4162 35710 4380 42 658 94846 341
+#for seed in 5646 83465 97 4162 35710 4380
+for seed in 42 658 94846 341
 do
     NOTE="seed-${seed}-"
     ARGS=""
@@ -12,7 +13,7 @@ do
             NOTE+="PartialObs-"
         elif [ "$arg" == "--full" ]
         then
-            ARGS+=" --observationType FULL"
+            ARGS+=" --observationType FULL --noiseMagnitude 0"
             NOTE+="FullObs-"
         fi
         
