@@ -78,7 +78,12 @@ class ICMNet(nn.Module):
 
         # If all agents finished, the loss is 0
         if not agentFinished.any():
-            return torch.tensor([0, 0]).to(features.device)
+            loss = torch.zeros(1).to(features.device)
+            icm_losses = ICMLosses(forward=self.forward_coeff * loss, inverse=self.icm_beta * loss,
+                                   long_horizon_forward=self.long_horizon_coeff * loss)
+            icm_losses.prepare_losses()
+
+            return icm_losses
 
         # forward loss
         # measure of how good features can be predicted
