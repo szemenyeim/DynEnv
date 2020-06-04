@@ -269,5 +269,5 @@ if __name__ == '__main__':
     line_new = '{:>25}  {:>10}  {:>10}'.format("Total", sucString[0], sucString[1])
     print(line_new)
 
-    savePath = osp.join(root, "results.xlsx")
+    savePath = osp.join(root, "results.xls")
     book.save(savePath)
