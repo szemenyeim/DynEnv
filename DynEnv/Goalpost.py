@@ -9,6 +9,6 @@ class Goalpost(object):
         self.side = side
         self.dir = dir
         self.shape = Circle(body, self.radius*2, (0, 0))
-        self.shape.color = (0, 0, 255)
+        self.shape.color = (0, 0, 255, 0)
         self.shape.elasticity = 0.95
         self.shape.collision_type = CollisionType.Goalpost

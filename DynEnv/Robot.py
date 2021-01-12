@@ -1,6 +1,6 @@
 from .cutils import CollisionType, friction_robot
 from pymunk import Body, Segment, moment_for_segment, Vec2d
-from pymunk.constraint import PivotJoint, RotaryLimitJoint
+from pymunk.constraints import PivotJoint, RotaryLimitJoint
 import math
 import random
 
@@ -37,7 +37,7 @@ class Robot(object):
         body.angle = angle
         body.velocity_func = friction_robot
         self.leftFoot = Segment(body,a,b,self.radius)
-        self.leftFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
+        self.leftFoot.color = (255, int(127*(1-team)), int(127*(1+team)), 0)
         self.leftFoot.elasticity = 0.3
         self.leftFoot.friction = 2.5
         self.leftFoot.collision_type = CollisionType.Robot
@@ -49,7 +49,7 @@ class Robot(object):
         body.angle = angle
         body.velocity_func = friction_robot
         self.rightFoot = Segment(body,c,d,self.radius)
-        self.rightFoot.color = (255, int(127*(1-team)), int(127*(1+team)))
+        self.rightFoot.color = (255, int(127*(1-team)), int(127*(1+team)), 0)
         self.rightFoot.elasticity = 0.3
         self.rightFoot.friction = 2.5
         self.rightFoot.collision_type = CollisionType.Robot
@@ -115,7 +115,7 @@ class Robot(object):
             if velocity is not None:
                 shape = self.leftFoot
                 angle = shape.body.angle
-                velocity.rotate(angle)
+                velocity = velocity.rotated(angle)
                 shape.body.velocity = velocity
 
     # Turn

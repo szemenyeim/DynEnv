@@ -11,9 +11,9 @@ class Ball(object):
         body.position = x, y
         body.velocity_func = friction_ball
         self.shape = Circle(body, radius*2, (0, 0))
-        self.shape.color = (255, 0, 0)
+        self.shape.color = (255, 0, 0, 0)
         self.shape.elasticity = 0.98
-        self.shape.friction = 2.5
+        self.shape.friction = 3.0
         self.shape.collision_type = CollisionType.Ball
 
         # Initial and previous positions

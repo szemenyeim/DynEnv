@@ -194,7 +194,7 @@ class RoboCupEnvironment(EnvironmentBase):
              -0.87, 0)
         ]
 
-        self.centerCircle = [pymunk.Vec2d((self.W // 2, self.H // 2)), self.centerCircleRadius]
+        self.centerCircle = [pymunk.Vec2d(self.W // 2, self.H // 2), self.centerCircleRadius]
 
         self.penaltyCrosses = [
             (pymunk.Vec2d(self.W // 2, self.H // 2), 0, 0),
@@ -587,12 +587,12 @@ class RoboCupEnvironment(EnvironmentBase):
         self.screen.fill((0, 255, 0))
 
         for line in self.lines:
-            pygame.draw.line(self.screen, (255, 255, 255), line[0], line[1], self.lineWidth)
+            pygame.draw.line(self.screen, (255, 255, 255, 0), line[0], line[1], self.lineWidth)
 
         for cross in self.penaltyCrosses:
-            pygame.draw.circle(self.screen, (255, 255, 255), cross[0], self.penaltyRadius * 2, 0)
+            pygame.draw.circle(self.screen, (255, 255, 255, 0), cross[0], self.penaltyRadius * 2, 0)
 
-        pygame.draw.circle(self.screen, (255, 255, 255), self.centerCircle[0], self.centerCircle[1] * 2, self.lineWidth)
+        pygame.draw.circle(self.screen, (255, 255, 255, 0), self.centerCircle[0], self.centerCircle[1] * 2, self.lineWidth)
 
         self.space.debug_draw(self.draw_options)
 
@@ -775,8 +775,8 @@ class RoboCupEnvironment(EnvironmentBase):
                         self.ballOwned = 0
 
         # Update the color of the fallen robot
-        robot.leftFoot.color = (255, int(75 * (1 + robot.team)), int(75 * (1 - robot.team)))
-        robot.rightFoot.color = (255, int(75 * (1 + robot.team)), int(75 * (1 - robot.team)))
+        robot.leftFoot.color = (255, int(75 * (1 + robot.team)), int(75 * (1 - robot.team)), 0)
+        robot.rightFoot.color = (255, int(75 * (1 + robot.team)), int(75 * (1 - robot.team)), 0)
 
         # Set variables
         robot.fallen = True
@@ -846,10 +846,10 @@ class RoboCupEnvironment(EnvironmentBase):
         # Stop feet, and change color
         robot.leftFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
         robot.leftFoot.body.angular_velocity = 0.0
-        robot.leftFoot.color = (255, 0, 0)
+        robot.leftFoot.color = (255, 0, 0, 0)
         robot.rightFoot.body.velocity = pymunk.Vec2d(0.0, 0.0)
         robot.rightFoot.body.angular_velocity = 0.0
-        robot.rightFoot.color = (255, 0, 0)
+        robot.rightFoot.color = (255, 0, 0, 0)
 
         # Set moving variables
         if robot.kicking and robot.jointRemoved:
@@ -886,9 +886,9 @@ class RoboCupEnvironment(EnvironmentBase):
                         robot.jointRemoved = True
 
                     # Set velocity
-                    velocity = pymunk.Vec2d(robot.velocity * 2.5, 0)
+                    velocity = pymunk.Vec2d(robot.velocity * 3.0, 0)
                     angle = foot.body.angle
-                    velocity.rotate(angle)
+                    velocity = velocity.rotated(angle)
                     foot.body.velocity = velocity
 
                 # 600 ms into the kick, the legs starts moving back
@@ -896,7 +896,7 @@ class RoboCupEnvironment(EnvironmentBase):
                     # Set velocity
                     velocity = pymunk.Vec2d(robot.velocity * 2.5, 0)
                     angle = foot.body.angle
-                    velocity.rotate(angle)
+                    velocity = velocity.rotated(angle)
                     foot.body.velocity = -velocity
 
                 # 700 ms into the kick the leg stops moving and returns to its original position
@@ -937,8 +937,8 @@ class RoboCupEnvironment(EnvironmentBase):
                 # print("Getup", robot.team)
 
                 # Reset color and variables
-                robot.leftFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)))
-                robot.rightFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)))
+                robot.leftFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)), 0)
+                robot.rightFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)), 0)
                 robot.fallen = False
                 robot.fallCntr = 0
 
@@ -962,10 +962,10 @@ class RoboCupEnvironment(EnvironmentBase):
                 # Move feet
                 robot.leftFoot.body.position = pos
                 robot.leftFoot.body.angle = angle
-                robot.leftFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)))
+                robot.leftFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)), 0)
                 robot.rightFoot.body.position = pos
                 robot.rightFoot.body.angle = angle
-                robot.rightFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)))
+                robot.rightFoot.color = (255, int(127 * (1 - robot.team)), int(127 * (1 + robot.team)), 0)
         else:
             teamIdx = 0 if robot.team > 0 else 1
 
@@ -1201,12 +1201,10 @@ class RoboCupEnvironment(EnvironmentBase):
         angle2 = headAngle - agent.fieldOfView
 
         # Edge of field of view
-        vec1 = pymunk.Vec2d(1, 0)
-        vec1.rotate(angle1)
+        vec1 = pymunk.Vec2d(1, 0).rotated(angle1)
 
         # Other edge of field of view
-        vec2 = pymunk.Vec2d(1, 0)
-        vec2.rotate(angle2)
+        vec2 = pymunk.Vec2d(1, 0).rotated(angle2)
 
         # Check if objects are seen
         ballDets = [isSeenInArea(self.ball.shape.body.position - pos, vec1, vec2, self.maxVisDist[0], headAngle,
@@ -1283,8 +1281,7 @@ class RoboCupEnvironment(EnvironmentBase):
                 c = random.randint(0, 5)
                 d = random.random() * math.sqrt(self.maxVisDist[1])
                 a = random.random() * 2 * agent.fieldOfView - agent.fieldOfView
-                pos = pymunk.Vec2d(d, 0)
-                pos.rotate(a)
+                pos = pymunk.Vec2d(d, 0).rotated(a)
                 if c == 0:
                     ballDets.insert(len(ballDets),
                                     [SightingType.Normal, pos,
@@ -1345,8 +1342,7 @@ class RoboCupEnvironment(EnvironmentBase):
             if circleDets[0] != SightingType.NoSighting:
 
                 # Rotated directional vector
-                ellipseOffs = pymunk.Vec2d(circleDets[2], 0)
-                ellipseOffs.rotate(math.pi / 4)
+                ellipseOffs = pymunk.Vec2d(circleDets[2], 0).rotated(math.pi / 4)
 
                 # Points to transform: [center, 6 more points on the circle]
                 circlevec = np.array([
@@ -1479,8 +1475,8 @@ class RoboCupEnvironment(EnvironmentBase):
             img = np.zeros((H * 2, W * 2, 3)).astype('uint8')
 
             # Rotate FoV back for visualization
-            vec1.rotate(-headAngle)
-            vec2.rotate(-headAngle)
+            vec1 = vec1.rotated(-headAngle)
+            vec2 = vec2.rotated(-headAngle)
 
             # Draw
             cv2.line(img, (xOffs, H), (int(xOffs + vec1.x * 1000), int(H - vec1.y * 1000)), (255, 255, 0))

@@ -499,7 +499,7 @@ def addNoiseRect(obj, noiseType, interaction, magn, rand, maxDist, misClass=Fals
                 # Center corner points and rotate
                 if obj[4] is not None:
                     obj[4] = [pt - obj[1] for pt in obj[4]]
-                    [pt.rotate(angleDiff) for pt in obj[4]]
+                    [pt.rotated(angleDiff) for pt in obj[4]]
                     obj[4] = [pt + obj[1] for pt in obj[4]]
                 # Compute new center and add it to corners
                 obj[1] = newPos
@@ -536,7 +536,7 @@ def addNoiseRect(obj, noiseType, interaction, magn, rand, maxDist, misClass=Fals
             # Center corners and rotate
             if obj[4] is not None:
                 obj[4] = [pt - obj[1] for pt in obj[4]]
-                [pt.rotate(angleDiff) for pt in obj[4]]
+                [pt.rotated(angleDiff) for pt in obj[4]]
                 obj[4] = [pt + newPos for pt in obj[4]]
             # Compute new center and add it to corners
             obj[1] = newPos
@@ -581,14 +581,14 @@ def isSeenInRadius(point, corners, angle, obsPt, obsAngle, maxDist, distantDist)
             # Center corners and rotate with object angle
             corners = [corner - point for corner in corners]
             if angle != 0:
-                [corner.rotate(angle) for corner in corners]
+                [corner.rotated(angle) for corner in corners]
 
             # Add back transformaed center and rotate with observer angle
             corners = [corner + trPt for corner in corners]
-            [corner.rotate(-obsAngle) for corner in corners]
+            [corner.rotated(-obsAngle) for corner in corners]
 
         # Rotate center point and get new object angle
-        trPt.rotate(-obsAngle)
+        trPt = trPt.rotated(-obsAngle)
         trAngle = angle - obsAngle
 
         return [seen, trPt, math.cos(trAngle), math.sin(trAngle), corners]
@@ -742,8 +742,7 @@ def isSeenInArea(point, dir1, dir2, maxDist, angle, radius=0, allowPartial=True)
                     seen = SightingType.Partial
 
         # Rotate sighting in the robot's coordinate system
-        rotPt = copy.copy(point)
-        rotPt.rotate(-angle)
+        rotPt = copy.copy(point).rotated(-angle)
 
     return [seen, rotPt, radius]
 
@@ -812,8 +811,8 @@ def isLineInArea(p1, p2, dir1, dir2, maxDist, angle):
 
             # Transfer the points to the robot coordinate system
             if pt1 and pt2:
-                pt1.rotate(-angle)
-                pt2.rotate(-angle)
+                pt1 = pt1.rotated(-angle)
+                pt2 = pt2.rotated(-angle)
 
             # Check points behind the robot
             if pt1.x < 0 or pt2.x < 0:
