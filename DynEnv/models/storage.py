@@ -210,6 +210,45 @@ class RolloutStorage(object):
         policy_loss = torch.stack(
             [(-log_prob * advantage.detach()).mean() for log_prob in self.log_probs.permute(1, 0, 2)]).mean()
 
+        #todo: add PPO loss
+        # Steps:
+        # 1. we need probabilities, not log_probs (we might exponentiate, but I do not know whether it is numerically stable...
+        # 2. we need the probs from the OLD POLICY as well - this will get very messy; we have two options
+        #   a) we save the state_dict of the actor and reload it (as in: https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py)
+        #   b) we just use the porbs from the last step (although the state is not exactly the same...
+        #   https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/algo/ppo.py uses this, at least as far as I can tell)
+
+        def ppo_loss(log_probs, old_log_probs, advantage, clip_param, delta=1e-8):
+            """
+            PPO loss, as in https://arxiv.org/abs/1707.06347v2
+
+            #todo: all values are passed as parameters, as I do not want to mess with the original code.
+            # We need to replace those with the member variables (e.g. log_probs)
+
+            @param log_probs: log probabilities of the current actor
+            @param old_log_probs: log probabilities of the old actor
+            @param advantage: advantage values
+            @param clip_param: clipping parameter for PPO (eps in the paper)
+            @param delta: small value for numerical stability
+            @return:
+            """
+
+            # calculate the empirical mean of the expectation for the weighting factor
+            # todo: check whether permute makes sense
+
+            r_theta = torch.stack([
+                torch.exp(log_prob-old_log_prob+delta) for log_prob, old_log_prob in zip(log_probs.permute(1, 0, 2), old_log_probs.permute(1, 0, 2))
+            ])
+
+            r_theta_clipped = torch.clamp(r_theta, 1-clip_param, 1+clip_param)
+
+            # advantage cannot be removed from the min, as it can be negative
+            ppo_loss =  torch.min(torch.stack(r_theta*advantage.detach(), r_theta_clipped*advantage.detach()), dim=0).mean()
+
+            return ppo_loss
+
+
+
         # the value loss weights the squared difference between the actual
         # and predicted rewards
         value_loss = advantage.pow(2).mean()
