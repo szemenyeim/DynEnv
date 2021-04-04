@@ -11,6 +11,9 @@ from DynEnv.models.train import Runner
 from DynEnv.utils.utils import set_random_seeds, NetworkParameters, RewardType, AttentionTarget, AttentionType
 
 if __name__ == '__main__':
+    import torch
+    torch.autograd.set_detect_anomaly(True)
+    
     # arg parsing
     args = get_args()
 

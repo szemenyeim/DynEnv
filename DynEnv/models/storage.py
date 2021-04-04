@@ -274,7 +274,7 @@ class RolloutStorage(object):
         # todo: check whether permute makes sense
 
         r_theta = torch.stack([
-            torch.exp(log_prob - old_log_prob + delta) for log_prob, old_log_prob in
+            torch.exp(log_prob - old_log_prob.detach() + delta) for log_prob, old_log_prob in
             zip(self.log_probs.permute(1, 0, 2), self.log_probs_old.permute(1, 0, 2))
         ])
 
@@ -283,7 +283,6 @@ class RolloutStorage(object):
 
         # advantage cannot be removed from the min, as it can be negative
 
-        print(r_theta.shape, advantage.shape)
         ppo_loss, _ = torch.min(torch.stack((r_theta * advantage.detach(), r_theta_clipped * advantage.detach())),
                              dim=0)
 
