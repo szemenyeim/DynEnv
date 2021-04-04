@@ -145,7 +145,7 @@ class A2CNet(nn.Module):
         @param features: features (already embedded)
         @return:
         """
-        self.actor_old.load_state_dict(self.ppo_actor_path)
+        self.actor_old.load_state_dict(torch.load(self.ppo_actor_path))
 
         policies_old = self.actor_old(features)
         _, _, log_probs_old = self._calc_log_probs(policies_old)
