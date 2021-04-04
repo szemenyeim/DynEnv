@@ -23,6 +23,10 @@ def get_args():
                         help='threshold for gradient clipping')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate')
+    parser.add_argument('--use-ppo', type=bool, default=False, metavar='USE_PPO',
+                        help='use PPO')
+    parser.add_argument('--ppo-clip', type=float, default=.2, metavar='PPO_CLIP',
+                        help='clipping parameter (epsilon) for PPO')
 
     # environment
     parser.add_argument('--idx', type=int, default=9, metavar='IDX',

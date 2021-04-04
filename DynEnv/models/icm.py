@@ -53,7 +53,7 @@ class ICMNet(nn.Module):
     def forward(self, features, action, agentFinished):
         """
 
-        feature: current encoded state
+        features: current encoded state
         next_feature: next encoded state
 
         :param features: tensor of the states

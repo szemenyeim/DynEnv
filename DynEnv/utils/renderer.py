@@ -67,7 +67,7 @@ class Renderer(object):
         for _ in range(steps):
             tensor = torch.from_numpy(obs.transpose((0, 3, 1, 2))).float() / 255.
             tensor = tensor.cuda() if torch.cuda.is_available() else tensor
-            action, _, _, _, _ = agent.a2c.get_action(tensor)
+            action, _, _, _, _, _ = agent.a2c.get_action(tensor)
             _, _, _, _ = env.step(action)
             images.append(env.render(mode="rgb_array"))
 

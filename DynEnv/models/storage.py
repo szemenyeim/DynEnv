@@ -18,8 +18,8 @@ class sliceable_deque(deque):
 
 
 class RolloutStorage(object):
-    def __init__(self, rollout_size, num_envs, num_players, num_actions, n_stack, feature_size=288,
-                 is_cuda=True, use_full_entropy=False):
+    def __init__(self, rollout_size, num_envs, num_players, num_actions, n_stack, feature_size=288, is_cuda=True,
+                 use_full_entropy=False, use_ppo=False, ppo_clip=0.2):
         """
 
         :param num_actions:
@@ -28,6 +28,8 @@ class RolloutStorage(object):
         :param num_envs: number of environments to train on parallel
         :param n_stack: number of frames concatenated
         :param is_cuda: flag whether to use CUDA
+        @param ppo_clip: clipping parameter for PPO
+        @param use_ppo: flag whether to use PPO
         """
         super().__init__()
 
@@ -50,6 +52,10 @@ class RolloutStorage(object):
         self.pos_target = sliceable_deque(maxlen=rollout_size)
         self.seens = sliceable_deque(maxlen=rollout_size)
         self.use_full_entropy = use_full_entropy
+
+        # PPO
+        self.use_ppo = use_ppo
+        self.ppo_clip = ppo_clip
 
         # initialize the buffers with zeros
         self.reset_buffers()
@@ -97,6 +103,9 @@ class RolloutStorage(object):
             (self.rollout_size, self.num_actions, self.num_all_players))
         self.log_probs = self._generate_buffer(
             (self.rollout_size, self.num_actions, self.num_all_players))
+        if self.use_ppo is True:
+            self.log_probs_old = self._generate_buffer(
+                (self.rollout_size, self.num_actions, self.num_all_players))
         self.values = self._generate_buffer((self.rollout_size, self.num_all_players))
 
         self.dones = self._generate_buffer((self.rollout_size, self.num_envs))
@@ -122,7 +131,8 @@ class RolloutStorage(object):
         """
         return self.states[step]
 
-    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features, fullStates, pos, truePos, seen):
+    def insert(self, step, reward, agent_finished, obs, action, log_prob, value, dones, features, fullStates, pos,
+               truePos, seen, log_prob_old):
         """
         Inserts new data into the log for each environment at index step
 
@@ -137,6 +147,7 @@ class RolloutStorage(object):
         :param features: tensor of the features
         :param fullStates: list of the full states
         :return:
+        @param log_prob_old: tensor of the log probabilities with the old actor
         """
         self.states.append(obs)
         self.full_state_targets.append(fullStates)
@@ -149,6 +160,8 @@ class RolloutStorage(object):
         self.features[step].copy_(features)
         self.actions[step].copy_(torch.stack(action, dim=0))
         self.log_probs[step].copy_(torch.stack(log_prob, dim=0))
+        if self.use_ppo is True:
+            self.log_probs_old[step].copy_(torch.stack(log_prob_old, dim=0))
         self.values[step].copy_(value.squeeze())
         self.dones[step].copy_(torch.ByteTensor(dones))
 
@@ -207,47 +220,14 @@ class RolloutStorage(object):
                rewards.std().item(), self.values.std().item(), advantage.std().item()))'''
         # weight the deviation of the predicted value (of the state) from the
         # actual reward (=advantage) with the negative log probability of the action taken
-        policy_loss = torch.stack(
-            [(-log_prob * advantage.detach()).mean() for log_prob in self.log_probs.permute(1, 0, 2)]).mean()
-
-        #todo: add PPO loss
-        # Steps:
-        # 1. we need probabilities, not log_probs (we might exponentiate, but I do not know whether it is numerically stable...
-        # 2. we need the probs from the OLD POLICY as well - this will get very messy; we have two options
-        #   a) we save the state_dict of the actor and reload it (as in: https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py)
-        #   b) we just use the porbs from the last step (although the state is not exactly the same...
-        #   https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail/blob/master/a2c_ppo_acktr/algo/ppo.py uses this, at least as far as I can tell)
-
-        def ppo_loss(log_probs, old_log_probs, advantage, clip_param, delta=1e-8):
-            """
-            PPO loss, as in https://arxiv.org/abs/1707.06347v2
-
-            #todo: all values are passed as parameters, as I do not want to mess with the original code.
-            # We need to replace those with the member variables (e.g. log_probs)
-
-            @param log_probs: log probabilities of the current actor
-            @param old_log_probs: log probabilities of the old actor
-            @param advantage: advantage values
-            @param clip_param: clipping parameter for PPO (eps in the paper)
-            @param delta: small value for numerical stability
-            @return:
-            """
-
-            # calculate the empirical mean of the expectation for the weighting factor
-            # todo: check whether permute makes sense
-
-            r_theta = torch.stack([
-                torch.exp(log_prob-old_log_prob+delta) for log_prob, old_log_prob in zip(log_probs.permute(1, 0, 2), old_log_probs.permute(1, 0, 2))
-            ])
-
-            r_theta_clipped = torch.clamp(r_theta, 1-clip_param, 1+clip_param)
-
-            # advantage cannot be removed from the min, as it can be negative
-            ppo_loss =  torch.min(torch.stack(r_theta*advantage.detach(), r_theta_clipped*advantage.detach()), dim=0).mean()
-
-            return ppo_loss
 
 
+
+        if self.use_ppo is False:
+            policy_loss = torch.stack(
+                [(-log_prob * advantage.detach()).mean() for log_prob in self.log_probs.permute(1, 0, 2)]).mean()
+        elif self.use_ppo is True:
+            policy_loss = self._ppo_loss(advantage)
 
         # the value loss weights the squared difference between the actual
         # and predicted rewards
@@ -280,6 +260,32 @@ class RolloutStorage(object):
         a2c_losses.prepare_losses()
 
         return a2c_losses, self.rewards.detach().cpu()
+
+    def _ppo_loss(self, advantage, delta=1e-8):
+        """
+        PPO loss, as in https://arxiv.org/abs/1707.06347v2
+
+        @param advantage: advantage values
+        @param delta: small value for numerical stability
+        @return:
+        """
+
+        # calculate the empirical mean of the expectation for the weighting factor
+        # todo: check whether permute makes sense
+
+        r_theta = torch.stack([
+            torch.exp(log_prob - old_log_prob + delta) for log_prob, old_log_prob in
+            zip(self.log_probs.permute(1, 0, 2), self.old_log_probs.permute(1, 0, 2))
+        ])
+
+        # clip the policy ratio
+        r_theta_clipped = torch.clamp(r_theta, 1 - self.ppo_clip, 1 + self.ppo_clip)
+
+        # advantage cannot be removed from the min, as it can be negative
+        ppo_loss = torch.min(torch.stack(r_theta * advantage.detach(), r_theta_clipped * advantage.detach()),
+                             dim=0).mean()
+
+        return ppo_loss
 
     def log_episode_rewards(self, infos):
         """

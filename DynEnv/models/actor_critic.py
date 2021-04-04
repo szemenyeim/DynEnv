@@ -1,3 +1,5 @@
+from os.path import dirname, join, abspath
+
 import torch
 from gym.spaces import Box
 from torch import nn as nn
@@ -10,7 +12,7 @@ from ..utils.utils import flatten
 
 class A2CNet(nn.Module):
     def __init__(self, num_envs, num_players, action_descriptor, obs_space, feature_size, num_rollout, num_time,
-                 reco_desc, loc_feature_cnt):
+                 reco_desc, loc_feature_cnt, use_ppo):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
@@ -18,6 +20,7 @@ class A2CNet(nn.Module):
         :param n_stack: number of frames stacked
         :param action_descriptor: size of the action space, pass env.action_space.n
         :param features_per_object_type: input size of the LSTMCell of the FeatureEncoderNet
+        @param use_ppo: flag for PPO
         """
         super().__init__()
 
@@ -30,9 +33,22 @@ class A2CNet(nn.Module):
         actionCnt = sum([sum(space.shape) for space in action_descriptor.spaces])
 
         self.embedder_base = DynEvnEncoder(feature_size, num_envs, num_rollout, num_players, num_time,
-                                           obs_space.spaces[1], obs_space.spaces[0], reco_desc, actionCnt, loc_feature_cnt)
+                                           obs_space.spaces[1], obs_space.spaces[0], reco_desc, actionCnt,
+                                           loc_feature_cnt)
 
+        self.use_ppo = use_ppo
         self.actor = ActorLayer(self.feature_size * 2, self.action_descriptor)
+
+        if self.use_ppo:
+            self.ppo_actor_path = join(dirname(abspath(__file__)), "ppo_actor.pth")
+
+            # save actor state_dict if using PPO
+            # the save in __init__ is needed as at the first time step,
+            # we need something for the old actor
+            torch.save(self.actor.state_dict(), self.ppo_actor_path)
+
+            self.actor_old = ActorLayer(self.feature_size * 2, self.action_descriptor)
+
         self.critic = CriticLayer(self.feature_size * 2)
 
     def set_recurrent_buffers(self, buf_size):
@@ -58,7 +74,7 @@ class A2CNet(nn.Module):
     def forward(self, state):
         """
 
-        feature: current encoded state
+        features: current encoded state
 
         :param state: current state
         :return:
@@ -92,6 +108,27 @@ class A2CNet(nn.Module):
         policies, values, features, pos = self(state)  # use A3C to get policy and value
 
         """Calculate action"""
+        action_probs, actions, log_probs = self._calc_log_probs(policies)
+
+        log_probs_old = None
+        if self.use_ppo is True:
+            # evaluate old actor
+            log_probs_old = self._eval_old_actor(features)
+
+            # save actor state_dict if using PPO
+            torch.save(self.actor.state_dict(), self.ppo_actor_path)
+
+        return (actions, log_probs, action_probs, values,
+                features, pos, log_probs_old)  # ide is jön egy features bypass a self(state-ből)
+
+    @staticmethod
+    def _calc_log_probs(policies):
+        """
+        Samples the action distribution of the actor
+
+        @param policies: output of the actor network (without a softmax)
+        @return:
+        """
         # 1. convert policy outputs into probabilities
         # 2. sample the categorical  distribution represented by these probabilities
         action_probs = [F.softmax(player_policy, dim=-1) for player_policy in policies]
@@ -99,8 +136,21 @@ class A2CNet(nn.Module):
         actions = [cat.sample() for cat in cats]
         log_probs = [cat.log_prob(a) for (cat, a) in zip(cats, actions)]
 
-        return (actions, log_probs, action_probs, values,
-                features, pos)  # ide is jön egy feature bypass a self(state-ből)
+        return action_probs, actions, log_probs
+
+    def _eval_old_actor(self, features):
+        """
+        Evaluates the policy of the old actor
+
+        @param features: features (already embedded)
+        @return:
+        """
+        self.actor_old.load_state_dict(self.ppo_actor_path)
+
+        policies_old = self.actor_old(features)
+        _, _, log_probs_old = self._calc_log_probs(policies_old)
+
+        return log_probs_old
 
 
 # Complete action layer for multiple action groups

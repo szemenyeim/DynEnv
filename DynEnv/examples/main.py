@@ -35,7 +35,8 @@ if __name__ == '__main__':
 
     # agent
     agent = ICMAgent(args, num_players, action_size, attn_target, attn_type, obs_space, feature_size, reco_desc,
-                     5 if args.env is DynEnvType.ROBO_CUP else 1, 6 if args.env is DynEnvType.ROBO_CUP else 4)
+                     5 if args.env is DynEnvType.ROBO_CUP else 1, 6 if args.env is DynEnvType.ROBO_CUP else 4,
+                     args.use_ppo)
 
     # params
     param = NetworkParameters(env_name, args, attn_target, attn_type, RewardType.INTRINSIC_AND_EXTRINSIC)

@@ -57,7 +57,8 @@ class Runner(object):
         """Storage"""
         self.storage = RolloutStorage(self.params.rollout_size, self.params.num_envs, self.net.num_players,
                                       self.numActions, self.params.n_stack, self.net.feat_size * 2,
-                                      is_cuda=self.is_cuda, use_full_entropy=self.params.use_full_entropy)
+                                      is_cuda=self.is_cuda, use_full_entropy=self.params.use_full_entropy,
+                                      use_ppo=hparams.use_ppo, ppo_clip=hparams.ppo_clip)
 
     def train(self):
 
@@ -101,7 +102,7 @@ class Runner(object):
 
             """ICM prediction """
             # tensors for the curiosity-based loss
-            # feature, feature_pred: fwd_loss
+            # features, feature_pred: fwd_loss
             # a_t_pred: inv_loss
             icm_losses = self.net.icm(self.storage.features, self.storage.actions, self.storage.agentFinished)
 
@@ -250,7 +251,7 @@ class Runner(object):
         for step in range(self.params.rollout_size):
             """Interact with the environments """
             # call A2C
-            actions, log_probs, action_probs, values, features, pos = self.net.a2c.get_action(
+            actions, log_probs, action_probs, values, features, pos, log_probs_old = self.net.a2c.get_action(
                 (self.storage.get_state(step), transformActions(self.storage.actions[step - 1].t(), True)))
             # accumulate episode entropy
             episode_action_probs.append(action_probs)
@@ -274,8 +275,7 @@ class Runner(object):
             self.storage.log_episode_rewards(state)
 
             self.storage.insert(step, rewards, agentFinished, new_obs[..., :-1], actions, log_probs, values, dones,
-                                features,
-                                fullStates, pos, truePos, new_obs[..., -1])
+                                features, fullStates, pos, truePos, new_obs[..., -1], log_probs_old)
 
         # Note:
         # get the estimate of the final reward
@@ -283,7 +283,7 @@ class Runner(object):
         # detach, as the final value will only be used as a
         with torch.no_grad():
             states = self.net.a2c.embedder_base.get_states()
-            _, _, _, final_value, final_features, _ = self.net.a2c.get_action(
+            _, _, _, final_value, final_features, _, _ = self.net.a2c.get_action(
                 (self.storage.get_state(step + 1), transformActions(self.storage.actions[step].t())))
             self.net.a2c.embedder_base.set_states(states)
 
