@@ -282,8 +282,13 @@ class RolloutStorage(object):
         r_theta_clipped = torch.clamp(r_theta, 1 - self.ppo_clip, 1 + self.ppo_clip)
 
         # advantage cannot be removed from the min, as it can be negative
+
+        print(r_theta.shape, advantage.shape)
         ppo_loss = torch.min(torch.stack((r_theta * advantage.detach(), r_theta_clipped * advantage.detach())),
-                             dim=0).mean()
+                             dim=0)#.mean()
+
+        print(ppo_loss)
+        print(ppo_loss.shape)
 
         return ppo_loss
 
