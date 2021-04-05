@@ -315,10 +315,10 @@ class RecurrentTemporalAttention(nn.Module):
         self.feature_size = feature_size
 
         # objAtt implements self attention between objects seen in the same timestep
-        self.objAtt = nn.MultiheadAttention(feature_size, num_heads)
+        self.objAtt = nn.MultiheadAttention(feature_size, num_heads, add_bias_kv=True)
 
         # Temp att attends between sightings at different timesteps
-        self.tempAtt = nn.MultiheadAttention(feature_size, num_heads)
+        self.tempAtt = nn.MultiheadAttention(feature_size, num_heads, add_bias_kv=True)
 
         # Relu and group norm
         self.bn = nn.LayerNorm(feature_size)
