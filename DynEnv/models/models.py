@@ -345,7 +345,9 @@ class RecurrentTemporalAttention(nn.Module):
 
         # Filter nans
         for att in attObj:
-            att[torch.isnan(att)] = 0
+            # att[torch.isnan(att)] = 0
+            
+            att.masked_scatter_(torch.isnan(att), (1-torch.isnan(att)).float())
 
         # Run temporal attention
         finalAtt = attObj[0]
