@@ -132,7 +132,7 @@ class A2CNet(nn.Module):
         # 1. convert policy outputs into probabilities
         # 2. sample the categorical  distribution represented by these probabilities
         action_probs = [F.softmax(player_policy, dim=-1) for player_policy in policies]
-        print(action_probs)
+        #print(action_probs)
         cats = [Categorical(a_prob) for a_prob in action_probs]
         actions = [cat.sample() for cat in cats]
         log_probs = [cat.log_prob(a) for (cat, a) in zip(cats, actions)]

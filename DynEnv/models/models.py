@@ -349,7 +349,8 @@ class RecurrentTemporalAttention(nn.Module):
         # Filter nans
         for i, att in enumerate(attObj_unfiltered):
             filtered = torch.zeros_like(att)
-            filtered = filtered.masked_scatter_(~torch.isnan(att), att)
+            nan_mask = ~torch.isnan(att)
+            filtered[nan_mask] = att[nan_mask]
             attObj.append(filtered)
             if (torch.isnan(filtered).any()):
                 print("Objatt is nan in iteration ", i)
@@ -362,7 +363,8 @@ class RecurrentTemporalAttention(nn.Module):
             finalMask = masks[i + 1] & finalMask
             # Filter nans
             finalAtt = torch.zeros_like(temp)
-            finalAtt = finalAtt.masked_scatter_(~torch.isnan(temp), temp)
+            nan_mask = ~torch.isnan(temp)
+            finalAtt[nan_mask] = temp[nan_mask]
             if (torch.isnan(finalAtt).any()):
                 print("Tempatt is nan in iteration ", i)
 
