@@ -339,15 +339,19 @@ class RecurrentTemporalAttention(nn.Module):
         # Run self-attention
         # from pdb import set_trace
         # set_trace()
-        attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
+        attObj_unfiltered = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
 
         # shape = attObj[0].shape
 
         # Filter nans
-        for att in attObj:
+        attObj = []
+        for att in attObj_unfiltered:
             # att[torch.isnan(att)] = 0
 
-            att = att.masked_scatter_(torch.isnan(att), 1.-torch.isnan(att).float())
+            filtered = torch.zeros_like(att)
+            filtered.masked_scatter_(~torch.isnan(att), att)
+
+            attObj.append(filtered)
 
         # Run temporal attention
         finalAtt = attObj[0]
