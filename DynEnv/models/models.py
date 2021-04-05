@@ -335,6 +335,8 @@ class RecurrentTemporalAttention(nn.Module):
 
         # create masks
         tensor, masks = x
+        if (torch.isnan(tensor).any()):
+            print("Tensor is nan")
 
         # Run self-attention
         # from pdb import set_trace
@@ -344,23 +346,24 @@ class RecurrentTemporalAttention(nn.Module):
         # shape = attObj[0].shape
 
         # Filter nans
-        attObj = []
-        for att in attObj_unfiltered:
+        for i, att in enumerate(attObj_unfiltered):
             filtered = torch.zeros_like(att)
-            filtered.masked_scatter_(~torch.isnan(att), att)
-
+            filtered = filtered.masked_scatter_(~torch.isnan(att), att)
             attObj.append(filtered)
+            if (torch.isnan(filtered).any()):
+                print("Objatt is nan in iteration ", i)
 
         # Run temporal attention
         finalAtt = attObj[0]
         finalMask = masks[0]
         for i in range(0, len(attObj) - 1):
-            finalAtt = self.bn(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
+            temp = self.bn(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
             finalMask = masks[i + 1] & finalMask
             # Filter nans
-            # finalAtt[torch.isnan(finalAtt)] = 0
-            
-            finalAtt.masked_scatter_(torch.isnan(finalAtt), torch.zeros_like(finalAtt))
+            finalAtt = torch.zeros_like(temp)
+            finalAtt = finalAtt.masked_scatter_(~torch.isnan(temp), temp)
+            if (torch.isnan(finalAtt).any()):
+                print("Tempatt is nan in iteration ", i)
 
         # Mask out final attention results
         finalMask = finalMask.permute(1, 0)

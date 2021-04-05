@@ -1,6 +1,6 @@
 from .cutils import CollisionType, friction_robot
 from pymunk import Body, Segment, moment_for_segment, Vec2d
-from pymunk.constraint import PivotJoint, RotaryLimitJoint
+from pymunk.constraints import PivotJoint, RotaryLimitJoint
 import math
 import random
 

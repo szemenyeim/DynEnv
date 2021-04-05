@@ -1,9 +1,9 @@
 import os
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
-import pymunkoptions
+#import pymunkoptions
 
-pymunkoptions.options["debug"] = False
+#pymunkoptions.options["debug"] = False
 from DynEnv import *
 from DynEnv.models.agent import ICMAgent
 from DynEnv.examples.args import get_args
