@@ -337,8 +337,8 @@ class RecurrentTemporalAttention(nn.Module):
         tensor, masks = x
 
         # Run self-attention
-        from pdb import set_trace
-        set_trace()
+        # from pdb import set_trace
+        # set_trace()
         attObj = [self.objAtt(objs, objs, objs, mask)[0] for objs, mask in zip(tensor, masks)]
 
         # shape = attObj[0].shape
