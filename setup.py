@@ -33,6 +33,7 @@ setuptools.setup(
         'xlwt',
         'best',
         'scipy',
-        'pymc3'
+        'pymc3',
+        'progressbar2'
     ],
  )
