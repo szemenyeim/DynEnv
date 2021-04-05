@@ -358,7 +358,9 @@ class RecurrentTemporalAttention(nn.Module):
             finalAtt = self.bn(self.tempAtt(attObj[i + 1], finalAtt, finalAtt, finalMask)[0])
             finalMask = masks[i + 1] & finalMask
             # Filter nans
-            finalAtt[torch.isnan(finalAtt)] = 0
+            # finalAtt[torch.isnan(finalAtt)] = 0
+            
+            finalAtt.masked_scatter_(torch.isnan(finalAtt), torch.zeros_like(finalAtt))
 
         # Mask out final attention results
         finalMask = finalMask.permute(1, 0)
