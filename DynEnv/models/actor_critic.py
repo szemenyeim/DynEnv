@@ -12,7 +12,7 @@ from ..utils.utils import flatten
 
 class A2CNet(nn.Module):
     def __init__(self, num_envs, num_players, action_descriptor, obs_space, feature_size, num_rollout, num_time,
-                 reco_desc, loc_feature_cnt, use_ppo):
+                 reco_desc, loc_feature_cnt, use_ppo, seed):
         """
         Implementation of the Advantage Actor-Critic (A2C) network
 
@@ -40,7 +40,7 @@ class A2CNet(nn.Module):
         self.actor = ActorLayer(self.feature_size * 2, self.action_descriptor)
 
         if self.use_ppo:
-            self.ppo_actor_path = join(dirname(abspath(__file__)), "ppo_actor.pth")
+            self.ppo_actor_path = join(dirname(abspath(__file__)), str(seed) + " ppo_actor.pth")
 
             # save actor state_dict if using PPO
             # the save in __init__ is needed as at the first time step,
