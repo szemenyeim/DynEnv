@@ -29,6 +29,13 @@ do
             ARGS+=" --long-horizon-coeff 1e-3"
             NOTE+="LongTermPred"
         fi
+
+        if [ "$arg" == "--ppo" ]
+        then
+            ARGS+=" --use-ppo True"
+            NOTE+="PPO"
+        fi
+
     done
    # echo "$seed"
    # echo "$NOTE"
