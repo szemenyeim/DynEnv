@@ -7,12 +7,16 @@ do
 
     for arg in "$@"
     do
-         if [ "$arg" == "--rcm" ]
+        if [ "$arg" == "--rcm" ]
         then
             ARGS+=" --use-rcm True"
             NOTE+="RCM-"
-        else
+        elif [ "$arg" == "--icm" ]
+        then
             NOTE+="ICM-"
+        else
+            ARGS+=" --icm-beta 0.0 --forward-coeff 0.0"
+            NOTE+="Vanilla-"
         fi
 
         if [ "$arg" == "--partial" ]
