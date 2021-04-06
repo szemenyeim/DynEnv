@@ -7,6 +7,14 @@ do
 
     for arg in "$@"
     do
+         if [ "$arg" == "--rcm" ]
+        then
+            ARGS+=" --use-rcm True"
+            NOTE+="RCM-"
+        else
+            NOTE+="ICM-"
+        fi
+
         if [ "$arg" == "--partial" ]
         then
             ARGS+=" --observationType PARTIAL"
@@ -23,18 +31,20 @@ do
             NOTE+="Recon-"
         fi
         
-        
+
+        if [ "$arg" == "--ppo" ]
+        then
+            ARGS+=" --use-ppo True"
+            NOTE+="PPO-"
+        fi
+
         if [ "$arg" == "--longterm" ]
         then
             ARGS+=" --long-horizon-coeff 1e-3"
             NOTE+="LongTermPred"
         fi
 
-        if [ "$arg" == "--ppo" ]
-        then
-            ARGS+=" --use-ppo True"
-            NOTE+="PPO"
-        fi
+
 
     done
    # echo "$seed"

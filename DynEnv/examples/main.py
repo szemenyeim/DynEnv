@@ -11,8 +11,6 @@ from DynEnv.models.train import Runner
 from DynEnv.utils.utils import set_random_seeds, NetworkParameters, RewardType, AttentionTarget, AttentionType
 
 if __name__ == '__main__':
-    import torch
-    torch.autograd.set_detect_anomaly(True)
 
     # arg parsing
     args = get_args()
@@ -22,8 +20,15 @@ if __name__ == '__main__':
 
     # constants
     feature_size = 64
-    attn_target = AttentionTarget.ICM_LOSS
-    attn_type = AttentionType.SINGLE_ATTENTION
+
+    if args.use_rcm is True:
+        # RCM
+        attn_target = AttentionTarget.ICM_LOSS
+        attn_type = AttentionType.SINGLE_ATTENTION
+    else:
+        # ICM
+        attn_target = AttentionTarget.NONE
+        attn_type = AttentionType.SINGLE_ATTENTION
 
     # env
     env, env_name = make_dyn_env(args.env, args.num_envs, args.num_players, args.render, args.observationType,

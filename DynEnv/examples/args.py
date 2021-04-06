@@ -77,6 +77,8 @@ def get_args():
                         help='long-term forward loss weight factor in the ICM loss')
     parser.add_argument('--recon-factor', type=float, default=1e-2, metavar='RECON_FACTOR',
                         help='recon loss weight factor in the loss')
+    parser.add_argument('--use-rcm', type=bool, default=False, metavar='USE_RCM',
+                        help='Enable the RCM')
 
 
     # Reconstruction settings
