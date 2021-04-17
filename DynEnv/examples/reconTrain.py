@@ -206,9 +206,9 @@ if __name__ == '__main__':
     timesteps = 7 #if localization else 9
     epochNum = 30
     num_time = 5
+    actionCnt = sum([sum(space.shape) for space in action_size.spaces])
 
-    net = DynEvnEncoder(feature_size, batch_size, timesteps, num_players, num_time, loc_obs_space, obj_obs_space, reco_desc).cuda()
-
+    net = DynEvnEncoder(feature_size, batch_size, timesteps, num_players, num_time, loc_obs_space, obj_obs_space, reco_desc, actionCnt, 6).cuda()
     '''if not localization:
         suffix = "Loc.pth"
         net.load_state_dict(torch.load("models/net" + suffix))'''
