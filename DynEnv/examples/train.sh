@@ -14,7 +14,8 @@ do
         elif [ "$arg" == "--icm" ]
         then
             NOTE+="ICM-"
-        else
+        elif [ "$arg" == "--vanilla" ]
+        then
             ARGS+=" --icm-beta 0.0 --forward-coeff 0.0"
             NOTE+="Vanilla-"
         fi
